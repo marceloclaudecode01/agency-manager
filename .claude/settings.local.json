@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker --version:*)",
+      "Bash(docker info:*)",
+      "Bash(winget install:*)",
+      "Bash(export PATH:*)",
+      "Bash(pip install:*)",
+      "Bash(docker compose up:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker compose:*)",
+      "Bash(curl:*)",
+      "Bash(python -c:*)",
+      "Bash(export PATH=\"/c/Users/MARCELO SANTOS/AppData/Local/Programs/Python/Python312:$PATH\":*)",
+      "WebFetch(domain:vt.tiktok.com)",
+      "WebSearch",
+      "WebFetch(domain:www.tiktok.com)",
+      "WebFetch(domain:shop.tiktok.com)",
+      "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:developers.facebook.com)",
+      "WebFetch(domain:elfsight.com)",
+      "Bash(npm install:*)",
+      "Bash(npx next build:*)",
+      "Bash(ls:*)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(test:*)"
+    ]
+  }
+}
