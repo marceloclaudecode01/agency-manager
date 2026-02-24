@@ -15,6 +15,13 @@ import { ArrowLeft, Pencil, Trash2, Calendar, Target } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 
+const priorityBadge: Record<string, { variant: any; label: string }> = {
+  LOW: { variant: 'default', label: 'Baixa' },
+  MEDIUM: { variant: 'info', label: 'Média' },
+  HIGH: { variant: 'warning', label: 'Alta' },
+  URGENT: { variant: 'error', label: 'Urgente' },
+};
+
 const statusBadge: Record<string, { variant: any; label: string }> = {
   PLANNING: { variant: 'info', label: 'Planejamento' },
   ACTIVE: { variant: 'success', label: 'Ativa' },
@@ -31,7 +38,7 @@ export default function CampaignDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', status: '', budget: '', goals: '' });
+  const [form, setForm] = useState({ name: '', description: '', status: '', budget: '', goals: '', startDate: '', endDate: '' });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { loadCampaign(); }, [id]);
@@ -46,6 +53,8 @@ export default function CampaignDetailPage() {
         status: data.data.status,
         budget: data.data.budget?.toString() || '',
         goals: data.data.goals || '',
+        startDate: data.data.startDate ? data.data.startDate.split('T')[0] : '',
+        endDate: data.data.endDate ? data.data.endDate.split('T')[0] : '',
       });
     } catch { router.push('/campaigns'); }
     finally { setLoading(false); }
@@ -55,7 +64,12 @@ export default function CampaignDetailPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.put(`/campaigns/${id}`, { ...form, budget: form.budget ? parseFloat(form.budget) : undefined });
+      await api.put(`/campaigns/${id}`, {
+        ...form,
+        budget: form.budget ? parseFloat(form.budget) : undefined,
+        startDate: form.startDate || undefined,
+        endDate: form.endDate || undefined,
+      });
       setShowEdit(false);
       toast('Campanha atualizada com sucesso');
       loadCampaign();
@@ -172,7 +186,7 @@ export default function CampaignDetailPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {t.assignee && <span className="text-xs text-text-secondary">{t.assignee.name}</span>}
-                      <Badge variant={t.priority === 'URGENT' ? 'error' : t.priority === 'HIGH' ? 'warning' : 'default'}>{t.priority}</Badge>
+                      <Badge variant={priorityBadge[t.priority]?.variant}>{priorityBadge[t.priority]?.label}</Badge>
                     </div>
                   </div>
                 </Link>
@@ -193,6 +207,10 @@ export default function CampaignDetailPage() {
             <option value="CANCELLED">Cancelada</option>
           </select>
           <Input label="Orçamento" type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Data Início" type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
+            <Input label="Data Fim" type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
+          </div>
           <textarea
             placeholder="Descrição"
             value={form.description}

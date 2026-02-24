@@ -33,11 +33,12 @@ export default function FinancePage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [summary, setSummary] = useState({ totalRevenue: 0, pendingAmount: 0, pendingCount: 0, paidCount: 0 });
   const [clients, setClients] = useState<any[]>([]);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'budgets' | 'invoices'>('budgets');
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [budgetForm, setBudgetForm] = useState({ clientId: '', total: '', status: 'DRAFT' });
+  const [budgetForm, setBudgetForm] = useState({ title: '', clientId: '', campaignId: '', total: '', status: 'DRAFT' });
   const [invoiceForm, setInvoiceForm] = useState({ clientId: '', amount: '', dueDate: '' });
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'budget' | 'invoice'; id: string } | null>(null);
@@ -46,16 +47,18 @@ export default function FinancePage() {
 
   const loadData = async () => {
     try {
-      const [budgetsRes, invoicesRes, summaryRes, clientsRes] = await Promise.all([
+      const [budgetsRes, invoicesRes, summaryRes, clientsRes, campRes] = await Promise.all([
         api.get('/finance/budgets'),
         api.get('/finance/invoices'),
         api.get('/finance/summary'),
         api.get('/clients'),
+        api.get('/campaigns'),
       ]);
       setBudgets(budgetsRes.data.data || []);
       setInvoices(invoicesRes.data.data || []);
       setSummary(summaryRes.data.data || {});
       setClients(clientsRes.data.data || []);
+      setCampaigns(campRes.data.data || []);
     } catch {
       toast('Erro ao carregar dados financeiros', 'error');
     } finally {
@@ -67,9 +70,15 @@ export default function FinancePage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/finance/budgets', { clientId: budgetForm.clientId, total: parseFloat(budgetForm.total), status: budgetForm.status });
+      await api.post('/finance/budgets', {
+        title: budgetForm.title,
+        clientId: budgetForm.clientId,
+        campaignId: budgetForm.campaignId || undefined,
+        total: parseFloat(budgetForm.total),
+        status: budgetForm.status,
+      });
       setShowBudgetModal(false);
-      setBudgetForm({ clientId: '', total: '', status: 'DRAFT' });
+      setBudgetForm({ title: '', clientId: '', campaignId: '', total: '', status: 'DRAFT' });
       toast('Orçamento criado com sucesso');
       loadData();
     } catch {
@@ -140,6 +149,7 @@ export default function FinancePage() {
         <div className="rounded-xl border border-border overflow-x-auto">
           <table className="w-full min-w-[600px]">
             <thead><tr className="bg-surface-hover/50 text-left">
+              <th className="px-4 py-3 text-xs font-medium text-text-secondary">Título</th>
               <th className="px-4 py-3 text-xs font-medium text-text-secondary">Cliente</th>
               <th className="px-4 py-3 text-xs font-medium text-text-secondary">Campanha</th>
               <th className="px-4 py-3 text-xs font-medium text-text-secondary">Total</th>
@@ -150,6 +160,7 @@ export default function FinancePage() {
             <tbody>
               {budgets.map((b) => (
                 <tr key={b.id} className="border-t border-border hover:bg-surface-hover/30">
+                  <td className="px-4 py-3 text-sm text-text-primary font-medium">{b.title}</td>
                   <td className="px-4 py-3 text-sm text-text-primary">{b.client?.name}</td>
                   <td className="px-4 py-3 text-sm text-text-secondary">{b.campaign?.name || '-'}</td>
                   <td className="px-4 py-3 text-sm text-text-primary font-medium">{formatCurrency(b.total)}</td>
@@ -158,7 +169,7 @@ export default function FinancePage() {
                   <td className="px-4 py-3"><button onClick={() => setDeleteConfirm({ type: 'budget', id: b.id })} className="text-xs text-error hover:text-red-400">Excluir</button></td>
                 </tr>
               ))}
-              {budgets.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-text-secondary">Nenhum orçamento</td></tr>}
+              {budgets.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-text-secondary">Nenhum orçamento</td></tr>}
             </tbody>
           </table>
         </div>
@@ -192,11 +203,19 @@ export default function FinancePage() {
 
       <Modal isOpen={showBudgetModal} onClose={() => setShowBudgetModal(false)} title="Novo Orçamento">
         <form onSubmit={createBudget} className="space-y-4">
+          <Input label="Título *" value={budgetForm.title} onChange={(e) => setBudgetForm({ ...budgetForm, title: e.target.value })} required />
           <div className="space-y-1">
             <label className="block text-sm font-medium text-text-secondary">Cliente *</label>
             <select value={budgetForm.clientId} onChange={(e) => setBudgetForm({ ...budgetForm, clientId: e.target.value })} className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-text-primary" required>
               <option value="">Selecionar</option>
               {clients.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-text-secondary">Campanha</label>
+            <select value={budgetForm.campaignId} onChange={(e) => setBudgetForm({ ...budgetForm, campaignId: e.target.value })} className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-text-primary">
+              <option value="">Sem campanha</option>
+              {campaigns.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <Input label="Total *" type="number" value={budgetForm.total} onChange={(e) => setBudgetForm({ ...budgetForm, total: e.target.value })} required />

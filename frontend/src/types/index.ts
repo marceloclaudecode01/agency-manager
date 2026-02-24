@@ -57,9 +57,10 @@ export interface Task {
 
 export interface Budget {
   id: string;
+  title: string;
   clientId: string;
   campaignId?: string;
-  items: any[];
+  items: { description: string; amount: number }[];
   total: number;
   status: 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED';
   createdAt: string;
@@ -85,6 +86,7 @@ export interface Invoice {
 export interface CalendarEvent {
   id: string;
   title: string;
+  description?: string;
   type: 'MEETING' | 'DEADLINE' | 'DELIVERY' | 'OTHER';
   date: string;
   endDate?: string;
@@ -94,6 +96,27 @@ export interface CalendarEvent {
   updatedAt: string;
   campaign?: { id: string; name: string };
   user?: { id: string; name: string; avatar?: string };
+}
+
+export interface DashboardSummary {
+  kpis: {
+    activeClients: number;
+    activeCampaigns: number;
+    pendingTasks: number;
+    monthRevenue: number;
+  };
+  revenueChart: { month: string; total: number }[];
+  recentCampaigns: {
+    id: string;
+    name: string;
+    client: { id: string; name: string };
+    status: string;
+    progress: number;
+    totalTasks: number;
+    doneTasks: number;
+  }[];
+  myTasks: Task[];
+  recentClients: Pick<Client, 'id' | 'name' | 'company' | 'status' | 'createdAt'>[];
 }
 
 export interface ApiResponse<T> {

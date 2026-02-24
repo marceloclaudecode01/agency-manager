@@ -29,7 +29,7 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showModal, setShowModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [form, setForm] = useState({ title: '', type: 'OTHER', date: '', endDate: '', campaignId: '' });
+  const [form, setForm] = useState({ title: '', description: '', type: 'OTHER', date: '', endDate: '', campaignId: '' });
   const [saving, setSaving] = useState(false);
 
   const year = currentDate.getFullYear();
@@ -56,9 +56,9 @@ export default function CalendarPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/calendar', { ...form, campaignId: form.campaignId || undefined, endDate: form.endDate || undefined });
+      await api.post('/calendar', { ...form, campaignId: form.campaignId || undefined, endDate: form.endDate || undefined, description: form.description || undefined });
       setShowModal(false);
-      setForm({ title: '', type: 'OTHER', date: '', endDate: '', campaignId: '' });
+      setForm({ title: '', description: '', type: 'OTHER', date: '', endDate: '', campaignId: '' });
       toast('Evento criado com sucesso');
       loadData();
     } catch {
@@ -171,6 +171,10 @@ export default function CalendarPage() {
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Novo Evento">
         <form onSubmit={handleCreate} className="space-y-4">
           <Input label="Título *" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-text-secondary">Descrição</label>
+            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" placeholder="Detalhes do evento..." />
+          </div>
           <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-text-primary">
             <option value="MEETING">Reunião</option>
             <option value="DEADLINE">Prazo</option>

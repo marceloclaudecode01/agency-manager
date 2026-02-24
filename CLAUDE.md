@@ -57,4 +57,3 @@ PORT=3333
 ### Frontend (.env.local)
 ```
 NEXT_PUBLIC_API_URL=http://localhost:3333/api
-```

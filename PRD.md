@@ -12,11 +12,11 @@ Sistema completo de gestão interna para agências de marketing digital. Permite
 
 ## Perfis de Usuário
 
-| Perfil    | Permissões                                                    |
-|-----------|---------------------------------------------------------------|
-| ADMIN     | Acesso total: CRUD em tudo, gerenciar usuários, ver finanças |
-| MANAGER   | Gerenciar clientes, campanhas, tarefas, ver relatórios       |
-| MEMBER    | Ver tarefas atribuídas, atualizar status, ver calendário     |
+| Perfil  | Permissões                                                    |
+|---------|---------------------------------------------------------------|
+| ADMIN   | Acesso total: CRUD em tudo, gerenciar usuários, ver finanças |
+| MANAGER | Gerenciar clientes, campanhas, tarefas, ver relatórios       |
+| MEMBER  | Ver tarefas atribuídas, atualizar status, ver calendário     |
 
 ## Módulos
 
@@ -56,7 +56,7 @@ Sistema completo de gestão interna para agências de marketing digital. Permite
 - Filtrar por campanha, responsável, prioridade
 
 ### 6. Financeiro
-- Orçamentos (Budgets): criar vinculado a cliente/campanha, itens com valor, status DRAFT/SENT/APPROVED/REJECTED
+- Orçamentos (Budgets): criar vinculado a cliente/campanha, com título e itens detalhados (descrição + valor), status DRAFT/SENT/APPROVED/REJECTED
 - Faturas (Invoices): gerar a partir de orçamento aprovado, status PENDING/PAID/OVERDUE/CANCELLED
 - Visão geral: receita total, despesas, lucro, faturas pendentes
 - Filtro por período e cliente
@@ -70,8 +70,15 @@ Sistema completo de gestão interna para agências de marketing digital. Permite
 ### 8. Calendário
 - Visão mensal e semanal
 - Tipos de evento: MEETING, DEADLINE, DELIVERY, OTHER
-- Criar evento vinculado a campanha e/ou usuário
+- Criar evento com: título, descrição, tipo, data, data de término (opcional), campanha (opcional), usuário responsável (opcional)
 - Cores por tipo de evento
+
+### 9. Usuários (Gestão de Equipe)
+- Listagem de todos os usuários da agência (ADMIN e MANAGER)
+- Criar novo usuário (ADMIN)
+- Editar perfil e role de usuário (ADMIN)
+- Remover usuário (ADMIN)
+- Ver perfil próprio e editar dados pessoais (todos)
 
 ## API Endpoints
 
@@ -79,48 +86,87 @@ Sistema completo de gestão interna para agências de marketing digital. Permite
 - `POST /api/auth/register` — Criar conta
 - `POST /api/auth/login` — Login
 - `GET /api/auth/me` — Perfil do usuário logado
+- `PUT /api/auth/me` — Atualizar perfil próprio
+
+### Dashboard
+- `GET /api/dashboard/summary` — KPIs agregados: clientes ativos, campanhas ativas, tarefas pendentes, receita mensal, receita dos últimos 6 meses, campanhas recentes, tarefas do usuário logado
 
 ### Clients
-- `GET /api/clients` — Listar clientes
-- `GET /api/clients/:id` — Detalhe do cliente
-- `POST /api/clients` — Criar cliente
-- `PUT /api/clients/:id` — Atualizar cliente
-- `DELETE /api/clients/:id` — Remover cliente
+- `GET /api/clients` — Listar clientes (filtros: status, busca por nome)
+- `GET /api/clients/:id` — Detalhe do cliente (inclui campanhas e faturas)
+- `POST /api/clients` — Criar cliente *(ADMIN, MANAGER)*
+- `PUT /api/clients/:id` — Atualizar cliente *(ADMIN, MANAGER)*
+- `DELETE /api/clients/:id` — Remover cliente *(ADMIN)*
 
 ### Campaigns
-- `GET /api/campaigns` — Listar campanhas
-- `GET /api/campaigns/:id` — Detalhe da campanha
-- `POST /api/campaigns` — Criar campanha
-- `PUT /api/campaigns/:id` — Atualizar campanha
-- `DELETE /api/campaigns/:id` — Remover campanha
+- `GET /api/campaigns` — Listar campanhas (filtros: status, clientId)
+- `GET /api/campaigns/:id` — Detalhe da campanha (inclui tarefas e orçamentos)
+- `POST /api/campaigns` — Criar campanha *(ADMIN, MANAGER)*
+- `PUT /api/campaigns/:id` — Atualizar campanha *(ADMIN, MANAGER)*
+- `DELETE /api/campaigns/:id` — Remover campanha *(ADMIN)*
 
 ### Tasks
-- `GET /api/tasks` — Listar tarefas (filtros: status, assignee, campaign)
+- `GET /api/tasks` — Listar tarefas (filtros: status, assigneeId, campaignId, priority)
 - `GET /api/tasks/:id` — Detalhe da tarefa
-- `POST /api/tasks` — Criar tarefa
-- `PUT /api/tasks/:id` — Atualizar tarefa
-- `PATCH /api/tasks/:id/status` — Atualizar apenas status
-- `DELETE /api/tasks/:id` — Remover tarefa
+- `POST /api/tasks` — Criar tarefa *(ADMIN, MANAGER)*
+- `PUT /api/tasks/:id` — Atualizar tarefa *(ADMIN, MANAGER)*
+- `PATCH /api/tasks/:id/status` — Atualizar apenas status *(todos)*
+- `DELETE /api/tasks/:id` — Remover tarefa *(ADMIN)*
 
 ### Finance
-- `GET /api/finance/budgets` — Listar orçamentos
-- `POST /api/finance/budgets` — Criar orçamento
-- `PUT /api/finance/budgets/:id` — Atualizar orçamento
-- `GET /api/finance/invoices` — Listar faturas
-- `POST /api/finance/invoices` — Criar fatura
-- `PUT /api/finance/invoices/:id` — Atualizar fatura
-- `GET /api/finance/summary` — Resumo financeiro
+- `GET /api/finance/budgets` — Listar orçamentos (filtros: status, clientId)
+- `GET /api/finance/budgets/:id` — Detalhe do orçamento
+- `POST /api/finance/budgets` — Criar orçamento *(ADMIN, MANAGER)*
+- `PUT /api/finance/budgets/:id` — Atualizar orçamento *(ADMIN, MANAGER)*
+- `DELETE /api/finance/budgets/:id` — Remover orçamento *(ADMIN)*
+- `GET /api/finance/invoices` — Listar faturas (filtros: status, clientId)
+- `GET /api/finance/invoices/:id` — Detalhe da fatura
+- `POST /api/finance/invoices` — Criar fatura *(ADMIN, MANAGER)*
+- `PUT /api/finance/invoices/:id` — Atualizar fatura *(ADMIN, MANAGER)*
+- `DELETE /api/finance/invoices/:id` — Remover fatura *(ADMIN)*
+- `GET /api/finance/summary` — Resumo financeiro *(ADMIN, MANAGER)*
 
 ### Reports
-- `GET /api/reports/revenue` — Receita por período
-- `GET /api/reports/campaigns` — Performance das campanhas
-- `GET /api/reports/clients` — Ranking de clientes
+- `GET /api/reports/revenue` — Receita por período *(ADMIN, MANAGER)*
+- `GET /api/reports/campaigns` — Performance das campanhas *(ADMIN, MANAGER)*
+- `GET /api/reports/clients` — Ranking de clientes *(ADMIN, MANAGER)*
 
 ### Calendar
-- `GET /api/calendar` — Listar eventos (filtro por mês)
-- `POST /api/calendar` — Criar evento
-- `PUT /api/calendar/:id` — Atualizar evento
-- `DELETE /api/calendar/:id` — Remover evento
+- `GET /api/calendar` — Listar eventos (filtro por mês/ano)
+- `GET /api/calendar/:id` — Detalhe do evento
+- `POST /api/calendar` — Criar evento *(ADMIN, MANAGER)*
+- `PUT /api/calendar/:id` — Atualizar evento *(ADMIN, MANAGER)*
+- `DELETE /api/calendar/:id` — Remover evento *(ADMIN, MANAGER)*
+
+### Users
+- `GET /api/users` — Listar usuários da equipe *(ADMIN, MANAGER)*
+- `GET /api/users/:id` — Detalhe de um usuário *(ADMIN, MANAGER)*
+- `PUT /api/users/:id` — Atualizar usuário (role, nome, etc.) *(ADMIN)*
+- `DELETE /api/users/:id` — Remover usuário *(ADMIN)*
+
+## Permissões por Role
+
+| Ação                          | ADMIN | MANAGER | MEMBER |
+|-------------------------------|-------|---------|--------|
+| Ver dashboard                 | ✅    | ✅      | ✅     |
+| CRUD clientes                 | ✅    | ✅ (sem delete) | ❌ |
+| CRUD campanhas                | ✅    | ✅ (sem delete) | ❌ |
+| Criar/editar tarefas          | ✅    | ✅      | ❌     |
+| Atualizar status de tarefa    | ✅    | ✅      | ✅     |
+| Ver/criar financeiro          | ✅    | ✅      | ❌     |
+| Deletar registros financeiros | ✅    | ❌      | ❌     |
+| Ver relatórios                | ✅    | ✅      | ❌     |
+| Gerenciar usuários            | ✅    | ❌      | ❌     |
+| Ver lista de usuários         | ✅    | ✅      | ❌     |
+| CRUD calendário               | ✅    | ✅      | ❌     |
+| Ver calendário                | ✅    | ✅      | ✅     |
+
+## Schema — Campos Adicionais
+
+Os seguintes campos devem ser adicionados ao schema Prisma (não estão no código original):
+
+- `Budget`: adicionar `title String` (nome/título do orçamento)
+- `CalendarEvent`: adicionar `description String?`
 
 ## Requisitos Não-Funcionais
 

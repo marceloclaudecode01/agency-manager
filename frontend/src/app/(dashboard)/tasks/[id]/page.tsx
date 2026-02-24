@@ -33,29 +33,33 @@ export default function TaskDetailPage() {
   const { toast } = useToast();
   const [task, setTask] = useState<Task | null>(null);
   const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', status: '', priority: '', campaignId: '', dueDate: '' });
+  const [form, setForm] = useState({ title: '', description: '', status: '', priority: '', campaignId: '', assigneeId: '', dueDate: '' });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { loadTask(); }, [id]);
 
   const loadTask = async () => {
     try {
-      const [taskRes, campRes] = await Promise.all([
+      const [taskRes, campRes, usersRes] = await Promise.all([
         api.get(`/tasks/${id}`),
         api.get('/campaigns'),
+        api.get('/users'),
       ]);
       const t = taskRes.data.data;
       setTask(t);
       setCampaigns(campRes.data.data || []);
+      setUsers(usersRes.data.data || []);
       setForm({
         title: t.title || '',
         description: t.description || '',
         status: t.status,
         priority: t.priority,
         campaignId: t.campaignId || '',
+        assigneeId: t.assigneeId || '',
         dueDate: t.dueDate ? t.dueDate.split('T')[0] : '',
       });
     } catch {
@@ -72,6 +76,7 @@ export default function TaskDetailPage() {
       await api.put(`/tasks/${id}`, {
         ...form,
         campaignId: form.campaignId || undefined,
+        assigneeId: form.assigneeId || undefined,
         dueDate: form.dueDate || undefined,
       });
       setShowEdit(false);
@@ -213,6 +218,10 @@ export default function TaskDetailPage() {
             <option value="MEDIUM">Média</option>
             <option value="HIGH">Alta</option>
             <option value="URGENT">Urgente</option>
+          </select>
+          <select value={form.assigneeId} onChange={(e) => setForm({ ...form, assigneeId: e.target.value })} className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-text-primary">
+            <option value="">Sem responsável</option>
+            {users.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
           <select value={form.campaignId} onChange={(e) => setForm({ ...form, campaignId: e.target.value })} className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-text-primary">
             <option value="">Sem campanha</option>

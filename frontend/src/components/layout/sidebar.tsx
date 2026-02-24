@@ -4,17 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
-  LayoutDashboard,
-  Users,
-  UsersRound,
-  Megaphone,
-  CheckSquare,
-  DollarSign,
-  BarChart3,
-  Calendar,
-  LogOut,
-  Settings,
-  X,
+  LayoutDashboard, Users, UsersRound, Megaphone, CheckSquare,
+  DollarSign, BarChart3, Calendar, LogOut, Settings, X, Facebook,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -26,6 +17,7 @@ const menuItems = [
   { href: '/finance', icon: DollarSign, label: 'Financeiro' },
   { href: '/reports', icon: BarChart3, label: 'Relatórios' },
   { href: '/calendar', icon: Calendar, label: 'Calendário' },
+  { href: '/social', icon: Facebook, label: 'Social Media' },
   { href: '/team', icon: UsersRound, label: 'Equipe' },
   { href: '/settings', icon: Settings, label: 'Configurações' },
 ];
@@ -41,11 +33,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile overlay */}
       {isOpen && (
         <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={onClose} />
       )}
-
       <aside
         className={cn(
           'fixed left-0 top-0 z-40 h-screen w-64 border-r border-border bg-surface flex flex-col transition-transform duration-300',

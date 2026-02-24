@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const createBudgetSchema = z.object({
+  title: z.string().min(2, 'Title must be at least 2 characters'),
   clientId: z.string().min(1, 'Client ID is required'),
   campaignId: z.string().optional().nullable(),
   items: z.array(z.object({

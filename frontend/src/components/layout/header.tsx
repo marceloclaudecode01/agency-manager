@@ -12,6 +12,7 @@ const pageTitles: Record<string, string> = {
   '/reports': 'Relatórios',
   '/calendar': 'Calendário',
   '/team': 'Equipe',
+  '/social': 'Social Media',
   '/settings': 'Configurações',
 };
 

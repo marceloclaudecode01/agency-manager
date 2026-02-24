@@ -42,5 +42,10 @@ export function useAuth() {
     router.push('/login');
   };
 
-  return { user, loading, login, register, logout };
+  const updateUser = (updated: User) => {
+    setUser(updated);
+    localStorage.setItem('user', JSON.stringify(updated));
+  };
+
+  return { user, loading, login, register, logout, updateUser };
 }

@@ -23,7 +23,26 @@
       "Bash(npx next build:*)",
       "Bash(ls:*)",
       "Bash(npx tsc --noEmit)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(python3:*)",
+      "Bash(node:*)",
+      "Bash(cat:*)",
+      "Bash(cd \"/c/Users/MARCELO SANTOS/Desktop/test/backend\" && npx prisma db push 2>&1)",
+      "Bash(cd \"/c/Users/MARCELO SANTOS/Desktop/test/backend\" && npm run prisma:seed 2>&1)",
+      "Bash(tail:*)",
+      "Bash(mkdir:*)",
+      "Bash(sed:*)",
+      "Bash(pkill:*)",
+      "Bash(cd:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(echo EXIT:$?:*)",
+      "Bash(cd \"/c/Users/MARCELO SANTOS/Desktop/test/backend\" && npx prisma db seed 2>&1)",
+      "Bash(sleep 3:*)",
+      "Bash(npm run build:*)",
+      "Bash(wc:*)",
+      "Bash(npx prisma db push:*)",
+      "Bash(npx prisma db seed)"
     ]
   }
 }

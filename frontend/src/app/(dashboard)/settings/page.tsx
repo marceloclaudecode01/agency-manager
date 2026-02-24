@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +12,7 @@ import { User, Shield, Lock } from 'lucide-react';
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const { updateUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -40,7 +42,7 @@ export default function SettingsPage() {
     try {
       const { data } = await api.put('/auth/profile', profileForm);
       setUser(data.data);
-      localStorage.setItem('user', JSON.stringify(data.data));
+      updateUser(data.data);
       toast('Perfil atualizado com sucesso');
     } catch (err: any) {
       toast(err.response?.data?.message || 'Erro ao atualizar perfil', 'error');

@@ -10,11 +10,16 @@ import { useToast } from '@/components/ui/toast';
 import { formatCurrency } from '@/lib/utils';
 import { Users, UsersRound, Megaphone, CheckSquare, DollarSign } from 'lucide-react';
 
+const priorityBadge: Record<string, { variant: any; label: string }> = {
+  LOW: { variant: 'default', label: 'Baixa' },
+  MEDIUM: { variant: 'info', label: 'Média' },
+  HIGH: { variant: 'warning', label: 'Alta' },
+  URGENT: { variant: 'error', label: 'Urgente' },
+};
+
 export default function DashboardPage() {
   const { toast } = useToast();
-  const [stats, setStats] = useState({ clients: 0, campaigns: 0, tasks: 0, revenue: 0, teamMembers: 0 });
-  const [recentCampaigns, setRecentCampaigns] = useState<any[]>([]);
-  const [pendingTasks, setPendingTasks] = useState<any[]>([]);
+  const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,23 +28,8 @@ export default function DashboardPage() {
 
   const loadDashboard = async () => {
     try {
-      const [clientsRes, campaignsRes, tasksRes, summaryRes, usersRes] = await Promise.all([
-        api.get('/clients?status=ACTIVE'),
-        api.get('/campaigns?status=ACTIVE'),
-        api.get('/tasks?status=TODO'),
-        api.get('/finance/summary').catch(() => ({ data: { data: { totalRevenue: 0 } } })),
-        api.get('/users').catch(() => ({ data: { data: [] } })),
-      ]);
-
-      setStats({
-        clients: clientsRes.data.data?.length || 0,
-        campaigns: campaignsRes.data.data?.length || 0,
-        tasks: tasksRes.data.data?.length || 0,
-        revenue: summaryRes.data.data?.totalRevenue || 0,
-        teamMembers: usersRes.data.data?.length || 0,
-      });
-      setRecentCampaigns((campaignsRes.data.data || []).slice(0, 5));
-      setPendingTasks((tasksRes.data.data || []).slice(0, 5));
+      const { data } = await api.get('/dashboard/summary');
+      setSummary(data.data);
     } catch {
       toast('Erro ao carregar dashboard', 'error');
     } finally {
@@ -50,16 +40,15 @@ export default function DashboardPage() {
   if (loading) return <Loading />;
 
   const kpis = [
-    { label: 'Clientes Ativos', value: stats.clients, icon: Users, color: 'text-blue-400', href: '/clients' },
-    { label: 'Campanhas Ativas', value: stats.campaigns, icon: Megaphone, color: 'text-primary-300', href: '/campaigns' },
-    { label: 'Tarefas Pendentes', value: stats.tasks, icon: CheckSquare, color: 'text-warning', href: '/tasks' },
-    { label: 'Receita Total', value: formatCurrency(stats.revenue), icon: DollarSign, color: 'text-success', href: '/finance' },
-    { label: 'Equipe', value: stats.teamMembers, icon: UsersRound, color: 'text-secondary', href: '/team' },
+    { label: 'Clientes Ativos', value: summary?.kpis?.activeClients ?? 0, icon: Users, color: 'text-blue-400', href: '/clients' },
+    { label: 'Campanhas Ativas', value: summary?.kpis?.activeCampaigns ?? 0, icon: Megaphone, color: 'text-primary-300', href: '/campaigns' },
+    { label: 'Tarefas Pendentes', value: summary?.kpis?.pendingTasks ?? 0, icon: CheckSquare, color: 'text-warning', href: '/tasks' },
+    { label: 'Receita Mensal', value: formatCurrency(summary?.kpis?.monthRevenue ?? 0), icon: DollarSign, color: 'text-success', href: '/finance' },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((kpi) => (
           <Link key={kpi.label} href={kpi.href}>
             <Card className="hover:border-primary/30 transition-colors cursor-pointer">
@@ -81,23 +70,28 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Campanhas Ativas</CardTitle>
+              <CardTitle>Campanhas Recentes</CardTitle>
               <Link href="/campaigns" className="text-xs text-primary-300 hover:text-primary-200">Ver todas</Link>
             </div>
           </CardHeader>
           <CardContent>
-            {recentCampaigns.length === 0 ? (
+            {!summary?.recentCampaigns?.length ? (
               <p className="text-sm text-text-secondary">Nenhuma campanha ativa</p>
             ) : (
               <div className="space-y-3">
-                {recentCampaigns.map((c: any) => (
+                {summary.recentCampaigns.map((c: any) => (
                   <Link key={c.id} href={`/campaigns/${c.id}`}>
                     <div className="flex items-center justify-between rounded-lg bg-surface-hover/50 p-3 hover:bg-surface-hover transition-colors">
                       <div>
                         <p className="text-sm font-medium text-text-primary">{c.name}</p>
                         <p className="text-xs text-text-secondary">{c.client?.name}</p>
                       </div>
-                      <Badge variant="purple">{c._count?.tasks || 0} tarefas</Badge>
+                      <div className="text-right">
+                        <p className="text-xs text-text-secondary">{c.progress ?? 0}%</p>
+                        <div className="w-16 h-1.5 bg-surface rounded-full mt-1">
+                          <div className="h-1.5 bg-primary rounded-full" style={{ width: `${c.progress ?? 0}%` }} />
+                        </div>
+                      </div>
                     </div>
                   </Link>
                 ))}
@@ -109,24 +103,24 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Tarefas Pendentes</CardTitle>
+              <CardTitle>Minhas Tarefas Pendentes</CardTitle>
               <Link href="/tasks" className="text-xs text-primary-300 hover:text-primary-200">Ver todas</Link>
             </div>
           </CardHeader>
           <CardContent>
-            {pendingTasks.length === 0 ? (
-              <p className="text-sm text-text-secondary">Nenhuma tarefa pendente</p>
+            {!summary?.myTasks?.length ? (
+              <p className="text-sm text-text-secondary">Nenhuma tarefa atribuída</p>
             ) : (
               <div className="space-y-3">
-                {pendingTasks.map((t: any) => (
+                {summary.myTasks.map((t: any) => (
                   <Link key={t.id} href={`/tasks/${t.id}`}>
                     <div className="flex items-center justify-between rounded-lg bg-surface-hover/50 p-3 hover:bg-surface-hover transition-colors">
                       <div>
                         <p className="text-sm font-medium text-text-primary">{t.title}</p>
                         <p className="text-xs text-text-secondary">{t.campaign?.name || 'Sem campanha'}</p>
                       </div>
-                      <Badge variant={t.priority === 'URGENT' ? 'error' : t.priority === 'HIGH' ? 'warning' : 'default'}>
-                        {t.priority}
+                      <Badge variant={priorityBadge[t.priority]?.variant}>
+                        {priorityBadge[t.priority]?.label}
                       </Badge>
                     </div>
                   </Link>
@@ -136,6 +130,37 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {summary?.recentClients?.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UsersRound size={20} className="text-primary-300" />
+                <CardTitle>Clientes Recentes</CardTitle>
+              </div>
+              <Link href="/clients" className="text-xs text-primary-300 hover:text-primary-200">Ver todos</Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {summary.recentClients.map((c: any) => (
+                <Link key={c.id} href={`/clients/${c.id}`}>
+                  <div className="flex items-center gap-3 rounded-lg bg-surface-hover/50 p-3 hover:bg-surface-hover transition-colors">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary-300 flex-shrink-0">
+                      {c.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-text-primary truncate">{c.name}</p>
+                      <p className="text-xs text-text-secondary truncate">{c.company || '-'}</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
