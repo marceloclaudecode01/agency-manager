@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, Users, UsersRound, Megaphone, CheckSquare,
-  DollarSign, BarChart3, Calendar, LogOut, Settings, X, Facebook,
+  DollarSign, BarChart3, Calendar, LogOut, Settings, X, Facebook, MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -18,6 +18,7 @@ const menuItems = [
   { href: '/reports', icon: BarChart3, label: 'Relatórios' },
   { href: '/calendar', icon: Calendar, label: 'Calendário' },
   { href: '/social', icon: Facebook, label: 'Social Media' },
+  { href: '/chat', icon: MessageSquare, label: 'Chat' },
   { href: '/team', icon: UsersRound, label: 'Equipe' },
   { href: '/settings', icon: Settings, label: 'Configurações' },
 ];

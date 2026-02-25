@@ -44,6 +44,51 @@ Regras:
   return JSON.parse(jsonMatch[0]);
 }
 
+export async function generatePostFromStrategy(
+  topic: string,
+  focusType: string,
+  recentTopics: string[]
+): Promise<GeneratedPost> {
+  const focusInstructions: Record<string, string> = {
+    entretenimento: 'Tom leve e divertido. Compartilhe algo que vai entreter o público.',
+    engajamento: 'Faça uma pergunta ou crie uma enquete. O objetivo é gerar comentários e interação.',
+    novidade: 'Apresente uma novidade ou tendência. Tone informativo mas animado.',
+    cta: 'Inclua uma chamada para ação clara: curtir a página, compartilhar, ou acessar o serviço.',
+  };
+
+  const focusGuide = focusInstructions[focusType] || focusInstructions['entretenimento'];
+  const recentStr = recentTopics.length > 0 ? recentTopics.join(', ') : 'nenhum';
+
+  const prompt = `
+${PAGE_CONTEXT}
+
+Crie um post para o Facebook sobre o tema: "${topic}"
+Tipo de foco: ${focusType} — ${focusGuide}
+
+IMPORTANTE: NÃO repita esses temas recentes: ${recentStr}
+
+Retorne APENAS um JSON válido neste formato exato:
+{
+  "message": "texto do post aqui (sem hashtags, máx 300 caracteres)",
+  "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"],
+  "suggestedTime": "HH:MM",
+  "topic": "${topic}"
+}
+
+Regras:
+- A mensagem deve ser envolvente e original
+- Aplique o foco "${focusType}" conforme instruído
+- As hashtags devem ser relevantes e populares em português
+- O horário sugerido deve ser entre 12:00 e 22:00
+- Não inclua as hashtags na mensagem
+`;
+
+  const raw = await askGemini(prompt);
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Invalid response from Gemini');
+  return JSON.parse(jsonMatch[0]);
+}
+
 export async function generateWeeklyPlan(focus: string): Promise<GeneratedPost[]> {
   const prompt = `
 ${PAGE_CONTEXT}

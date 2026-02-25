@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../../types';
 import { ApiResponse } from '../../utils/api-response';
-import { generatePost, generateWeeklyPlan } from '../../agents/content-creator.agent';
+import { generatePost, generateWeeklyPlan, generatePostFromStrategy } from '../../agents/content-creator.agent';
 import { analyzeMetrics } from '../../agents/metrics-analyzer.agent';
+import { buildDailyStrategy } from '../../agents/content-strategist.agent';
 import { SocialService } from '../social/social.service';
+import { notificationsService } from '../notifications/notifications.service';
 import prisma from '../../config/database';
 
 const socialService = new SocialService();
@@ -145,6 +147,121 @@ export class AgentsController {
       return ApiResponse.success(res, saved, 'Metrics analyzed');
     } catch (error: any) {
       return ApiResponse.error(res, error.message || 'Failed to analyze metrics', 500);
+    }
+  }
+
+  // Status do motor autônomo
+  async getEngineStatus(req: AuthRequest, res: Response) {
+    try {
+      // Último ciclo: último post criado com status APPROVED de forma automática
+      const lastScheduled = await prisma.scheduledPost.findFirst({
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true, topic: true, scheduledFor: true, status: true },
+      });
+
+      // Posts agendados para hoje
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const todayPosts = await prisma.scheduledPost.findMany({
+        where: { scheduledFor: { gte: today, lt: tomorrow } },
+        orderBy: { scheduledFor: 'asc' },
+        select: { id: true, topic: true, scheduledFor: true, status: true },
+      });
+
+      // Stats dos últimos 7 dias
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const weekStats = await prisma.scheduledPost.groupBy({
+        by: ['status'],
+        where: { createdAt: { gte: sevenDaysAgo } },
+        _count: { id: true },
+      });
+
+      const stats = {
+        generated: weekStats.find((s) => s.status === 'APPROVED')?._count.id || 0,
+        published: weekStats.find((s) => s.status === 'PUBLISHED')?._count.id || 0,
+        failed: weekStats.find((s) => s.status === 'FAILED')?._count.id || 0,
+      };
+
+      return ApiResponse.success(res, {
+        active: true,
+        lastCycle: lastScheduled?.createdAt || null,
+        todayPosts,
+        weekStats: stats,
+      });
+    } catch (error: any) {
+      return ApiResponse.error(res, 'Failed to get engine status', 500);
+    }
+  }
+
+  // Executa o motor autônomo agora (fora do horário programado)
+  async runEngineNow(req: AuthRequest, res: Response) {
+    try {
+      const strategy = await buildDailyStrategy();
+
+      const recentPosts = await prisma.scheduledPost.findMany({
+        where: { status: 'PUBLISHED' },
+        orderBy: { publishedAt: 'desc' },
+        take: 10,
+        select: { topic: true },
+      });
+      const recentTopics = recentPosts.map((p) => p.topic).filter(Boolean) as string[];
+
+      const today = new Date();
+      const created: any[] = [];
+
+      for (let i = 0; i < strategy.postsToCreate; i++) {
+        try {
+          const topic = strategy.topics[i];
+          const focusType = strategy.focusType[i] || 'entretenimento';
+          const timeStr = strategy.scheduledTimes[i] || '18:00';
+
+          const generated = await generatePostFromStrategy(topic, focusType, recentTopics);
+
+          const [hours, minutes] = timeStr.split(':').map(Number);
+          const scheduledFor = new Date(today);
+          scheduledFor.setHours(hours, minutes, 0, 0);
+
+          const hashtagsStr = generated.hashtags
+            ? generated.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ')
+            : null;
+
+          const saved = await prisma.scheduledPost.create({
+            data: {
+              topic: generated.topic || topic,
+              message: generated.message,
+              hashtags: hashtagsStr,
+              status: 'APPROVED',
+              scheduledFor,
+            },
+          });
+
+          created.push(saved);
+          recentTopics.push(topic);
+        } catch (err: any) {
+          console.error(`[Engine/Manual] Erro ao gerar post ${i + 1}:`, err.message);
+        }
+      }
+
+      // Notifica admins
+      if (created.length > 0) {
+        const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+        const topicsList = created.map((p) => p.topic).join(', ');
+        for (const admin of admins) {
+          await notificationsService.createAndEmit(
+            admin.id,
+            'TASK_ASSIGNED',
+            'Motor autônomo executado',
+            `${created.length} post(s) agendados manualmente: ${topicsList}`
+          );
+        }
+      }
+
+      return ApiResponse.success(res, { strategy, created }, `${created.length} posts agendados com sucesso`);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message || 'Failed to run engine', 500);
     }
   }
 }

@@ -125,3 +125,24 @@ export interface ApiResponse<T> {
   data: T;
   error?: any;
 }
+
+export interface Message {
+  id: string;
+  content: string;
+  senderId: string;
+  receiverId: string;
+  read: boolean;
+  createdAt: string;
+  sender?: { id: string; name: string; avatar?: string };
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: 'TASK_ASSIGNED' | 'TASK_DUE';
+  title: string;
+  message: string;
+  read: boolean;
+  taskId?: string;
+  createdAt: string;
+}

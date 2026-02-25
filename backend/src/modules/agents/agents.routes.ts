@@ -22,4 +22,8 @@ router.delete('/scheduled/:id', requireRole('ADMIN'), (req, res) => controller.d
 router.get('/metrics', (req, res) => controller.getMetricsReports(req as any, res));
 router.post('/metrics/run', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.runMetricsNow(req as any, res));
 
+// Motor autônomo
+router.get('/engine/status', (req, res) => controller.getEngineStatus(req as any, res));
+router.post('/engine/run', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.runEngineNow(req as any, res));
+
 export default router;

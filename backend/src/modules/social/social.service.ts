@@ -151,6 +151,14 @@ export class SocialService {
     return data.data || [];
   }
 
+  // Responde a um comentário
+  async replyToComment(commentId: string, message: string): Promise<void> {
+    const token = getToken();
+    await axios.post(`${GRAPH_API}/${commentId}/comments`, null, {
+      params: { message, access_token: token },
+    });
+  }
+
   // Verifica se o token e o page ID estão configurados e válidos
   async checkConnection() {
     try {

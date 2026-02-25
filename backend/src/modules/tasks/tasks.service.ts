@@ -1,4 +1,5 @@
 import prisma from '../../config/database';
+import { notificationsService } from '../notifications/notifications.service';
 
 export class TasksService {
   async findAll(query: { status?: string; assigneeId?: string; campaignId?: string; priority?: string; search?: string }) {
@@ -45,21 +46,33 @@ export class TasksService {
     const processedData = { ...data };
     if (data.dueDate) processedData.dueDate = new Date(data.dueDate);
 
-    return prisma.task.create({
+    const task = await prisma.task.create({
       data: processedData,
       include: {
         assignee: { select: { id: true, name: true, avatar: true } },
         campaign: { select: { id: true, name: true } },
       },
     });
+
+    if (task.assigneeId) {
+      await notificationsService.createAndEmit(
+        task.assigneeId,
+        'TASK_ASSIGNED',
+        'Nova tarefa atribuída',
+        `Você foi atribuído à tarefa "${task.title}"`,
+        task.id
+      );
+    }
+
+    return task;
   }
 
   async update(id: string, data: any) {
-    await this.findById(id);
+    const existing = await this.findById(id);
     const processedData = { ...data };
     if (data.dueDate) processedData.dueDate = new Date(data.dueDate);
 
-    return prisma.task.update({
+    const task = await prisma.task.update({
       where: { id },
       data: processedData,
       include: {
@@ -67,6 +80,18 @@ export class TasksService {
         campaign: { select: { id: true, name: true } },
       },
     });
+
+    if (task.assigneeId && task.assigneeId !== existing.assigneeId) {
+      await notificationsService.createAndEmit(
+        task.assigneeId,
+        'TASK_ASSIGNED',
+        'Nova tarefa atribuída',
+        `Você foi atribuído à tarefa "${task.title}"`,
+        task.id
+      );
+    }
+
+    return task;
   }
 
   async updateStatus(id: string, status: string) {
