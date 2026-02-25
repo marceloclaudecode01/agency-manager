@@ -13,7 +13,8 @@ import { formatDateTime } from '@/lib/utils';
 import {
   Facebook, Users, Eye, TrendingUp, Heart, Plus, RefreshCw, Trash2,
   Clock, Sparkles, Calendar, CheckCircle, XCircle, Bot, BarChart3,
-  Zap, ChevronRight, AlertCircle,
+  Zap, ChevronRight, AlertCircle, Flame, ShoppingCart, Tag,
+  Package, Brain, Shield, ExternalLink,
 } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -72,8 +73,30 @@ export default function SocialPage() {
   // Análise de métricas
   const [analyzingMetrics, setAnalyzingMetrics] = useState(false);
 
+  // Trending topics
+  const [showTrendingModal, setShowTrendingModal] = useState(false);
+  const [trendingReport, setTrendingReport] = useState<any>(null);
+  const [loadingTrending, setLoadingTrending] = useState(false);
+  const [trendingNiche, setTrendingNiche] = useState('');
+
+  // TikTok Shop + Orquestrador
+  const [showProductsModal, setShowProductsModal] = useState(false);
+  const [tiktokProducts, setTiktokProducts] = useState<any[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [runningOrchestrator, setRunningOrchestrator] = useState(false);
+  const [productQuery, setProductQuery] = useState('');
+  const [orchestratorResult, setOrchestratorResult] = useState<any>(null);
+
+  // Growth Insights
+  const [showGrowthModal, setShowGrowthModal] = useState(false);
+  const [growthInsights, setGrowthInsights] = useState<any>(null);
+  const [loadingGrowth, setLoadingGrowth] = useState(false);
+
+  // Token status
+  const [tokenStatus, setTokenStatus] = useState<any>(null);
+
   useEffect(() => { loadSocial(); }, []);
-  useEffect(() => { if (activeTab === 'agents') loadAgents(); }, [activeTab]);
+  useEffect(() => { if (activeTab === 'agents') { loadAgents(); loadTokenStatus(); } }, [activeTab]);
 
   const loadSocial = async () => {
     setLoading(true);
@@ -237,6 +260,76 @@ export default function SocialPage() {
       toast(err.response?.data?.message || 'Erro ao gerar plano', 'error');
     } finally {
       setGeneratingWeekly(false);
+    }
+  };
+
+  // Carregar status do token
+  const loadTokenStatus = async () => {
+    try {
+      const res = await api.get('/agents/token/status');
+      setTokenStatus(res.data.data);
+    } catch {}
+  };
+
+  // Buscar produtos TikTok Shop
+  const handleFetchProducts = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoadingProducts(true);
+    setTiktokProducts([]);
+    try {
+      const params = productQuery.trim() ? `?query=${encodeURIComponent(productQuery)}` : '';
+      const res = await api.get(`/agents/products/tiktok${params}`);
+      setTiktokProducts(res.data.data || []);
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Erro ao buscar produtos', 'error');
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  // Executar orquestrador completo (pesquisa + copy + agenda)
+  const handleRunOrchestrator = async () => {
+    setRunningOrchestrator(true);
+    setOrchestratorResult(null);
+    try {
+      const res = await api.post('/agents/products/run', { query: productQuery || undefined });
+      setOrchestratorResult(res.data.data);
+      toast(`${res.data.data.postsCreated} posts de produto criados!`, 'success');
+      loadAgents();
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Erro ao executar orquestrador', 'error');
+    } finally {
+      setRunningOrchestrator(false);
+    }
+  };
+
+  // Growth insights
+  const handleFetchGrowth = async () => {
+    setLoadingGrowth(true);
+    setGrowthInsights(null);
+    try {
+      const res = await api.get('/agents/growth');
+      setGrowthInsights(res.data.data);
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Erro ao buscar insights', 'error');
+    } finally {
+      setLoadingGrowth(false);
+    }
+  };
+
+  // Buscar trending topics
+  const handleFetchTrending = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoadingTrending(true);
+    setTrendingReport(null);
+    try {
+      const params = trendingNiche.trim() ? `?niche=${encodeURIComponent(trendingNiche)}` : '';
+      const res = await api.get(`/agents/trending${params}`);
+      setTrendingReport(res.data.data);
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Erro ao buscar tendências', 'error');
+    } finally {
+      setLoadingTrending(false);
     }
   };
 
@@ -428,7 +521,7 @@ export default function SocialPage() {
           ) : (
             <>
               {/* Ações dos agentes */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <button onClick={() => setShowGenerateModal(true)} className="text-left rounded-xl border border-border bg-surface hover:border-primary/50 transition-colors">
                   <div className="p-5 flex items-center gap-4">
                     <div className="h-12 w-12 rounded-xl bg-purple-500/10 flex items-center justify-center flex-shrink-0">
@@ -468,7 +561,78 @@ export default function SocialPage() {
                     </div>
                   </div>
                 </button>
+
+                <button onClick={() => setShowTrendingModal(true)} className="text-left rounded-xl border border-border bg-surface hover:border-primary/50 transition-colors">
+                  <div className="p-5 flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                      <Flame size={24} className="text-orange-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-text-primary">Trending Topics</p>
+                      <p className="text-xs text-text-secondary">Temas quentes que geram compras</p>
+                    </div>
+                  </div>
+                </button>
+
+                <button onClick={() => setShowProductsModal(true)} className="text-left rounded-xl border border-border bg-surface hover:border-primary/50 transition-colors">
+                  <div className="p-5 flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-pink-500/10 flex items-center justify-center flex-shrink-0">
+                      <Package size={24} className="text-pink-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-text-primary">Produtos TikTok Shop</p>
+                      <p className="text-xs text-text-secondary">Copy persuasivo + link na bio</p>
+                    </div>
+                  </div>
+                </button>
+
+                <button onClick={() => { setShowGrowthModal(true); handleFetchGrowth(); }} className="text-left rounded-xl border border-border bg-surface hover:border-primary/50 transition-colors">
+                  <div className="p-5 flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
+                      <Brain size={24} className="text-cyan-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-text-primary">Growth Insights</p>
+                      <p className="text-xs text-text-secondary">Analista de crescimento IA</p>
+                    </div>
+                  </div>
+                </button>
               </div>
+
+              {/* Status do Token Facebook */}
+              {tokenStatus && (
+                <div className={`rounded-xl border p-4 flex items-center gap-3 ${
+                  !tokenStatus.isValid ? 'border-red-500/40 bg-red-500/5' :
+                  tokenStatus.daysUntilExpiry <= 7 ? 'border-red-500/40 bg-red-500/5' :
+                  tokenStatus.daysUntilExpiry <= 15 ? 'border-yellow-500/40 bg-yellow-500/5' :
+                  'border-green-500/40 bg-green-500/5'
+                }`}>
+                  <Shield size={20} className={
+                    !tokenStatus.isValid || tokenStatus.daysUntilExpiry <= 7 ? 'text-red-400' :
+                    tokenStatus.daysUntilExpiry <= 15 ? 'text-yellow-400' : 'text-green-400'
+                  } />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-text-primary">
+                      Token Facebook — {tokenStatus.isValid ? 'Ativo' : 'EXPIRADO'}
+                      {tokenStatus.isValid && tokenStatus.daysUntilExpiry !== null && (
+                        <span className="ml-2 text-xs text-text-secondary">
+                          expira em {tokenStatus.daysUntilExpiry} dias
+                          {tokenStatus.expiresAt && ` (${new Date(tokenStatus.expiresAt).toLocaleDateString('pt-BR')})`}
+                        </span>
+                      )}
+                    </p>
+                    {tokenStatus.appName && (
+                      <p className="text-xs text-text-secondary">App: {tokenStatus.appName}</p>
+                    )}
+                  </div>
+                  {(!tokenStatus.isValid || tokenStatus.daysUntilExpiry <= 15) && (
+                    <a href="https://business.facebook.com" target="_blank" rel="noreferrer"
+                      className="text-xs text-primary-300 hover:underline flex items-center gap-1">
+                      Renovar <ExternalLink size={11} />
+                    </a>
+                  )}
+                </div>
+              )}
 
               {/* Posts agendados pelo agente */}
               <div>
@@ -731,6 +895,245 @@ export default function SocialPage() {
               <div className="flex gap-2 justify-end pt-2">
                 <Button variant="outline" onClick={() => setWeeklyPlan([])}>Gerar novamente</Button>
                 <Button onClick={() => setShowWeeklyModal(false)}>Fechar</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Modal: Produtos TikTok Shop */}
+      <Modal
+        isOpen={showProductsModal}
+        onClose={() => { setShowProductsModal(false); setTiktokProducts([]); setOrchestratorResult(null); setProductQuery(''); }}
+        title="Produtos TikTok Shop — Posts com Copy Persuasivo"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-pink-500/5 border border-pink-500/20 p-3 text-xs text-text-secondary">
+            O orquestrador busca produtos trending, analisa o que converte melhor e cria posts com copy persuasivo + imagem real + CTA para o link na bio.
+          </div>
+
+          <div className="flex gap-2">
+            <Input
+              label="Buscar por categoria (opcional)"
+              placeholder="Ex: beleza, casa, moda, tecnologia..."
+              value={productQuery}
+              onChange={(e) => setProductQuery(e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleFetchProducts} disabled={loadingProducts} className="flex-1">
+              {loadingProducts ? <><RefreshCw size={14} className="mr-2 animate-spin" />Buscando...</> : <><Package size={14} className="mr-2" />Ver produtos</>}
+            </Button>
+            <Button onClick={handleRunOrchestrator} disabled={runningOrchestrator} className="flex-1">
+              {runningOrchestrator
+                ? <><RefreshCw size={14} className="mr-2 animate-spin" />Criando posts...</>
+                : <><Sparkles size={14} className="mr-2" />Criar posts automático</>}
+            </Button>
+          </div>
+
+          {/* Resultado do orquestrador */}
+          {orchestratorResult && (
+            <div className="rounded-lg bg-green-500/5 border border-green-500/20 p-3 space-y-1">
+              <p className="text-sm font-semibold text-green-400">Orquestrador concluído!</p>
+              <p className="text-xs text-text-secondary">{orchestratorResult.productsFound} produtos analisados → {orchestratorResult.postsCreated} posts criados e agendados</p>
+              {orchestratorResult.insights?.audienceProfile && (
+                <p className="text-xs text-text-secondary">Perfil do público: {orchestratorResult.insights.audienceProfile}</p>
+              )}
+            </div>
+          )}
+
+          {/* Lista de produtos */}
+          {tiktokProducts.length > 0 && (
+            <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+              <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">{tiktokProducts.length} produtos encontrados</p>
+              {tiktokProducts.map((product, i) => (
+                <div key={i} className="rounded-lg border border-border bg-surface p-3 flex gap-3">
+                  {product.imageUrl && (
+                    <img src={product.imageUrl} alt={product.title} className="h-14 w-14 rounded-lg object-cover flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-primary line-clamp-2">{product.title}</p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-text-secondary">
+                      <span className="text-green-400 font-semibold">R$ {product.price?.toFixed(2)}</span>
+                      <span className="flex items-center gap-1"><ShoppingCart size={10} />{product.soldCount?.toLocaleString('pt-BR')} vendidos</span>
+                      {product.rating > 0 && <span>⭐ {product.rating}</span>}
+                    </div>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-surface border border-border text-text-secondary mt-1 inline-block">{product.category}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Modal: Growth Insights */}
+      <Modal
+        isOpen={showGrowthModal}
+        onClose={() => { setShowGrowthModal(false); setGrowthInsights(null); }}
+        title="Growth Insights — Analista de Crescimento IA"
+      >
+        <div className="space-y-4">
+          {loadingGrowth ? (
+            <div className="flex items-center justify-center py-8 gap-3 text-text-secondary">
+              <RefreshCw size={20} className="animate-spin" />
+              <span className="text-sm">Analisando dados de crescimento...</span>
+            </div>
+          ) : growthInsights ? (
+            <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+              {/* Perfil do público */}
+              <div className="rounded-lg bg-cyan-500/5 border border-cyan-500/20 p-3">
+                <p className="text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-1">Perfil do Público</p>
+                <p className="text-sm text-text-primary">{growthInsights.audienceProfile}</p>
+              </div>
+
+              {/* Mix de conteúdo recomendado */}
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Mix de Conteúdo Recomendado</p>
+                <div className="space-y-2">
+                  {[
+                    { label: 'Produtos (vendas)', value: growthInsights.contentMix?.product, color: 'bg-pink-400' },
+                    { label: 'Entretenimento', value: growthInsights.contentMix?.entertainment, color: 'bg-purple-400' },
+                    { label: 'Engajamento', value: growthInsights.contentMix?.engagement, color: 'bg-blue-400' },
+                  ].map((item) => (
+                    <div key={item.label}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-text-secondary">{item.label}</span>
+                        <span className="text-text-primary font-semibold">{item.value}%</span>
+                      </div>
+                      <div className="h-1.5 bg-border rounded-full overflow-hidden">
+                        <div className={`h-full ${item.color} rounded-full`} style={{ width: `${item.value}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Melhores horários */}
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Melhores Horários para Postar</p>
+                <div className="flex gap-2 flex-wrap">
+                  {growthInsights.bestPostingHours?.map((h: string, i: number) => (
+                    <span key={i} className="flex items-center gap-1 text-sm font-bold text-text-primary bg-primary/10 px-3 py-1.5 rounded-lg">
+                      <Clock size={12} className="text-primary-300" /> {h}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recomendações */}
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Recomendações Acionáveis</p>
+                <div className="space-y-2">
+                  {growthInsights.topRecommendations?.map((rec: string, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-sm text-text-primary">
+                      <CheckCircle size={14} className="text-green-400 mt-0.5 flex-shrink-0" />
+                      {rec}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-secondary">Confiança da análise: {growthInsights.confidenceScore}/10</span>
+                <Button variant="outline" size="sm" onClick={handleFetchGrowth}>Reanalisar</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-text-secondary text-sm">Erro ao carregar insights. Tente novamente.</div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Modal: Trending Topics */}
+      <Modal
+        isOpen={showTrendingModal}
+        onClose={() => { setShowTrendingModal(false); setTrendingReport(null); setTrendingNiche(''); }}
+        title="Trending Topics — Temas que Geram Compras"
+      >
+        <div className="space-y-4">
+          {!trendingReport ? (
+            <form onSubmit={handleFetchTrending} className="space-y-4">
+              <div className="rounded-lg bg-orange-500/5 border border-orange-500/20 p-3 text-xs text-text-secondary">
+                A IA analisa tendências de comportamento de consumo no Brasil e sugere os temas mais quentes para criar desejo de compra no seu público.
+              </div>
+              <Input
+                label="Nicho ou segmento (opcional)"
+                placeholder="Ex: moda feminina, eletrônicos, beleza, casa..."
+                value={trendingNiche}
+                onChange={(e) => setTrendingNiche(e.target.value)}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={() => setShowTrendingModal(false)}>Cancelar</Button>
+                <Button type="submit" disabled={loadingTrending}>
+                  {loadingTrending
+                    ? <><RefreshCw size={14} className="mr-2 animate-spin" />Analisando tendências...</>
+                    : <><Flame size={14} className="mr-2" />Buscar tendências</>}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+              {/* Contexto */}
+              <div className="rounded-lg bg-orange-500/5 border border-orange-500/20 p-3">
+                <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-1">Contexto atual</p>
+                <p className="text-sm text-text-secondary">{trendingReport.context}</p>
+              </div>
+
+              {/* Tendências */}
+              <div className="space-y-3">
+                {trendingReport.trends?.map((trend: any, i: number) => (
+                  <div key={i} className="rounded-lg border border-border bg-surface p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full
+                          ${trend.urgency === 'alta' ? 'bg-red-500/10 text-red-400' :
+                            trend.urgency === 'média' ? 'bg-yellow-500/10 text-yellow-400' :
+                            'bg-blue-500/10 text-blue-400'}`}>
+                          <Flame size={10} />
+                          {trend.urgency === 'alta' ? 'Alta' : trend.urgency === 'média' ? 'Média' : 'Baixa'}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-surface border border-border text-text-secondary">
+                          <Tag size={10} />
+                          {trend.category}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="font-semibold text-text-primary text-sm">{trend.topic}</p>
+
+                    <div className="flex items-start gap-2 text-xs text-text-secondary">
+                      <ShoppingCart size={12} className="mt-0.5 flex-shrink-0 text-green-400" />
+                      <span>{trend.buyingIntent}</span>
+                    </div>
+
+                    <div className="flex items-start gap-2 text-xs text-text-secondary">
+                      <Sparkles size={12} className="mt-0.5 flex-shrink-0 text-purple-400" />
+                      <span>{trend.contentAngle}</span>
+                    </div>
+
+                    {/* Ideia de post */}
+                    <div className="mt-2 rounded-md bg-background border border-border p-3">
+                      <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">Ideia de post</p>
+                      <p className="text-sm text-text-primary">{trend.postIdea}</p>
+                      <p className="text-xs text-primary-300 mt-1">{trend.hashtags?.map((h: string) => `#${h.replace('#', '')}`).join(' ')}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Oportunidade da semana */}
+              {trendingReport.weeklyOpportunity && (
+                <div className="rounded-lg bg-purple-500/5 border border-purple-500/20 p-3">
+                  <p className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-1">Oportunidade desta semana</p>
+                  <p className="text-sm text-text-secondary">{trendingReport.weeklyOpportunity}</p>
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="outline" onClick={() => setTrendingReport(null)}>Nova análise</Button>
+                <Button onClick={() => { setShowTrendingModal(false); setTrendingReport(null); setTrendingNiche(''); }}>Fechar</Button>
               </div>
             </div>
           )}

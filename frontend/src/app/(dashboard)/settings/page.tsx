@@ -29,8 +29,10 @@ export default function SettingsPage() {
       const { data } = await api.get('/auth/me');
       setUser(data.data);
       setProfileForm({ name: data.data.name, email: data.data.email });
-    } catch {
-      toast('Erro ao carregar perfil', 'error');
+    } catch (err: any) {
+      if (!err.isAuthRedirect) {
+        toast('Erro ao carregar perfil', 'error');
+      }
     } finally {
       setLoading(false);
     }
