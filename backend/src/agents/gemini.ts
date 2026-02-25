@@ -3,8 +3,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Suporta múltiplas keys para rotação (GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3)
 const RAW_KEYS = [
   process.env.GEMINI_API_KEY,
-  process.env.GEMINI_API_KEY_2,
   process.env.GEMINI_API_KEY_3,
+  process.env.GEMINI_API_KEY_4,
 ].filter(Boolean) as string[];
 
 if (RAW_KEYS.length === 0) {
