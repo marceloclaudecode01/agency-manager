@@ -74,7 +74,7 @@ export function startPostScheduler() {
       const fullMessage = post.hashtags ? `${post.message}\n\n${post.hashtags}` : post.message;
 
       const publishResult = post.imageUrl
-        ? await socialService.publishPhotoPost(fullMessage, post.imageUrl)
+        ? await socialService.publishMediaPost(fullMessage, post.imageUrl)
         : await socialService.publishPost(fullMessage);
       const fbPostId = publishResult?.id || null;
 

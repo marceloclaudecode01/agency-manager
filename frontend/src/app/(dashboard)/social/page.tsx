@@ -14,7 +14,7 @@ import {
   Facebook, Users, Eye, TrendingUp, Heart, Plus, RefreshCw, Trash2,
   Clock, Sparkles, Calendar, CheckCircle, XCircle, Bot, BarChart3,
   Zap, ChevronRight, AlertCircle, Flame, ShoppingCart, Tag,
-  Package, Brain, Shield, ExternalLink,
+  Package, Brain, Shield, ExternalLink, Link2,
 } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -44,7 +44,10 @@ export default function SocialPage() {
   const [connected, setConnected] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [postForm, setPostForm] = useState({ message: '', imageUrl: '', scheduledTime: '' });
+  const [postForm, setPostForm] = useState({ message: '', imageUrl: '', linkUrl: '', mediaType: '' as '' | 'image' | 'video', scheduledTime: '' });
+  const [postMediaFile, setPostMediaFile] = useState<File | null>(null);
+  const [postMediaPreview, setPostMediaPreview] = useState<string | null>(null);
+  const [uploadingPostMedia, setUploadingPostMedia] = useState(false);
 
   // Agentes IA
   const [activeTab, setActiveTab] = useState<'social' | 'agents'>('social');
@@ -86,6 +89,14 @@ export default function SocialPage() {
   const [runningOrchestrator, setRunningOrchestrator] = useState(false);
   const [productQuery, setProductQuery] = useState('');
   const [orchestratorResult, setOrchestratorResult] = useState<any>(null);
+
+  // Post a partir de link
+  const [productLink, setProductLink] = useState('');
+  const [creatingFromLink, setCreatingFromLink] = useState(false);
+  const [linkPostResult, setLinkPostResult] = useState<any>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
 
   // Growth Insights
   const [showGrowthModal, setShowGrowthModal] = useState(false);
@@ -135,22 +146,65 @@ export default function SocialPage() {
     }
   };
 
+  const handlePostMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type.startsWith('video/') && file.size > 200 * 1024 * 1024) {
+      toast('Video muito grande. Limite de 2 minutos/200MB.', 'error');
+      e.currentTarget.value = '';
+      return;
+    }
+
+    setPostMediaFile(file);
+    setPostMediaPreview(URL.createObjectURL(file));
+    setPostForm((f) => ({ ...f, mediaType: file.type.startsWith('video/') ? 'video' : 'image' }));
+  };
+
+  const clearPostMedia = () => {
+    setPostMediaFile(null);
+    setPostMediaPreview(null);
+    setPostForm(f => ({ ...f, imageUrl: '', mediaType: '' }));
+  };
+
   // Publicar post direto no Facebook
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!postForm.message.trim()) return;
     setPublishing(true);
     try {
+      let mediaUrl = postForm.imageUrl || null;
+      let mediaType = postForm.mediaType || null;
+
+      if (postMediaFile) {
+        setUploadingPostMedia(true);
+        const formData = new FormData();
+        formData.append('file', postMediaFile);
+        const uploadRes = await api.post('/agents/upload-media', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        mediaUrl = uploadRes.data.data.url;
+        mediaType = uploadRes.data.data.resourceType || (postMediaFile.type.startsWith('video/') ? 'video' : 'image');
+        setUploadingPostMedia(false);
+      }
+
       await api.post('/social/posts', {
         message: postForm.message,
-        imageUrl: postForm.imageUrl || null,
+        imageUrl: mediaUrl,
+        mediaUrl,
+        mediaType,
+        linkUrl: postForm.linkUrl || null,
         scheduledTime: postForm.scheduledTime || null,
       });
+
       toast(postForm.scheduledTime ? 'Post agendado!' : 'Post publicado!', 'success');
       setShowPostModal(false);
-      setPostForm({ message: '', imageUrl: '', scheduledTime: '' });
+      setPostForm({ message: '', imageUrl: '', linkUrl: '', mediaType: '', scheduledTime: '' });
+      setPostMediaFile(null);
+      setPostMediaPreview(null);
       loadSocial();
     } catch (err: any) {
+      setUploadingPostMedia(false);
       toast(err.response?.data?.message || 'Erro ao publicar', 'error');
     } finally {
       setPublishing(false);
@@ -300,6 +354,57 @@ export default function SocialPage() {
       toast(err.response?.data?.message || 'Erro ao executar orquestrador', 'error');
     } finally {
       setRunningOrchestrator(false);
+    }
+  };
+
+  // Upload de mídia
+  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setMediaFile(file);
+    const url = URL.createObjectURL(file);
+    setMediaPreview(url);
+  };
+
+  const clearMedia = () => {
+    setMediaFile(null);
+    setMediaPreview(null);
+  };
+
+  // Criar post a partir de link de produto
+  const handleCreateFromLink = async () => {
+    if (!productLink.trim()) return toast('Cole um link de produto', 'error');
+    setCreatingFromLink(true);
+    setLinkPostResult(null);
+    try {
+      let mediaUrl: string | null = null;
+
+      // Faz upload da mídia se houver
+      if (mediaFile) {
+        setUploadingMedia(true);
+        const formData = new FormData();
+        formData.append('file', mediaFile);
+        const uploadRes = await api.post('/agents/upload-media', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        mediaUrl = uploadRes.data.data.url;
+        setUploadingMedia(false);
+      }
+
+      const res = await api.post('/agents/post-from-link', {
+        url: productLink.trim(),
+        mediaUrl,
+      });
+      setLinkPostResult(res.data.data);
+      toast('Post criado e agendado com sucesso!', 'success');
+      setProductLink('');
+      clearMedia();
+      loadAgents();
+    } catch (err: any) {
+      setUploadingMedia(false);
+      toast(err.response?.data?.message || 'Erro ao processar link', 'error');
+    } finally {
+      setCreatingFromLink(false);
     }
   };
 
@@ -766,12 +871,48 @@ export default function SocialPage() {
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
             />
           </div>
-          <Input label="URL da imagem (opcional)" type="url" placeholder="https://..." value={postForm.imageUrl} onChange={(e) => setPostForm({ ...postForm, imageUrl: e.target.value })} />
+          {/* Mídia: URL ou Upload */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-text-primary">Imagem ou vídeo (opcional)</p>
+            {/* Upload */}
+            {!postMediaPreview ? (
+              <label className="flex items-center justify-center gap-2 border-2 border-dashed border-primary/40 rounded-lg p-3 cursor-pointer hover:border-primary transition-colors bg-primary/5">
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/avi,video/mov" onChange={handlePostMediaChange} className="hidden" />
+                <Package size={16} className="text-primary-300" />
+                <span className="text-sm text-primary-300 font-medium">Upload: clique para adicionar imagem ou vídeo</span>
+                <span className="text-xs text-text-secondary">(JPG, PNG, MP4 — até 2min)</span>
+              </label>
+            ) : (
+              <div className="relative rounded-lg overflow-hidden border border-border">
+                {postMediaFile?.type.startsWith('video/') ? (
+                  <video src={postMediaPreview} className="w-full max-h-40 object-cover" controls />
+                ) : (
+                  <img src={postMediaPreview} alt="preview" className="w-full max-h-40 object-cover" />
+                )}
+                <button type="button" onClick={clearPostMedia} className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1">
+                  <XCircle size={16} />
+                </button>
+                <p className="text-xs text-text-secondary px-2 py-1 bg-surface">{postMediaFile?.name}</p>
+              </div>
+            )}
+            {/* OU URL */}
+            {!postMediaPreview && (
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-text-secondary">ou cole uma URL</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+            )}
+            {!postMediaPreview && (
+              <Input label="URL da midia" placeholder="https://... (imagem ou video)" type="url" value={postForm.imageUrl} onChange={(e) => setPostForm({ ...postForm, imageUrl: e.target.value })} />
+            )}
+          </div>
+          <Input label="Link do post (opcional)" type="url" placeholder="https://seu-link.com" value={postForm.linkUrl} onChange={(e) => setPostForm({ ...postForm, linkUrl: e.target.value })} />
           <Input label="Agendar para (opcional)" type="datetime-local" value={postForm.scheduledTime} onChange={(e) => setPostForm({ ...postForm, scheduledTime: e.target.value })} />
           <div className="flex gap-2 justify-end pt-2">
             <Button type="button" variant="outline" onClick={() => setShowPostModal(false)}>Cancelar</Button>
-            <Button type="submit" disabled={publishing}>
-              {publishing ? 'Publicando...' : postForm.scheduledTime ? 'Agendar' : 'Publicar agora'}
+            <Button type="submit" disabled={publishing || uploadingPostMedia}>
+              {uploadingPostMedia ? 'Enviando mídia...' : publishing ? 'Publicando...' : postForm.scheduledTime ? 'Agendar' : 'Publicar agora'}
             </Button>
           </div>
         </form>
@@ -904,12 +1045,86 @@ export default function SocialPage() {
       {/* Modal: Produtos TikTok Shop */}
       <Modal
         isOpen={showProductsModal}
-        onClose={() => { setShowProductsModal(false); setTiktokProducts([]); setOrchestratorResult(null); setProductQuery(''); }}
-        title="Produtos TikTok Shop — Posts com Copy Persuasivo"
+        onClose={() => { setShowProductsModal(false); setTiktokProducts([]); setOrchestratorResult(null); setProductQuery(''); setLinkPostResult(null); setProductLink(''); }}
+        title="Produtos IA — Posts com Copy Persuasivo"
       >
         <div className="space-y-4">
-          <div className="rounded-lg bg-pink-500/5 border border-pink-500/20 p-3 text-xs text-text-secondary">
-            O orquestrador busca produtos trending, analisa o que converte melhor e cria posts com copy persuasivo + imagem real + CTA para o link na bio.
+
+          {/* Seção: Post por link */}
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <p className="text-sm font-semibold text-primary-300 flex items-center gap-2">
+              <Link2 size={14} /> Criar post a partir de link de produto
+            </p>
+            <p className="text-xs text-text-secondary">Cole o link do produto + adicione uma imagem ou vídeo (até 2min). A IA cria o copy e agenda automaticamente.</p>
+
+            {/* Campo de link */}
+            <input
+              type="text"
+              placeholder="https://vt.tiktok.com/... ou qualquer link de produto"
+              value={productLink}
+              onChange={(e) => setProductLink(e.target.value)}
+              className="w-full bg-gray-800 border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary"
+            />
+
+            {/* Upload de mídia */}
+            {!mediaPreview ? (
+              <label className="flex items-center justify-center gap-2 border-2 border-dashed border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/avi"
+                  onChange={handleMediaChange}
+                  className="hidden"
+                />
+                <Package size={16} className="text-text-secondary" />
+                <span className="text-sm text-text-secondary">Clique para adicionar imagem ou vídeo <span className="text-xs">(JPG, PNG, MP4 — até 2min)</span></span>
+              </label>
+            ) : (
+              <div className="relative rounded-lg overflow-hidden border border-border">
+                {mediaFile?.type.startsWith('video/') ? (
+                  <video src={mediaPreview} className="w-full max-h-40 object-cover" controls />
+                ) : (
+                  <img src={mediaPreview} alt="preview" className="w-full max-h-40 object-cover" />
+                )}
+                <button
+                  onClick={clearMedia}
+                  className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1"
+                >
+                  <XCircle size={16} />
+                </button>
+                <p className="text-xs text-text-secondary px-2 py-1 bg-surface">{mediaFile?.name}</p>
+              </div>
+            )}
+
+            <Button
+              onClick={handleCreateFromLink}
+              disabled={creatingFromLink || !productLink.trim()}
+              className="w-full"
+            >
+              {uploadingMedia
+                ? <><RefreshCw size={14} className="mr-2 animate-spin" />Enviando mídia...</>
+                : creatingFromLink
+                  ? <><RefreshCw size={14} className="mr-2 animate-spin" />Criando post...</>
+                  : <><Sparkles size={14} className="mr-2" />Criar e agendar post</>}
+            </Button>
+
+            {linkPostResult && (
+              <div className="rounded-lg bg-green-500/5 border border-green-500/20 p-3 space-y-1">
+                <p className="text-sm font-semibold text-green-400">✓ Post criado e agendado!</p>
+                <p className="text-xs text-text-secondary font-medium">{linkPostResult.productInfo?.name}</p>
+                <p className="text-xs text-text-secondary">{linkPostResult.productInfo?.category} · {linkPostResult.productInfo?.price}</p>
+                <p className="text-xs text-text-secondary mt-1 line-clamp-2">{linkPostResult.post?.message}</p>
+                <p className="text-xs text-text-secondary">
+                  Agendado para: {linkPostResult.post?.scheduledFor ? new Date(linkPostResult.post.scheduledFor).toLocaleString('pt-BR') : '—'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-border pt-3">
+            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Orquestrador automático (produtos trending)</p>
+            <div className="rounded-lg bg-pink-500/5 border border-pink-500/20 p-3 text-xs text-text-secondary">
+              O orquestrador busca produtos trending, analisa o que converte melhor e cria posts com copy persuasivo + CTA para o link na bio.
+            </div>
           </div>
 
           <div className="flex gap-2">

@@ -2,6 +2,15 @@ import axios from 'axios';
 
 const GRAPH_API = 'https://graph.facebook.com/v19.0';
 
+type PublishOptions = {
+  scheduledTime?: string;
+  linkUrl?: string | null;
+};
+
+type PublishMediaOptions = PublishOptions & {
+  mediaType?: 'image' | 'video' | null;
+};
+
 function getToken() {
   const token = process.env.FACEBOOK_ACCESS_TOKEN;
   if (!token || token === 'cole_seu_novo_token_aqui') {
@@ -19,7 +28,6 @@ function getPageId() {
 }
 
 export class SocialService {
-  // Busca informações básicas da página
   async getPageInfo() {
     const token = getToken();
     const pageId = getPageId();
@@ -32,7 +40,6 @@ export class SocialService {
     return data;
   }
 
-  // Busca métricas de alcance e engajamento
   async getPageInsights(period: 'day' | 'week' | 'month' = 'month') {
     const token = getToken();
     const pageId = getPageId();
@@ -55,7 +62,6 @@ export class SocialService {
       },
     });
 
-    // Formata os dados para o frontend
     const insights: Record<string, any> = {};
     for (const item of data.data || []) {
       insights[item.name] = {
@@ -67,7 +73,6 @@ export class SocialService {
     return insights;
   }
 
-  // Lista posts publicados na página
   async getPosts(limit = 10) {
     const token = getToken();
     const pageId = getPageId();
@@ -81,43 +86,82 @@ export class SocialService {
     return data.data || [];
   }
 
-  // Publica um post de texto na página
-  async publishPost(message: string, scheduledTime?: string) {
+  private withSchedule(params: Record<string, any>, scheduledTime?: string) {
+    if (!scheduledTime) return params;
+    return {
+      ...params,
+      scheduled_publish_time: Math.floor(new Date(scheduledTime).getTime() / 1000),
+      published: false,
+    };
+  }
+
+  private buildMessageWithLink(message: string, linkUrl?: string | null) {
+    if (!linkUrl) return message;
+    return `${message}\n\n${linkUrl}`;
+  }
+
+  async publishPost(message: string, options?: PublishOptions) {
     const token = getToken();
     const pageId = getPageId();
 
-    const params: any = { message, access_token: token };
-
-    if (scheduledTime) {
-      params.scheduled_publish_time = Math.floor(new Date(scheduledTime).getTime() / 1000);
-      params.published = false;
-    }
+    const finalMessage = this.buildMessageWithLink(message, options?.linkUrl);
+    const params = this.withSchedule({ message: finalMessage, access_token: token }, options?.scheduledTime);
 
     const { data } = await axios.post(`${GRAPH_API}/${pageId}/feed`, null, { params });
     return data;
   }
 
-  // Publica um post com imagem (URL pública da imagem)
-  async publishPhotoPost(message: string, imageUrl: string, scheduledTime?: string) {
+  async publishPhotoPost(message: string, imageUrl: string, options?: PublishOptions) {
     const token = getToken();
     const pageId = getPageId();
 
-    const params: any = {
-      caption: message,
-      url: imageUrl,
-      access_token: token,
-    };
-
-    if (scheduledTime) {
-      params.scheduled_publish_time = Math.floor(new Date(scheduledTime).getTime() / 1000);
-      params.published = false;
-    }
+    const finalCaption = this.buildMessageWithLink(message, options?.linkUrl);
+    const params = this.withSchedule(
+      {
+        caption: finalCaption,
+        url: imageUrl,
+        access_token: token,
+      },
+      options?.scheduledTime,
+    );
 
     const { data } = await axios.post(`${GRAPH_API}/${pageId}/photos`, null, { params });
     return data;
   }
 
-  // Busca posts agendados (não publicados)
+  async publishVideoPost(message: string, videoUrl: string, options?: PublishOptions) {
+    const token = getToken();
+    const pageId = getPageId();
+
+    const finalDescription = this.buildMessageWithLink(message, options?.linkUrl);
+    const params = this.withSchedule(
+      {
+        description: finalDescription,
+        file_url: videoUrl,
+        access_token: token,
+      },
+      options?.scheduledTime,
+    );
+
+    const { data } = await axios.post(`${GRAPH_API}/${pageId}/videos`, null, { params });
+    return data;
+  }
+
+  async publishMediaPost(message: string, mediaUrl: string, options?: PublishMediaOptions) {
+    if (options?.mediaType === 'video') {
+      return this.publishVideoPost(message, mediaUrl, options);
+    }
+
+    if (options?.mediaType === 'image') {
+      return this.publishPhotoPost(message, mediaUrl, options);
+    }
+
+    const isVideoByUrl = /\.(mp4|mov|avi|m4v)(\?|$)/i.test(mediaUrl);
+    return isVideoByUrl
+      ? this.publishVideoPost(message, mediaUrl, options)
+      : this.publishPhotoPost(message, mediaUrl, options);
+  }
+
   async getScheduledPosts() {
     const token = getToken();
     const pageId = getPageId();
@@ -130,7 +174,6 @@ export class SocialService {
     return data.data || [];
   }
 
-  // Deleta um post
   async deletePost(postId: string) {
     const token = getToken();
     const { data } = await axios.delete(`${GRAPH_API}/${postId}`, {
@@ -139,7 +182,6 @@ export class SocialService {
     return data;
   }
 
-  // Busca comentários de um post
   async getPostComments(postId: string) {
     const token = getToken();
     const { data } = await axios.get(`${GRAPH_API}/${postId}/comments`, {
@@ -151,7 +193,6 @@ export class SocialService {
     return data.data || [];
   }
 
-  // Responde a um comentário
   async replyToComment(commentId: string, message: string): Promise<void> {
     const token = getToken();
     await axios.post(`${GRAPH_API}/${commentId}/comments`, null, {
@@ -159,7 +200,6 @@ export class SocialService {
     });
   }
 
-  // Verifica se o token e o page ID estão configurados e válidos
   async checkConnection() {
     try {
       const info = await this.getPageInfo();
