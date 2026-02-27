@@ -89,7 +89,9 @@ export class SocialService {
       const fbMsg = err.response?.data?.error?.message || err.message;
       const fbCode = err.response?.data?.error?.code;
       console.error(`[SocialService] getPosts error (FB code ${fbCode}): ${fbMsg}`);
-      throw err;
+      const exposed = new Error(fbMsg);
+      (exposed as any).statusCode = err.response?.status || 500;
+      throw exposed;
     }
   }
 
