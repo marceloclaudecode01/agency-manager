@@ -5,6 +5,14 @@ import prisma from '../../config/database';
 const JWT_SECRET = process.env.JWT_SECRET!;
 
 export class AuthService {
+  generateToken(user: { id: string; email: string; role: string }): string {
+    return jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+  }
+
   async register(data: { name: string; email: string; password: string }) {
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
     if (existing) {
@@ -23,7 +31,8 @@ export class AuthService {
       select: { id: true, name: true, email: true, role: true, avatar: true, createdAt: true },
     });
 
-    return user;
+    const token = this.generateToken(user);
+    return { user, token };
   }
 
   async login(email: string, password: string) {
@@ -37,11 +46,7 @@ export class AuthService {
       throw { statusCode: 401, message: 'Invalid credentials' };
     }
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = this.generateToken({ id: user.id, email: user.email, role: user.role });
 
     const { password: _, ...userWithoutPassword } = user;
     return { user: userWithoutPassword, token };

@@ -30,3 +30,10 @@ backend/prisma/migrations/
 
 # Coverage
 coverage/
+
+# AIOS state (gerado automaticamente, não commitar)
+.aios/
+.ai/
+
+# AIOS core (commitar — é parte do projeto)
+# .aios-core/ — NÃO ignorar

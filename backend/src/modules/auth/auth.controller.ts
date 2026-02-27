@@ -5,11 +5,20 @@ import { AuthRequest } from '../../types';
 
 const authService = new AuthService();
 
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: '/',
+};
+
 export class AuthController {
   async register(req: Request, res: Response) {
     try {
-      const user = await authService.register(req.body);
-      return ApiResponse.created(res, user, 'User registered successfully');
+      const result = await authService.register(req.body);
+      res.cookie('token', result.token, COOKIE_OPTIONS);
+      return ApiResponse.created(res, result, 'User registered successfully');
     } catch (error: any) {
       if (error.statusCode === 409) {
         return ApiResponse.error(res, error.message, 409);
@@ -22,6 +31,7 @@ export class AuthController {
     try {
       const { email, password } = req.body;
       const result = await authService.login(email, password);
+      res.cookie('token', result.token, COOKIE_OPTIONS);
       return ApiResponse.success(res, result, 'Login successful');
     } catch (error: any) {
       if (error.statusCode === 401) {
@@ -29,6 +39,11 @@ export class AuthController {
       }
       return ApiResponse.error(res, 'Failed to login');
     }
+  }
+
+  async logout(_req: Request, res: Response) {
+    res.clearCookie('token', COOKIE_OPTIONS);
+    return ApiResponse.success(res, null, 'Logged out successfully');
   }
 
   async me(req: AuthRequest, res: Response) {
