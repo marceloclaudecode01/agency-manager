@@ -40,7 +40,8 @@ export class SocialController {
       const data = await socialService.getPosts(limit);
       return ApiResponse.success(res, data);
     } catch (error: any) {
-      return ApiResponse.error(res, error.message || 'Failed to get posts', error.statusCode || 500);
+      const fbError = error.response?.data?.error?.message || error.message || 'Failed to get posts';
+      return ApiResponse.error(res, fbError, error.response?.status || error.statusCode || 500);
     }
   }
 
