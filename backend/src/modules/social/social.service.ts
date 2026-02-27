@@ -76,14 +76,21 @@ export class SocialService {
   async getPosts(limit = 10) {
     const token = getToken();
     const pageId = getPageId();
-    const { data } = await axios.get(`${GRAPH_API}/${pageId}/posts`, {
-      params: {
-        fields: 'id,message,story,created_time,full_picture,permalink_url',
-        limit,
-        access_token: token,
-      },
-    });
-    return data.data || [];
+    try {
+      const { data } = await axios.get(`${GRAPH_API}/${pageId}/posts`, {
+        params: {
+          fields: 'id,message,story,created_time,full_picture,permalink_url',
+          limit,
+          access_token: token,
+        },
+      });
+      return data.data || [];
+    } catch (err: any) {
+      const fbMsg = err.response?.data?.error?.message || err.message;
+      const fbCode = err.response?.data?.error?.code;
+      console.error(`[SocialService] getPosts error (FB code ${fbCode}): ${fbMsg}`);
+      throw err;
+    }
   }
 
   private withSchedule(params: Record<string, any>, scheduledTime?: string) {
