@@ -319,12 +319,14 @@ export function startAutonomousContentEngine() {
             ? generated.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ')
             : null;
 
+          // Cria como DRAFT quando não há permissão de publicação configurada,
+          // para que um admin possa aprovar manualmente antes de publicar.
           const saved = await prisma.scheduledPost.create({
             data: {
               topic: generated.topic || topic,
               message: generated.message,
               hashtags: hashtagsStr,
-              status: 'APPROVED',
+              status: 'DRAFT',
               scheduledFor,
             },
           });
