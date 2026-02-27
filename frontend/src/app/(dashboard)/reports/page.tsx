@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loading } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
 import { formatCurrency } from '@/lib/utils';
-import { BarChart3, TrendingUp, Users } from 'lucide-react';
+import { BarChart3, Download, TrendingUp, Users } from 'lucide-react';
 
 export default function ReportsPage() {
   const { toast } = useToast();
@@ -14,6 +14,8 @@ export default function ReportsPage() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [topClients, setTopClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exportingRevenue, setExportingRevenue] = useState(false);
+  const [exportingClients, setExportingClients] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -34,6 +36,31 @@ export default function ReportsPage() {
     }
   };
 
+  const downloadCsv = async (endpoint: string, filename: string, setExporting: (v: boolean) => void) => {
+    setExporting(true);
+    try {
+      const response = await api.get(endpoint, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8;' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast('Erro ao exportar CSV', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportRevenue = () =>
+    downloadCsv('/reports/revenue/export?format=csv', 'receita.csv', setExportingRevenue);
+
+  const handleExportClients = () =>
+    downloadCsv('/reports/clients/export?format=csv', 'clientes-ranking.csv', setExportingClients);
+
   if (loading) return <Loading />;
 
   const maxRevenue = Math.max(...revenue.map((r) => r.total), 1);
@@ -42,9 +69,19 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <TrendingUp size={20} className="text-success" />
-            <CardTitle>Receita por Mês</CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp size={20} className="text-success" />
+              <CardTitle>Receita por Mês</CardTitle>
+            </div>
+            <button
+              onClick={handleExportRevenue}
+              disabled={exportingRevenue}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download size={14} />
+              {exportingRevenue ? 'Exportando...' : 'Exportar CSV'}
+            </button>
           </div>
         </CardHeader>
         <CardContent>
@@ -107,9 +144,19 @@ export default function ReportsPage() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Users size={20} className="text-secondary" />
-              <CardTitle>Clientes Mais Rentáveis</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users size={20} className="text-secondary" />
+                <CardTitle>Clientes Mais Rent&#225;veis</CardTitle>
+              </div>
+              <button
+                onClick={handleExportClients}
+                disabled={exportingClients}
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download size={14} />
+                {exportingClients ? 'Exportando...' : 'Exportar CSV'}
+              </button>
             </div>
           </CardHeader>
           <CardContent>

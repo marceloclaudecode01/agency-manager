@@ -11,7 +11,7 @@ import { Modal } from '@/components/ui/modal';
 import { Loading } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { DollarSign, Plus, TrendingUp, Clock, CheckCircle2 } from 'lucide-react';
+import { DollarSign, Plus, TrendingUp, Clock, CheckCircle2, FileDown } from 'lucide-react';
 
 const budgetStatusBadge: Record<string, { variant: any; label: string }> = {
   DRAFT: { variant: 'default', label: 'Rascunho' },
@@ -100,6 +100,38 @@ export default function FinancePage() {
     } finally { setSaving(false); }
   };
 
+  const downloadBudgetPdf = async (budgetId: string) => {
+    try {
+      const response = await api.get(`/finance/budgets/${budgetId}/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `orcamento-${budgetId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast('Erro ao gerar PDF do orçamento', 'error');
+    }
+  };
+
+  const downloadInvoicePdf = async (invoiceId: string) => {
+    try {
+      const response = await api.get(`/finance/invoices/${invoiceId}/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `fatura-${invoiceId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast('Erro ao gerar PDF da fatura', 'error');
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
@@ -166,7 +198,16 @@ export default function FinancePage() {
                   <td className="px-4 py-3 text-sm text-text-primary font-medium">{formatCurrency(b.total)}</td>
                   <td className="px-4 py-3"><Badge variant={budgetStatusBadge[b.status]?.variant}>{budgetStatusBadge[b.status]?.label}</Badge></td>
                   <td className="px-4 py-3 text-sm text-text-secondary">{formatDate(b.createdAt)}</td>
-                  <td className="px-4 py-3"><button onClick={() => setDeleteConfirm({ type: 'budget', id: b.id })} className="text-xs text-error hover:text-red-400">Excluir</button></td>
+                  <td className="px-4 py-3 flex items-center gap-3">
+                    <button
+                      onClick={() => downloadBudgetPdf(b.id)}
+                      className="flex items-center gap-1 text-xs text-primary hover:text-primary-300 font-medium"
+                      title="Baixar PDF"
+                    >
+                      <FileDown size={14} /> PDF
+                    </button>
+                    <button onClick={() => setDeleteConfirm({ type: 'budget', id: b.id })} className="text-xs text-error hover:text-red-400">Excluir</button>
+                  </td>
                 </tr>
               ))}
               {budgets.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-text-secondary">Nenhum orçamento</td></tr>}
@@ -192,7 +233,16 @@ export default function FinancePage() {
                   <td className="px-4 py-3"><Badge variant={invoiceStatusBadge[inv.status]?.variant}>{invoiceStatusBadge[inv.status]?.label}</Badge></td>
                   <td className="px-4 py-3 text-sm text-text-secondary">{inv.dueDate ? formatDate(inv.dueDate) : '-'}</td>
                   <td className="px-4 py-3 text-sm text-text-secondary">{formatDate(inv.createdAt)}</td>
-                  <td className="px-4 py-3"><button onClick={() => setDeleteConfirm({ type: 'invoice', id: inv.id })} className="text-xs text-error hover:text-red-400">Excluir</button></td>
+                  <td className="px-4 py-3 flex items-center gap-3">
+                    <button
+                      onClick={() => downloadInvoicePdf(inv.id)}
+                      className="flex items-center gap-1 text-xs text-primary hover:text-primary-300 font-medium"
+                      title="Baixar PDF"
+                    >
+                      <FileDown size={14} /> PDF
+                    </button>
+                    <button onClick={() => setDeleteConfirm({ type: 'invoice', id: inv.id })} className="text-xs text-error hover:text-red-400">Excluir</button>
+                  </td>
                 </tr>
               ))}
               {invoices.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-text-secondary">Nenhuma fatura</td></tr>}
