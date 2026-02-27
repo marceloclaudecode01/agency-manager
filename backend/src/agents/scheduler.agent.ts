@@ -91,6 +91,22 @@ export function startPostScheduler() {
         await notificationsService.createAndEmit(admin.id, 'TASK_ASSIGNED', 'Post publicado!', `"${post.topic || post.message.substring(0, 50)}" foi publicado no Facebook`);
       }
     } catch (err: any) {
+      const isPermissionError = err.response?.status === 403 ||
+        (err.message && (err.message.includes('pages_manage_posts') || err.message.includes('pages_read_engagement') || err.message.includes('#200')));
+
+      if (isPermissionError) {
+        console.error('[Scheduler] ⚠️ Token sem permissão pages_manage_posts. Configure um Page Access Token com as permissões corretas no Facebook Developer.');
+        await agentLog('Scheduler', '⚠️ Token sem permissão de publicação (pages_manage_posts). Posts marcados como FAILED. Atualize o token no Railway.', { type: 'error' });
+        // Mark all pending posts as FAILED to stop retrying
+        try {
+          await prisma.scheduledPost.updateMany({
+            where: { status: 'APPROVED' },
+            data: { status: 'FAILED' },
+          });
+        } catch {}
+        return;
+      }
+
       console.error('[Scheduler] Erro ao publicar post:', err.message);
       await agentLog('Scheduler', `❌ Erro ao publicar post: ${err.message}`, { type: 'error' });
       try {
@@ -120,7 +136,17 @@ export function startCommentResponder() {
   cron.schedule('*/30 * * * *', async () => {
     try {
       await agentLog('Comment Responder', 'Verificando comentários novos nos posts...', { type: 'action', to: 'Facebook API' });
-      const posts = await socialService.getPosts(10);
+      let posts: any[] = [];
+      try {
+        posts = await socialService.getPosts(10);
+      } catch (fetchErr: any) {
+        await agentLog('Comment Responder', `⚠️ Não foi possível buscar posts do Facebook: ${fetchErr.message}. Aguardando próximo ciclo.`, { type: 'info' });
+        return;
+      }
+      if (posts.length === 0) {
+        await agentLog('Comment Responder', 'Nenhum post encontrado na página.', { type: 'info' });
+        return;
+      }
 
       const productCampaigns = await prisma.productCampaign.findMany({
         where: { status: 'PUBLISHED', autoReply: true, replyTemplate: { not: null } },
@@ -154,7 +180,13 @@ export function startCommentResponder() {
             continue;
           }
 
-          await socialService.replyToComment(comment.id, reply);
+          try {
+            await socialService.replyToComment(comment.id, reply);
+          } catch (replyErr: any) {
+            await agentLog('Comment Responder', `⚠️ Não foi possível responder comentário: ${replyErr.message}`, { type: 'info' });
+            await prisma.commentLog.create({ data: { commentId: comment.id, action: 'FAILED', reply } });
+            continue;
+          }
           await prisma.commentLog.create({ data: { commentId: comment.id, action: 'REPLIED', reply } });
           repliedCount++;
 

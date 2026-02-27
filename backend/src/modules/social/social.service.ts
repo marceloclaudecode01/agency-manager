@@ -78,7 +78,7 @@ export class SocialService {
     const pageId = getPageId();
     const { data } = await axios.get(`${GRAPH_API}/${pageId}/posts`, {
       params: {
-        fields: 'id,message,story,created_time,full_picture,permalink_url,insights.metric(post_impressions,post_engaged_users,post_reactions_by_type_total)',
+        fields: 'id,message,story,created_time,full_picture,permalink_url',
         limit,
         access_token: token,
       },
