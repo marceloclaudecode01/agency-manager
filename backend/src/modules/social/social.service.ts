@@ -12,7 +12,7 @@ type PublishMediaOptions = PublishOptions & {
 };
 
 function getToken() {
-  const token = process.env.FACEBOOK_ACCESS_TOKEN;
+  const token = (process.env.FACEBOOK_ACCESS_TOKEN || '').trim();
   if (!token || token === 'cole_seu_novo_token_aqui') {
     throw { statusCode: 503, message: 'Facebook token not configured' };
   }
