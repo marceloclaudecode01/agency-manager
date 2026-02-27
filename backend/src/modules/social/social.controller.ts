@@ -41,7 +41,9 @@ export class SocialController {
       return ApiResponse.success(res, data);
     } catch (error: any) {
       const fbError = error.response?.data?.error?.message || error.message || 'Failed to get posts';
-      return ApiResponse.error(res, fbError, error.response?.status || error.statusCode || 500);
+      const fbCode = error.response?.data?.error?.code;
+      const status = error.response?.status || error.statusCode || 500;
+      return ApiResponse.error(res, `[FB ${fbCode}] ${fbError}`, status);
     }
   }
 
