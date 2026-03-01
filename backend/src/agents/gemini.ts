@@ -1,17 +1,22 @@
 import Groq from 'groq-sdk';
 
-const apiKey = process.env.GROQ_API_KEY;
+let client: Groq | null = null;
 
-if (!apiKey) {
-  console.warn('[Groq] GROQ_API_KEY não configurada!');
+function getClient(): Groq {
+  if (!client) {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      throw new Error('[Groq] GROQ_API_KEY não configurada!');
+    }
+    client = new Groq({ apiKey });
+  }
+  return client;
 }
-
-const client = new Groq({ apiKey });
 
 export async function askGemini(prompt: string, retries = 3): Promise<string> {
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      const completion = await client.chat.completions.create({
+      const completion = await getClient().chat.completions.create({
         model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
