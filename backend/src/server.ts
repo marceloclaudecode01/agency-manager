@@ -106,9 +106,10 @@ app.post('/api/temp/engine-run', async (_req, res) => {
         recentTopics.push(topic);
       } catch (err: any) {
         console.error(`[TempEngine] Error post ${i}:`, err.message);
+        created.push(`ERROR:${err.message}`);
       }
     }
-    res.json({ success: true, strategy: { postsToCreate: strategy.postsToCreate, topics: strategy.topics }, created: created.length });
+    res.json({ success: true, strategy: { postsToCreate: strategy.postsToCreate, topics: strategy.topics }, results: created });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
