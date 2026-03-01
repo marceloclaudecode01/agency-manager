@@ -228,18 +228,21 @@ enum ScheduledPostStatus {
 }
 
 model ScheduledPost {
-  id           String              @id @default(cuid())
-  topic        String
-  message      String
-  hashtags     String?
-  imageUrl     String?
-  platform     String?
-  scheduledFor DateTime
-  status       ScheduledPostStatus @default(PENDING)
-  publishedAt  DateTime?
-  retryCount   Int                 @default(0)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  id              String              @id @default(cuid())
+  topic           String
+  message         String
+  hashtags        String?
+  imageUrl        String?
+  platform        String              @default("facebook")
+  scheduledFor    DateTime
+  status          ScheduledPostStatus @default(PENDING)
+  publishedAt     DateTime?
+  retryCount      Int                 @default(0)
+  timezone        String?
+  nativeScheduled Boolean             @default(false)
+  metaPostId      String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@map("scheduled_posts")
 }

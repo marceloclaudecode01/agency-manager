@@ -19,7 +19,7 @@ import {
 
 const PLATFORMS = [
   { key: 'facebook', label: 'Facebook', icon: Facebook, color: 'text-blue-500', bg: 'bg-blue-500/10 border-blue-500/30', enabled: true },
-  { key: 'instagram', label: 'Instagram', icon: Heart, color: 'text-pink-500', bg: 'bg-pink-500/10 border-pink-500/30', enabled: false },
+  { key: 'instagram', label: 'Instagram', icon: Heart, color: 'text-pink-500', bg: 'bg-pink-500/10 border-pink-500/30', enabled: true },
   { key: 'youtube', label: 'YouTube', icon: Youtube, color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/30', enabled: false },
   { key: 'tiktok', label: 'TikTok', icon: Music2, color: 'text-cyan-400', bg: 'bg-cyan-400/10 border-cyan-400/30', enabled: false },
 ] as const;
@@ -51,7 +51,9 @@ export default function SocialPage() {
   const [connected, setConnected] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [postForm, setPostForm] = useState({ message: '', imageUrl: '', linkUrl: '', mediaType: '' as '' | 'image' | 'video', scheduledTime: '' });
+  const [postForm, setPostForm] = useState({ message: '', imageUrl: '', linkUrl: '', mediaType: '' as '' | 'image' | 'video', scheduledTime: '', platform: 'facebook' as 'facebook' | 'instagram' | 'both', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+  const [igConnected, setIgConnected] = useState(false);
+  const [igAccount, setIgAccount] = useState<any>(null);
   const [postMediaFile, setPostMediaFile] = useState<File | null>(null);
   const [postMediaPreview, setPostMediaPreview] = useState<string | null>(null);
   const [uploadingPostMedia, setUploadingPostMedia] = useState(false);
@@ -155,6 +157,14 @@ export default function SocialPage() {
       setPageInfo(infoRes.data.data);
       setInsights(insightsRes.data.data);
       setPosts(postsRes.data.data || []);
+      // Check Instagram connection
+      try {
+        const igRes = await api.get('/social/instagram/connection');
+        if (igRes.data.data.connected) {
+          setIgConnected(true);
+          setIgAccount(igRes.data.data.account);
+        }
+      } catch {}
     } catch {
       toast('Erro ao carregar dados do Facebook', 'error');
     } finally {
@@ -220,6 +230,21 @@ export default function SocialPage() {
         setUploadingPostMedia(false);
       }
 
+      // Validate scheduling time
+      if (postForm.scheduledTime) {
+        const scheduled = new Date(postForm.scheduledTime);
+        const now = new Date();
+        const minTime = new Date(now.getTime() + 10 * 60 * 1000);
+        const maxTime = new Date(now.getTime() + 75 * 24 * 60 * 60 * 1000);
+        if (scheduled < minTime) { toast('Agendamento deve ser pelo menos 10 minutos no futuro', 'error'); setPublishing(false); return; }
+        if (scheduled > maxTime) { toast('Agendamento deve ser no máximo 75 dias no futuro', 'error'); setPublishing(false); return; }
+      }
+
+      // Instagram requires media
+      if ((postForm.platform === 'instagram' || postForm.platform === 'both') && !mediaUrl) {
+        toast('Instagram requer imagem ou vídeo', 'error'); setPublishing(false); return;
+      }
+
       await api.post('/social/posts', {
         message: postForm.message,
         imageUrl: mediaUrl,
@@ -227,11 +252,13 @@ export default function SocialPage() {
         mediaType,
         linkUrl: postForm.linkUrl || null,
         scheduledTime: postForm.scheduledTime || null,
+        platform: postForm.platform,
+        timezone: postForm.timezone,
       });
 
       toast(postForm.scheduledTime ? 'Post agendado!' : 'Post publicado!', 'success');
       setShowPostModal(false);
-      setPostForm({ message: '', imageUrl: '', linkUrl: '', mediaType: '', scheduledTime: '' });
+      setPostForm({ message: '', imageUrl: '', linkUrl: '', mediaType: '', scheduledTime: '', platform: 'facebook', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
       setPostMediaFile(null);
       setPostMediaPreview(null);
       loadSocial();
@@ -909,6 +936,11 @@ export default function SocialPage() {
                                 <Badge variant={STATUS_VARIANTS[post.status] || 'default'}>
                                   {STATUS_LABELS[post.status] || post.status}
                                 </Badge>
+                                {post.platform && post.platform !== 'facebook' && (
+                                  <Badge variant="default">
+                                    {post.platform === 'instagram' ? 'IG' : post.platform === 'both' ? 'FB+IG' : 'FB'}
+                                  </Badge>
+                                )}
                                 <span className="text-xs text-text-secondary font-medium">{post.topic}</span>
                               </div>
                               <p className="text-sm text-text-primary line-clamp-2">{post.message}</p>
@@ -1004,8 +1036,33 @@ export default function SocialPage() {
       )}
 
       {/* Modal: Novo Post direto */}
-      <Modal isOpen={showPostModal} onClose={() => setShowPostModal(false)} title="Novo Post no Facebook">
+      <Modal isOpen={showPostModal} onClose={() => setShowPostModal(false)} title="Novo Post">
         <form onSubmit={handlePublish} className="space-y-4">
+          {/* Platform selector */}
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">Plataforma</label>
+            <div className="flex gap-2">
+              {(['facebook', 'instagram', 'both'] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPostForm({ ...postForm, platform: p })}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                    postForm.platform === p
+                      ? p === 'facebook' ? 'bg-blue-500/20 border-blue-500 text-blue-400'
+                        : p === 'instagram' ? 'bg-pink-500/20 border-pink-500 text-pink-400'
+                        : 'bg-purple-500/20 border-purple-500 text-purple-400'
+                      : 'border-border text-text-secondary hover:border-primary/50'
+                  }`}
+                >
+                  {p === 'facebook' ? 'Facebook' : p === 'instagram' ? 'Instagram' : 'Ambos'}
+                </button>
+              ))}
+            </div>
+            {(postForm.platform === 'instagram' || postForm.platform === 'both') && !igConnected && (
+              <p className="text-xs text-yellow-400 mt-1">Instagram Business Account nao configurado. Configure INSTAGRAM_BUSINESS_ACCOUNT_ID.</p>
+            )}
+          </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">Legenda *</label>
             <textarea
@@ -1055,6 +1112,24 @@ export default function SocialPage() {
           </div>
           <Input label="Link do post (opcional)" type="url" placeholder="https://seu-link.com" value={postForm.linkUrl} onChange={(e) => setPostForm({ ...postForm, linkUrl: e.target.value })} />
           <Input label="Agendar para (opcional)" type="datetime-local" value={postForm.scheduledTime} onChange={(e) => setPostForm({ ...postForm, scheduledTime: e.target.value })} />
+          {postForm.scheduledTime && (
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1">Timezone</label>
+              <select
+                value={postForm.timezone}
+                onChange={(e) => setPostForm({ ...postForm, timezone: e.target.value })}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="America/Sao_Paulo">Brasilia (GMT-3)</option>
+                <option value="America/Manaus">Manaus (GMT-4)</option>
+                <option value="America/Recife">Recife (GMT-3)</option>
+                <option value="America/Fortaleza">Fortaleza (GMT-3)</option>
+                <option value="America/Cuiaba">Cuiaba (GMT-4)</option>
+                <option value="America/Rio_Branco">Rio Branco (GMT-5)</option>
+                <option value="UTC">UTC</option>
+              </select>
+            </div>
+          )}
           <div className="flex gap-2 justify-end pt-2">
             <Button type="button" variant="outline" onClick={() => setShowPostModal(false)}>Cancelar</Button>
             <Button type="submit" disabled={publishing || uploadingPostMedia}>

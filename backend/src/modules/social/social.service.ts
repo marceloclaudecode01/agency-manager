@@ -5,11 +5,20 @@ const GRAPH_API = 'https://graph.facebook.com/v19.0';
 type PublishOptions = {
   scheduledTime?: string;
   linkUrl?: string | null;
+  platform?: 'facebook' | 'instagram' | 'both';
 };
 
 type PublishMediaOptions = PublishOptions & {
   mediaType?: 'image' | 'video' | null;
 };
+
+function getInstagramAccountId() {
+  const id = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
+  if (!id) {
+    throw { statusCode: 503, message: 'Instagram Business Account ID not configured' };
+  }
+  return id;
+}
 
 function getToken() {
   const token = (process.env.FACEBOOK_ACCESS_TOKEN || '').trim();
@@ -217,5 +226,115 @@ export class SocialService {
     } catch (err: any) {
       return { connected: false, error: err.message || 'Connection failed' };
     }
+  }
+
+  // --- Instagram Methods ---
+
+  async checkInstagramConnection() {
+    try {
+      const igId = getInstagramAccountId();
+      const token = getToken();
+      const { data } = await axios.get(`${GRAPH_API}/${igId}`, {
+        params: { fields: 'id,username,profile_picture_url,followers_count,media_count', access_token: token },
+      });
+      return { connected: true, account: data };
+    } catch (err: any) {
+      return { connected: false, error: err.response?.data?.error?.message || err.message || 'Instagram connection failed' };
+    }
+  }
+
+  async publishInstagramPhoto(caption: string, imageUrl: string): Promise<any> {
+    const igId = getInstagramAccountId();
+    const token = getToken();
+
+    // Step 1: Create media container
+    const { data: container } = await axios.post(`${GRAPH_API}/${igId}/media`, null, {
+      params: { image_url: imageUrl, caption, access_token: token },
+    });
+
+    // Step 2: Publish
+    const { data: result } = await axios.post(`${GRAPH_API}/${igId}/media_publish`, null, {
+      params: { creation_id: container.id, access_token: token },
+    });
+
+    return result;
+  }
+
+  async publishInstagramVideo(caption: string, videoUrl: string): Promise<any> {
+    const igId = getInstagramAccountId();
+    const token = getToken();
+
+    // Step 1: Create reel container
+    const { data: container } = await axios.post(`${GRAPH_API}/${igId}/media`, null, {
+      params: { video_url: videoUrl, caption, media_type: 'REELS', access_token: token },
+    });
+
+    // Step 2: Wait for processing (poll status)
+    let status = 'IN_PROGRESS';
+    let attempts = 0;
+    while (status === 'IN_PROGRESS' && attempts < 30) {
+      await new Promise((r) => setTimeout(r, 5000));
+      const { data: check } = await axios.get(`${GRAPH_API}/${container.id}`, {
+        params: { fields: 'status_code', access_token: token },
+      });
+      status = check.status_code;
+      attempts++;
+    }
+
+    if (status !== 'FINISHED') {
+      throw new Error(`Instagram video processing failed: ${status}`);
+    }
+
+    // Step 3: Publish
+    const { data: result } = await axios.post(`${GRAPH_API}/${igId}/media_publish`, null, {
+      params: { creation_id: container.id, access_token: token },
+    });
+
+    return result;
+  }
+
+  async publishInstagramMedia(caption: string, mediaUrl: string, mediaType?: 'image' | 'video' | null): Promise<any> {
+    if (mediaType === 'video') {
+      return this.publishInstagramVideo(caption, mediaUrl);
+    }
+    if (mediaType === 'image') {
+      return this.publishInstagramPhoto(caption, mediaUrl);
+    }
+    const isVideo = /\.(mp4|mov|avi|m4v)(\?|$)/i.test(mediaUrl);
+    return isVideo
+      ? this.publishInstagramVideo(caption, mediaUrl)
+      : this.publishInstagramPhoto(caption, mediaUrl);
+  }
+
+  // --- Multi-platform publish ---
+
+  async publishMultiPlatform(
+    message: string,
+    options?: PublishMediaOptions & { platform?: 'facebook' | 'instagram' | 'both' },
+  ): Promise<{ facebook?: any; instagram?: any }> {
+    const platform = options?.platform || 'facebook';
+    const finalMediaUrl = options?.mediaType ? undefined : undefined; // handled by caller
+    const results: { facebook?: any; instagram?: any } = {};
+
+    if (platform === 'facebook' || platform === 'both') {
+      const mediaUrl = (options as any)?.mediaUrl;
+      if (mediaUrl) {
+        results.facebook = await this.publishMediaPost(message, mediaUrl, options);
+      } else {
+        results.facebook = await this.publishPost(message, options);
+      }
+    }
+
+    if (platform === 'instagram' || platform === 'both') {
+      const mediaUrl = (options as any)?.mediaUrl;
+      if (mediaUrl) {
+        results.instagram = await this.publishInstagramMedia(message, mediaUrl, options?.mediaType);
+      } else {
+        // Instagram requires media — text-only not supported
+        throw { statusCode: 400, message: 'Instagram requires an image or video. Text-only posts are not supported.' };
+      }
+    }
+
+    return results;
   }
 }

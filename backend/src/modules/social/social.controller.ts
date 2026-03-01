@@ -56,16 +56,29 @@ export class SocialController {
 
   async publishPost(req: AuthRequest, res: Response) {
     try {
-      const { message, imageUrl, mediaUrl, mediaType, linkUrl, scheduledTime } = req.body;
+      const { message, imageUrl, mediaUrl, mediaType, linkUrl, scheduledTime, platform = 'facebook' } = req.body;
       const finalMediaUrl = mediaUrl || imageUrl || null;
 
-      const data = finalMediaUrl
-        ? await socialService.publishMediaPost(message, finalMediaUrl, { mediaType, linkUrl, scheduledTime })
-        : await socialService.publishPost(message, { linkUrl, scheduledTime });
+      const data = await socialService.publishMultiPlatform(message, {
+        mediaUrl: finalMediaUrl,
+        mediaType,
+        linkUrl,
+        scheduledTime,
+        platform,
+      } as any);
 
       return ApiResponse.created(res, data, scheduledTime ? 'Post scheduled successfully' : 'Post published successfully');
     } catch (error: any) {
       return ApiResponse.error(res, error.response?.data?.error?.message || error.message || 'Failed to publish post', error.statusCode || 500);
+    }
+  }
+
+  async checkInstagramConnection(req: AuthRequest, res: Response) {
+    try {
+      const result = await socialService.checkInstagramConnection();
+      return ApiResponse.success(res, result);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message || 'Failed to check Instagram connection', error.statusCode || 500);
     }
   }
 
