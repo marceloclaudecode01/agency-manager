@@ -15,4 +15,4 @@ RUN npm run build
 
 EXPOSE 3333
 
-CMD ["sh", "-c", "npx prisma db push && node dist/server.js"]
+CMD ["sh", "-c", "npx prisma db push && echo '[Boot] Starting node...' && node --max-old-space-size=512 dist/server.js"]
