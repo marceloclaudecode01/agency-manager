@@ -28,14 +28,6 @@ import { setAgentLoggerIo } from './agents/agent-logger';
 
 console.log('[Boot] Modules imported successfully');
 
-process.on('uncaughtException', (err) => {
-  console.error('[FATAL] Uncaught exception:', err.message, err.stack);
-  process.exit(1);
-});
-process.on('unhandledRejection', (reason) => {
-  console.error('[FATAL] Unhandled rejection:', reason);
-});
-
 if (!process.env.JWT_SECRET) {
   throw new Error('FATAL: JWT_SECRET environment variable is not set');
 }
