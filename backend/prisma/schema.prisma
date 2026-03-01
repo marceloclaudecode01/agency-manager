@@ -233,7 +233,7 @@ model ScheduledPost {
   message         String
   hashtags        String?
   imageUrl        String?
-  platform        String              @default("facebook")
+  platform        String?             @default("facebook")
   scheduledFor    DateTime
   status          ScheduledPostStatus @default(PENDING)
   publishedAt     DateTime?
