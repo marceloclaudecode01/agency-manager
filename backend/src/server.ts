@@ -132,7 +132,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {});
 });
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on http://localhost:${PORT}`);
   setAgentLoggerIo(io);
   startAllAgents();
