@@ -146,3 +146,12 @@ export interface Notification {
   taskId?: string;
   createdAt: string;
 }
+
+export type Platform = 'facebook' | 'instagram' | 'youtube' | 'tiktok';
+
+export interface PlatformConfig {
+  key: Platform;
+  name: string;
+  enabled: boolean;
+  color: string;
+}

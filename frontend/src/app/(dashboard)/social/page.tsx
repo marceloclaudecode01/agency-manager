@@ -14,8 +14,15 @@ import {
   Facebook, Users, Eye, TrendingUp, Heart, Plus, RefreshCw, Trash2,
   Clock, Sparkles, Calendar, CheckCircle, XCircle, Bot, BarChart3,
   Zap, ChevronRight, AlertCircle, Flame, ShoppingCart, Tag,
-  Package, Brain, Shield, ExternalLink, Link2,
+  Package, Brain, Shield, ExternalLink, Link2, Lock, Youtube, Music2, MessageSquare,
 } from 'lucide-react';
+
+const PLATFORMS = [
+  { key: 'facebook', label: 'Facebook', icon: Facebook, color: 'text-blue-500', bg: 'bg-blue-500/10 border-blue-500/30', enabled: true },
+  { key: 'instagram', label: 'Instagram', icon: Heart, color: 'text-pink-500', bg: 'bg-pink-500/10 border-pink-500/30', enabled: false },
+  { key: 'youtube', label: 'YouTube', icon: Youtube, color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/30', enabled: false },
+  { key: 'tiktok', label: 'TikTok', icon: Music2, color: 'text-cyan-400', bg: 'bg-cyan-400/10 border-cyan-400/30', enabled: false },
+] as const;
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pendente',
@@ -50,7 +57,9 @@ export default function SocialPage() {
   const [uploadingPostMedia, setUploadingPostMedia] = useState(false);
 
   // Agentes IA
-  const [activeTab, setActiveTab] = useState<'social' | 'agents'>('social');
+  const [activeTab, setActiveTab] = useState<'social' | 'performance' | 'agents'>('social');
+  const [performanceData, setPerformanceData] = useState<any>(null);
+  const [loadingPerformance, setLoadingPerformance] = useState(false);
   const [scheduledPosts, setScheduledPosts] = useState<any[]>([]);
   const [metricsReports, setMetricsReports] = useState<any[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
@@ -107,7 +116,30 @@ export default function SocialPage() {
   const [tokenStatus, setTokenStatus] = useState<any>(null);
 
   useEffect(() => { loadSocial(); }, []);
-  useEffect(() => { if (activeTab === 'agents') { loadAgents(); loadTokenStatus(); } }, [activeTab]);
+  useEffect(() => {
+    if (activeTab === 'agents') { loadAgents(); loadTokenStatus(); }
+    if (activeTab === 'performance' && !performanceData) { loadPerformance(); }
+  }, [activeTab]);
+
+  const loadPerformance = async () => {
+    setLoadingPerformance(true);
+    try {
+      const [overviewRes, postsRes, bestTimesRes] = await Promise.all([
+        api.get('/analytics/overview').catch(() => ({ data: { data: null } })),
+        api.get('/analytics/posts').catch(() => ({ data: { data: null } })),
+        api.get('/analytics/best-times').catch(() => ({ data: { data: null } })),
+      ]);
+      setPerformanceData({
+        overview: overviewRes.data.data,
+        posts: postsRes.data.data,
+        bestTimes: bestTimesRes.data.data,
+      });
+    } catch {
+      toast('Erro ao carregar performance', 'error');
+    } finally {
+      setLoadingPerformance(false);
+    }
+  };
 
   const loadSocial = async () => {
     setLoading(true);
@@ -483,6 +515,28 @@ export default function SocialPage() {
 
   return (
     <div className="space-y-6">
+      {/* Platform Selector */}
+      <div className="flex gap-3 flex-wrap">
+        {PLATFORMS.map((p) => {
+          const Icon = p.icon;
+          return (
+            <div
+              key={p.key}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all ${
+                p.enabled
+                  ? `${p.bg} cursor-default shadow-sm`
+                  : 'bg-surface border-border opacity-50 cursor-not-allowed'
+              }`}
+            >
+              <Icon size={18} className={p.enabled ? p.color : 'text-gray-500'} />
+              <span className={`text-sm font-medium ${p.enabled ? 'text-text-primary' : 'text-gray-500'}`}>{p.label}</span>
+              {!p.enabled && <Lock size={12} className="text-gray-600 ml-1" />}
+              {!p.enabled && <span className="text-xs text-gray-600">Em breve</span>}
+            </div>
+          );
+        })}
+      </div>
+
       {/* Page Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
@@ -512,7 +566,7 @@ export default function SocialPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map((kpi) => (
-          <Card key={kpi.label}>
+          <Card key={kpi.label} className="hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
             <CardContent className="p-4 flex items-center gap-3">
               <div className={`h-10 w-10 rounded-lg ${kpi.bg} flex items-center justify-center flex-shrink-0`}>
                 <kpi.icon size={20} className={kpi.color} />
@@ -530,6 +584,7 @@ export default function SocialPage() {
       <div className="flex gap-1 border-b border-border">
         {[
           { key: 'social', label: 'Posts Facebook', icon: Facebook },
+          { key: 'performance', label: 'Performance', icon: BarChart3 },
           { key: 'agents', label: 'Agentes IA', icon: Bot },
         ].map((tab) => (
           <button
@@ -615,6 +670,97 @@ export default function SocialPage() {
               </CardContent>
             </Card>
           </div>
+        </div>
+      )}
+
+      {/* Tab: Performance */}
+      {activeTab === 'performance' && (
+        <div className="space-y-6">
+          {loadingPerformance ? (
+            <Loading />
+          ) : !performanceData?.overview && !performanceData?.posts ? (
+            <div className="flex flex-col items-center justify-center py-16 text-text-secondary">
+              <BarChart3 size={48} className="opacity-30 mb-3" />
+              <p className="text-lg font-medium">Sem dados de performance ainda</p>
+              <p className="text-sm mt-1">Os dados aparecerão quando os agentes coletarem métricas.</p>
+            </div>
+          ) : (
+            <>
+              {/* Overview Stats */}
+              {performanceData?.overview && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { label: 'Total de Posts', value: performanceData.overview.totalPosts ?? 0, icon: Facebook, color: 'text-blue-400', bg: 'bg-blue-400/10' },
+                    { label: 'Alcance Total', value: (performanceData.overview.totalReach ?? 0).toLocaleString('pt-BR'), icon: Eye, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+                    { label: 'Engajamento Total', value: (performanceData.overview.totalEngagement ?? 0).toLocaleString('pt-BR'), icon: TrendingUp, color: 'text-green-400', bg: 'bg-green-400/10' },
+                    { label: 'Taxa Engajamento', value: `${(performanceData.overview.engagementRate ?? 0).toFixed(1)}%`, icon: Heart, color: 'text-pink-400', bg: 'bg-pink-400/10' },
+                  ].map((stat) => (
+                    <Card key={stat.label} className="hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+                      <CardContent className="p-4 flex items-center gap-3">
+                        <div className={`h-10 w-10 rounded-lg ${stat.bg} flex items-center justify-center flex-shrink-0`}>
+                          <stat.icon size={20} className={stat.color} />
+                        </div>
+                        <div>
+                          <p className="text-xl font-heading font-bold text-text-primary">{stat.value}</p>
+                          <p className="text-xs text-text-secondary">{stat.label}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* Top Posts */}
+              {performanceData?.posts?.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <h3 className="text-lg font-heading font-semibold text-text-primary">Melhores Posts</h3>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {performanceData.posts.slice(0, 5).map((post: any, idx: number) => (
+                        <div key={post.id || idx} className="flex items-center justify-between rounded-lg bg-surface-hover/50 p-3">
+                          <div className="flex-1 min-w-0 mr-4">
+                            <p className="text-sm text-text-primary truncate">{post.message || post.content || 'Post sem texto'}</p>
+                            <p className="text-xs text-text-secondary mt-0.5">{post.publishedAt ? formatDateTime(post.publishedAt) : ''}</p>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-text-secondary flex-shrink-0">
+                            <span className="flex items-center gap-1"><Heart size={12} className="text-pink-400" /> {post.likes ?? 0}</span>
+                            <span className="flex items-center gap-1"><MessageSquare size={12} className="text-blue-400" /> {post.comments ?? 0}</span>
+                            <span className="flex items-center gap-1"><Eye size={12} className="text-purple-400" /> {post.reach ?? 0}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Best Times */}
+              {performanceData?.bestTimes && (
+                <Card>
+                  <CardHeader>
+                    <h3 className="text-lg font-heading font-semibold text-text-primary">Melhores Horários para Postar</h3>
+                  </CardHeader>
+                  <CardContent>
+                    {Array.isArray(performanceData.bestTimes) && performanceData.bestTimes.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {performanceData.bestTimes.map((time: any, idx: number) => (
+                          <div key={idx} className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
+                            <Clock size={14} className="text-primary-300" />
+                            <span className="text-sm text-text-primary">{time.hour ?? time.time ?? time}</span>
+                            {time.engagement && <span className="text-xs text-text-secondary">({time.engagement} eng.)</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-text-secondary">Dados insuficientes para determinar melhores horários.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
         </div>
       )}
 

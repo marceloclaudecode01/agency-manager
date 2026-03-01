@@ -166,23 +166,21 @@ export default function AgentsPage() {
   const [activeTab, setActiveTab] = useState<'agents' | 'chat'>('agents');
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Agentes que apareceram nos logs recentemente (últimas 2h)
   const [activeAgents, setActiveAgents] = useState<Set<string>>(new Set());
+  const [lastLogByAgent, setLastLogByAgent] = useState<Record<string, string>>({});
+  const [logCountByAgent, setLogCountByAgent] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchLogs();
   }, []);
 
-  // Socket: recebe logs em tempo real
   useEffect(() => {
     if (!socket) return;
     socket.on('agent:log', (log: any) => {
-      setLogs(prev => {
-        const updated = [...prev, log].slice(-200); // mantém últimos 200
-        return updated;
-      });
+      setLogs(prev => [...prev, log].slice(-200));
       setActiveAgents(prev => { const s = new Set(Array.from(prev)); s.add(log.from); return s; });
-      // Scroll automático se estiver na aba chat
+      setLastLogByAgent(prev => ({ ...prev, [log.from]: log.createdAt }));
+      setLogCountByAgent(prev => ({ ...prev, [log.from]: (prev[log.from] || 0) + 1 }));
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     });
     return () => { socket.off('agent:log'); };
@@ -193,13 +191,29 @@ export default function AgentsPage() {
       const res = await api.get('/agents/logs?limit=150');
       const data = res.data.data || [];
       setLogs(data);
-      // Marca agentes ativos (últimas 2h)
+
       const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
       const recentArr: string[] = data
         .filter((l: any) => new Date(l.createdAt).getTime() > twoHoursAgo)
         .map((l: any) => l.from as string);
-      const recent = new Set<string>(recentArr);
-      setActiveAgents(recent);
+      setActiveAgents(new Set<string>(recentArr));
+
+      // Build last log and count per agent
+      const lastLog: Record<string, string> = {};
+      const countMap: Record<string, number> = {};
+      data.forEach((l: any) => {
+        if (!lastLog[l.from] || new Date(l.createdAt) > new Date(lastLog[l.from])) {
+          lastLog[l.from] = l.createdAt;
+        }
+        if (new Date(l.createdAt).getTime() > todayStart.getTime()) {
+          countMap[l.from] = (countMap[l.from] || 0) + 1;
+        }
+      });
+      setLastLogByAgent(lastLog);
+      setLogCountByAgent(countMap);
     } catch {
       // sem logs ainda é ok
     } finally {
@@ -215,6 +229,8 @@ export default function AgentsPage() {
 
   if (loading) return <Loading />;
 
+  const activeCount = activeAgents.size;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -225,13 +241,17 @@ export default function AgentsPage() {
             Agentes da Agência
           </h1>
           <p className="text-gray-400 text-sm mt-1">
-            13 agentes trabalhando de forma autônoma para fazer sua página crescer
+            {AGENTS.length} agentes autônomos gerenciando suas redes sociais
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 text-xs text-green-400 bg-green-400/10 border border-green-400/30 px-3 py-1.5 rounded-full">
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            {AGENTS.length} agentes online
+          <span className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
+            activeCount > 0
+              ? 'text-green-400 bg-green-400/10 border-green-400/30'
+              : 'text-gray-400 bg-gray-400/10 border-gray-400/30'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${activeCount > 0 ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
+            {activeCount} {activeCount === 1 ? 'agente ativo' : 'agentes ativos'}
           </span>
         </div>
       </div>
@@ -248,7 +268,7 @@ export default function AgentsPage() {
                 : 'border-transparent text-gray-400 hover:text-gray-200'
             }`}
           >
-            {tab === 'agents' ? '🤖 Todos os Agentes' : '💬 Chat entre Agentes'}
+            {tab === 'agents' ? 'Todos os Agentes' : 'Chat entre Agentes'}
           </button>
         ))}
       </div>
@@ -259,8 +279,10 @@ export default function AgentsPage() {
           {AGENTS.map(agent => {
             const Icon = agent.icon;
             const isActive = activeAgents.has(agent.name);
+            const lastRun = lastLogByAgent[agent.name];
+            const todayCount = logCountByAgent[agent.name] || 0;
             return (
-              <Card key={agent.name} className={`border ${agent.bg} bg-gray-800/50`}>
+              <Card key={agent.name} className={`border ${agent.bg} bg-gray-800/50 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5`}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-lg ${agent.bg} flex-shrink-0`}>
@@ -276,10 +298,24 @@ export default function AgentsPage() {
                       </div>
                       <p className="text-xs text-gray-500 mb-2">{agent.role}</p>
                       <p className="text-xs text-gray-400 leading-relaxed">{agent.description}</p>
-                      <div className="mt-3 flex items-center gap-1.5">
-                        <Calendar className="w-3 h-3 text-gray-500" />
-                        <span className="text-xs text-gray-500">{agent.schedule}</span>
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3 h-3 text-gray-500" />
+                          <span className="text-xs text-gray-500">{agent.schedule}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {todayCount > 0 && (
+                            <span className="text-xs text-gray-500 bg-gray-700/50 px-1.5 py-0.5 rounded">
+                              {todayCount}x hoje
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      {lastRun && (
+                        <p className="text-xs text-gray-600 mt-1.5">
+                          Última ação: {timeAgo(lastRun)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -317,7 +353,7 @@ export default function AgentsPage() {
             </select>
             <button
               onClick={fetchLogs}
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 bg-gray-700 border border-gray-600 px-3 py-1.5 rounded-lg"
+              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 bg-gray-700 border border-gray-600 px-3 py-1.5 rounded-lg transition-colors"
             >
               <RefreshCw className="w-3 h-3" /> Atualizar
             </button>
@@ -347,12 +383,9 @@ export default function AgentsPage() {
                         key={log.id || idx}
                         className="flex items-start gap-3 py-2 border-b border-gray-800/60 last:border-0 group hover:bg-gray-800/30 rounded px-2 -mx-2 transition-colors"
                       >
-                        {/* Ícone do agente */}
                         <div className={`p-1.5 rounded flex-shrink-0 mt-0.5 ${agentDef?.bg || 'bg-gray-700'}`}>
                           <AgIcon className={`w-3 h-3 ${agentDef?.color || 'text-gray-400'}`} />
                         </div>
-
-                        {/* Conteúdo */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-0.5">
                             <span className={`font-semibold ${agentDef?.color || 'text-gray-300'}`}>
