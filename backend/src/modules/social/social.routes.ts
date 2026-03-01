@@ -33,7 +33,4 @@ router.delete('/posts/:postId', requireRole('ADMIN'), (req, res) => controller.d
 // Comentários de um post
 router.get('/posts/:postId/comments', (req, res) => controller.getPostComments(req, res));
 
-// Instagram connection check
-router.get('/instagram/connection', (req, res) => controller.checkInstagramConnection(req as any, res));
-
 export default router;

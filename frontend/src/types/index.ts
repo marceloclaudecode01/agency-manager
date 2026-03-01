@@ -147,23 +147,6 @@ export interface Notification {
   createdAt: string;
 }
 
-export interface ScheduledPost {
-  id: string;
-  topic: string;
-  message: string;
-  hashtags?: string;
-  imageUrl?: string;
-  platform: string;
-  scheduledFor: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PUBLISHED' | 'FAILED';
-  publishedAt?: string;
-  timezone?: string;
-  nativeScheduled?: boolean;
-  metaPostId?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export type Platform = 'facebook' | 'instagram' | 'youtube' | 'tiktok';
 
 export interface PlatformConfig {

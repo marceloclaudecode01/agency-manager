@@ -75,29 +75,13 @@ export function startPostScheduler() {
         return;
       }
 
-      const platform = (post as any).platform || 'facebook';
-      await agentLog('Scheduler', `Post encontrado para publicação (${platform}): "${post.topic || post.message.substring(0, 50)}"`, { type: 'action', to: platform === 'instagram' ? 'Instagram API' : 'Facebook API' });
+      await agentLog('Scheduler', `Post encontrado para publicação: "${post.topic || post.message.substring(0, 50)}"`, { type: 'action', to: 'Facebook API' });
 
       const fullMessage = post.hashtags ? `${post.message}\n\n${post.hashtags}` : post.message;
 
-      let publishResult: any;
-      if (platform === 'instagram' || platform === 'both') {
-        try {
-          if (post.imageUrl) {
-            const igResult = await socialService.publishInstagramMedia(fullMessage, post.imageUrl);
-            await agentLog('Scheduler', `✅ Post publicado no Instagram! ID: ${igResult?.id || 'N/A'}`, { type: 'result' });
-          }
-        } catch (igErr: any) {
-          await agentLog('Scheduler', `⚠️ Erro Instagram: ${igErr.message}`, { type: 'error' });
-        }
-      }
-
-      if (platform === 'facebook' || platform === 'both') {
-        publishResult = post.imageUrl
-          ? await socialService.publishMediaPost(fullMessage, post.imageUrl)
-          : await socialService.publishPost(fullMessage);
-      }
-
+      const publishResult = post.imageUrl
+        ? await socialService.publishMediaPost(fullMessage, post.imageUrl)
+        : await socialService.publishPost(fullMessage);
       const fbPostId = publishResult?.id || null;
 
       await prisma.scheduledPost.update({ where: { id: post.id }, data: { status: 'PUBLISHED', publishedAt: now } });
