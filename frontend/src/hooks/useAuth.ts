@@ -27,14 +27,14 @@ export function useAuth() {
   const login = async (email: string, password: string) => {
     const { data } = await api.post('/auth/login', { email, password });
     // Set a client-side cookie so Next.js middleware can detect auth state
-    document.cookie = `token=authenticated; path=/; max-age=${15 * 60}; SameSite=Strict`;
+    document.cookie = `token=authenticated; path=/; max-age=${15 * 60}; SameSite=None; Secure`;
     setUser(data.data.user);
     window.location.href = '/dashboard';
   };
 
   const register = async (name: string, email: string, password: string) => {
     const { data } = await api.post('/auth/register', { name, email, password });
-    document.cookie = `token=authenticated; path=/; max-age=${15 * 60}; SameSite=Strict`;
+    document.cookie = `token=authenticated; path=/; max-age=${15 * 60}; SameSite=None; Secure`;
     setUser(data.data.user);
     window.location.href = '/dashboard';
   };
