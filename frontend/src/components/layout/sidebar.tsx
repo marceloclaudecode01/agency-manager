@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, Users, UsersRound, Megaphone, CheckSquare,
-  DollarSign, BarChart3, Calendar, LogOut, Settings, X, Facebook, MessageSquare, Package, Bot,
+  DollarSign, BarChart3, Calendar, LogOut, Settings, X, Facebook, MessageSquare, Package, Bot, Monitor, Flame, Layers,
+  UserPlus, Coins, Compass, Radar, Brain, Zap, Star,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -19,7 +20,16 @@ const menuItems = [
   { href: '/calendar', icon: Calendar, label: 'Calendário' },
   { href: '/social', icon: Facebook, label: 'Social Media' },
   { href: '/products', icon: Package, label: 'Produtos IA' },
-  { href: '/agents/unified', icon: Bot, label: 'Agentes IA' },
+  { href: '/agents', icon: Bot, label: 'Agentes IA' },
+  { href: '/agents/unified', icon: Star, label: 'Unified Dashboard' },
+  { href: '/agents/command', icon: Monitor, label: 'Command Center' },
+  { href: '/agents/growth-lab', icon: Flame, label: 'Growth Lab' },
+  { href: '/agents/content-lab', icon: Layers, label: 'Content Lab' },
+  { href: '/agents/leads', icon: UserPlus, label: 'Leads CRM' },
+  { href: '/agents/monetization', icon: Coins, label: 'Monetização' },
+  { href: '/agents/strategic', icon: Compass, label: 'Strategic AI' },
+  { href: '/agents/market-intel', icon: Radar, label: 'Market Intel' },
+  { href: '/agents/ads', icon: Zap, label: 'Paid Traffic' },
   { href: '/chat', icon: MessageSquare, label: 'Chat' },
   { href: '/team', icon: UsersRound, label: 'Equipe' },
   { href: '/settings', icon: Settings, label: 'Configurações' },
@@ -58,7 +68,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </button>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto [&>a:nth-child(7)]:mt-4 [&>a:nth-child(7)]:pt-4 [&>a:nth-child(7)]:border-t [&>a:nth-child(7)]:border-border/40 [&>a:nth-child(11)]:mt-4 [&>a:nth-child(11)]:pt-4 [&>a:nth-child(11)]:border-t [&>a:nth-child(11)]:border-border/40 [&>a:nth-child(10)]:mt-4 [&>a:nth-child(10)]:pt-4 [&>a:nth-child(10)]:border-t [&>a:nth-child(10)]:border-border/40">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto [&>a:nth-child(7)]:mt-4 [&>a:nth-child(7)]:pt-4 [&>a:nth-child(7)]:border-t [&>a:nth-child(7)]:border-border/40 [&>a:nth-child(11)]:mt-4 [&>a:nth-child(11)]:pt-4 [&>a:nth-child(11)]:border-t [&>a:nth-child(11)]:border-border/40">
           {menuItems.map((item) => {
             const isActive = pathname === item.href || (pathname.startsWith(item.href + '/') && !menuItems.some(m => m.href !== item.href && m.href.startsWith(item.href + '/') && (pathname === m.href || pathname.startsWith(m.href + '/'))));
             return (
