@@ -29,7 +29,7 @@ function onRefreshFailure(error: unknown) {
 
 function clearAuthAndRedirect() {
   if (typeof document !== 'undefined') {
-    document.cookie = 'auth_flag=; path=/; max-age=0; SameSite=None; Secure';
+    document.cookie = 'auth_flag=; path=/; max-age=0';
   }
   if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
     window.location.href = '/login';
