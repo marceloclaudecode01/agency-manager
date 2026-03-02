@@ -96,7 +96,7 @@ export default function DashboardPage() {
 
       {/* Campaigns + Tasks */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Campanhas Recentes</CardTitle>
@@ -135,7 +135,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Minhas Tarefas Pendentes</CardTitle>
@@ -171,7 +171,7 @@ export default function DashboardPage() {
 
       {/* Recent Clients */}
       {summary?.recentClients?.length > 0 && (
-        <Card>
+        <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

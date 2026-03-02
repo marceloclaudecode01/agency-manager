@@ -282,7 +282,7 @@ export default function AgentsPage() {
             const lastRun = lastLogByAgent[agent.name];
             const todayCount = logCountByAgent[agent.name] || 0;
             return (
-              <Card key={agent.name} className={`border ${agent.bg} bg-surface/60 backdrop-blur-sm transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5`}>
+              <Card key={agent.name} className={`border ${agent.bg} bg-surface/60 backdrop-blur-sm transition-all duration-200 hover:shadow-glow-sm hover:border-primary/20 hover:-translate-y-0.5`}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-lg ${agent.bg} flex-shrink-0`}>
@@ -364,7 +364,7 @@ export default function AgentsPage() {
           </div>
 
           {/* Feed de logs */}
-          <Card className="bg-surface/80 border-border/60">
+          <Card className="bg-surface/80 border-border/60 backdrop-blur-sm">
             <CardContent className="p-0">
               <div className="h-[580px] overflow-y-auto p-4 space-y-2 font-mono text-xs">
                 {filteredLogs.length === 0 ? (

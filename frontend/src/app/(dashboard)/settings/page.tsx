@@ -84,7 +84,7 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <Card>
+      <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
         <CardHeader>
           <div className="flex items-center gap-2">
             <User size={20} className="text-primary-300" />
@@ -128,7 +128,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Lock size={20} className="text-warning" />

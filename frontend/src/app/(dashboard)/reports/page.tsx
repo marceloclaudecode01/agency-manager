@@ -67,7 +67,7 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -108,7 +108,7 @@ export default function ReportsPage() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
           <CardHeader>
             <div className="flex items-center gap-2">
               <BarChart3 size={20} className="text-primary-300" />
@@ -142,7 +142,7 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

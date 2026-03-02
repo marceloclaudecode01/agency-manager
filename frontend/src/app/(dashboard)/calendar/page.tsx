@@ -108,10 +108,10 @@ export default function CalendarPage() {
         </Button>
       </div>
 
-      <Card className="p-0 overflow-hidden">
+      <Card className="p-0 overflow-hidden bg-surface/80 backdrop-blur-sm border-border/60">
         <div className="grid grid-cols-7">
           {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => (
-            <div key={d} className="px-2 py-3 text-center text-xs font-medium text-text-secondary border-b border-border bg-surface-hover/30">{d}</div>
+            <div key={d} className="px-2 py-3 text-center text-xs font-medium text-text-secondary border-b border-border/60 bg-surface-hover/30">{d}</div>
           ))}
           {days.map((day, i) => {
             const dayEvents = day ? getEventsForDay(day) : [];
@@ -137,7 +137,7 @@ export default function CalendarPage() {
         </div>
       </Card>
 
-      <Card>
+      <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
         <div className="flex items-center gap-2 mb-4">
           <CalendarIcon size={20} className="text-primary-300" />
           <h3 className="font-heading font-semibold text-text-primary">Eventos do Mês</h3>

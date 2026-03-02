@@ -86,7 +86,7 @@ export default function ChatPage() {
   if (loading) return <Loading />;
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] rounded-xl border border-border overflow-hidden bg-surface">
+    <div className="flex h-[calc(100vh-8rem)] rounded-xl border border-border/60 overflow-hidden bg-surface/80 backdrop-blur-sm">
       {/* Lista de usuários */}
       <div className="w-64 border-r border-border flex flex-col flex-shrink-0">
         <div className="px-4 py-3 border-b border-border">

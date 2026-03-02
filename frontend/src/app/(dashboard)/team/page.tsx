@@ -131,14 +131,14 @@ export default function TeamPage() {
       </div>
 
       {users.length === 0 ? (
-        <Card className="text-center py-12">
+        <Card className="text-center py-12 bg-surface/80 backdrop-blur-sm border-border/60">
           <Users size={48} className="mx-auto text-text-secondary/30 mb-4" />
           <p className="text-text-secondary">Nenhum membro encontrado</p>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {users.map((u) => (
-            <Card key={u.id} className="flex items-start justify-between">
+            <Card key={u.id} className="flex items-start justify-between bg-surface/80 backdrop-blur-sm border-border/60 hover:border-primary/20 hover:shadow-glow-sm transition-all">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-sm font-semibold text-primary-300">
                   {u.name.charAt(0).toUpperCase()}

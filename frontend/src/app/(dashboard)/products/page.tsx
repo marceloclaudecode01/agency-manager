@@ -155,7 +155,7 @@ export default function ProductsPage() {
           { label: 'Publicados', value: campaigns.filter(c => c.status === 'PUBLISHED').length, icon: CheckCircle, color: 'text-green-400' },
           { label: 'Falhos', value: campaigns.filter(c => c.status === 'FAILED').length, icon: XCircle, color: 'text-red-400' },
         ].map(stat => (
-          <Card key={stat.label} className="bg-surface/80 border-border/60 backdrop-blur-sm">
+          <Card key={stat.label} className="bg-surface/80 border-border/60 backdrop-blur-sm hover:shadow-glow-sm hover:border-primary/20 transition-all">
             <CardContent className="p-4 flex items-center gap-3">
               <stat.icon className={`w-8 h-8 ${stat.color}`} />
               <div>
@@ -169,7 +169,7 @@ export default function ProductsPage() {
 
       {/* Lista de campanhas */}
       {campaigns.length === 0 ? (
-        <Card className="bg-surface/80 border-border/60 backdrop-blur-sm">
+        <Card className="bg-surface/80 border-border/60 backdrop-blur-sm hover:shadow-glow-sm transition-all">
           <CardContent className="p-12 text-center">
             <Package className="w-16 h-16 text-text-secondary/50 mx-auto mb-4" />
             <p className="text-text-secondary text-lg">Nenhuma campanha de produto ainda.</p>

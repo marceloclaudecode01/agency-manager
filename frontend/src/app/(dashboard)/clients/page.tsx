@@ -95,7 +95,7 @@ export default function ClientsPage() {
       {loading ? (
         <Loading />
       ) : clients.length === 0 ? (
-        <Card className="text-center py-12">
+        <Card className="text-center py-12 bg-surface/80 backdrop-blur-sm border-border/60">
           <Building2 size={48} className="mx-auto text-text-secondary/30 mb-4" />
           <p className="text-text-secondary">Nenhum cliente encontrado</p>
         </Card>
@@ -103,7 +103,7 @@ export default function ClientsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {clients.map((client) => (
             <Link key={client.id} href={`/clients/${client.id}`}>
-              <Card className="hover:border-primary/30 transition-colors cursor-pointer">
+              <Card className="bg-surface/80 backdrop-blur-sm border-border/60 hover:border-primary/20 hover:shadow-glow-sm transition-all cursor-pointer">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <h3 className="font-medium text-text-primary">{client.name}</h3>

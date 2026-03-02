@@ -149,20 +149,20 @@ export default function FinancePage() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card><CardContent className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center text-success"><TrendingUp size={24} /></div>
+        <Card className="bg-surface/80 backdrop-blur-sm border-border/60 hover:shadow-glow-sm hover:border-primary/20 transition-all"><CardContent className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center text-success shadow-glow-sm"><TrendingUp size={24} /></div>
           <div><p className="text-sm text-text-secondary">Receita Total</p><p className="text-2xl font-heading font-bold text-text-primary">{formatCurrency(summary.totalRevenue)}</p></div>
         </CardContent></Card>
-        <Card><CardContent className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl bg-warning/10 flex items-center justify-center text-warning"><Clock size={24} /></div>
+        <Card className="bg-surface/80 backdrop-blur-sm border-border/60 hover:shadow-glow-sm hover:border-primary/20 transition-all"><CardContent className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-xl bg-warning/10 flex items-center justify-center text-warning shadow-glow-sm"><Clock size={24} /></div>
           <div><p className="text-sm text-text-secondary">Pendente</p><p className="text-2xl font-heading font-bold text-text-primary">{formatCurrency(summary.pendingAmount)}</p></div>
         </CardContent></Card>
-        <Card><CardContent className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary-300"><DollarSign size={24} /></div>
+        <Card className="bg-surface/80 backdrop-blur-sm border-border/60 hover:shadow-glow-sm hover:border-primary/20 transition-all"><CardContent className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary-300 shadow-glow-sm"><DollarSign size={24} /></div>
           <div><p className="text-sm text-text-secondary">Faturas Pendentes</p><p className="text-2xl font-heading font-bold text-text-primary">{summary.pendingCount}</p></div>
         </CardContent></Card>
-        <Card><CardContent className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center text-success"><CheckCircle2 size={24} /></div>
+        <Card className="bg-surface/80 backdrop-blur-sm border-border/60 hover:shadow-glow-sm hover:border-primary/20 transition-all"><CardContent className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center text-success shadow-glow-sm"><CheckCircle2 size={24} /></div>
           <div><p className="text-sm text-text-secondary">Faturas Pagas</p><p className="text-2xl font-heading font-bold text-text-primary">{summary.paidCount}</p></div>
         </CardContent></Card>
       </div>
@@ -178,9 +178,9 @@ export default function FinancePage() {
       </div>
 
       {tab === 'budgets' ? (
-        <div className="rounded-xl border border-border overflow-x-auto">
+        <div className="rounded-xl border border-border/60 bg-surface/80 backdrop-blur-sm overflow-x-auto">
           <table className="w-full min-w-[600px]">
-            <thead><tr className="bg-surface-hover/50 text-left">
+            <thead><tr className="bg-surface-hover/30 text-left">
               <th className="px-4 py-3 text-xs font-medium text-text-secondary">Título</th>
               <th className="px-4 py-3 text-xs font-medium text-text-secondary">Cliente</th>
               <th className="px-4 py-3 text-xs font-medium text-text-secondary">Campanha</th>
@@ -215,9 +215,9 @@ export default function FinancePage() {
           </table>
         </div>
       ) : (
-        <div className="rounded-xl border border-border overflow-x-auto">
+        <div className="rounded-xl border border-border/60 bg-surface/80 backdrop-blur-sm overflow-x-auto">
           <table className="w-full min-w-[600px]">
-            <thead><tr className="bg-surface-hover/50 text-left">
+            <thead><tr className="bg-surface-hover/30 text-left">
               <th className="px-4 py-3 text-xs font-medium text-text-secondary">Cliente</th>
               <th className="px-4 py-3 text-xs font-medium text-text-secondary">Valor</th>
               <th className="px-4 py-3 text-xs font-medium text-text-secondary">Status</th>

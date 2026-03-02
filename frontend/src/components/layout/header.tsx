@@ -46,7 +46,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 h-16 border-b border-border bg-surface/80 backdrop-blur-sm flex items-center px-6 gap-4">
+    <header className="sticky top-0 z-30 h-16 border-b border-border/60 bg-surface/80 backdrop-blur-sm flex items-center px-6 gap-4 shadow-[0_1px_15px_rgba(99,102,241,0.06)]">
       <button onClick={onMenuClick} className="lg:hidden text-text-secondary hover:text-text-primary">
         <Menu size={24} />
       </button>
@@ -67,7 +67,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         </button>
 
         {open && (
-          <div className="absolute right-0 top-12 w-80 rounded-xl border border-border bg-surface shadow-2xl z-50">
+          <div className="absolute right-0 top-12 w-80 rounded-xl border border-border/60 bg-surface/90 backdrop-blur-md shadow-2xl z-50">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <span className="text-sm font-semibold text-text-primary">Notificações</span>
               {unreadCount > 0 && (

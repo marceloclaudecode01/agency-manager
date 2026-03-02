@@ -577,7 +577,7 @@ export default function SocialPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map((kpi) => (
-          <Card key={kpi.label} className="hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+          <Card key={kpi.label} className="bg-surface/80 backdrop-blur-sm border-border/60 hover:shadow-glow-sm hover:border-primary/20 hover:-translate-y-0.5 transition-all duration-200">
             <CardContent className="p-4 flex items-center gap-3">
               <div className={`h-10 w-10 rounded-lg ${kpi.bg} flex items-center justify-center flex-shrink-0`}>
                 <kpi.icon size={20} className={kpi.color} />
@@ -619,10 +619,10 @@ export default function SocialPage() {
           <div className="lg:col-span-2 space-y-4">
             <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Posts recentes</h3>
             {posts.length === 0 ? (
-              <Card><CardContent className="p-6 text-center text-text-secondary">Nenhum post encontrado</CardContent></Card>
+              <Card className="bg-surface/80 backdrop-blur-sm border-border/60"><CardContent className="p-6 text-center text-text-secondary">Nenhum post encontrado</CardContent></Card>
             ) : (
               posts.map((post) => (
-                <Card key={post.id}>
+                <Card key={post.id} className="bg-surface/80 backdrop-blur-sm border-border/60 hover:border-primary/20 transition-all">
                   <CardContent className="p-4">
                     <div className="flex gap-3">
                       {post.full_picture && (
@@ -654,7 +654,7 @@ export default function SocialPage() {
 
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Visão da página</h3>
-            <Card>
+            <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
               <CardContent className="p-4 space-y-3">
                 {pageInfo?.about && (
                   <p className="text-sm text-text-secondary">{pageInfo.about}</p>
@@ -706,7 +706,7 @@ export default function SocialPage() {
                     { label: 'Engajamento Total', value: (performanceData.overview.totalEngagement ?? 0).toLocaleString('pt-BR'), icon: TrendingUp, color: 'text-green-400', bg: 'bg-green-400/10' },
                     { label: 'Taxa Engajamento', value: `${(performanceData.overview.engagementRate ?? 0).toFixed(1)}%`, icon: Heart, color: 'text-pink-400', bg: 'bg-pink-400/10' },
                   ].map((stat) => (
-                    <Card key={stat.label} className="hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+                    <Card key={stat.label} className="bg-surface/80 backdrop-blur-sm border-border/60 hover:shadow-glow-sm hover:border-primary/20 hover:-translate-y-0.5 transition-all duration-200">
                       <CardContent className="p-4 flex items-center gap-3">
                         <div className={`h-10 w-10 rounded-lg ${stat.bg} flex items-center justify-center flex-shrink-0`}>
                           <stat.icon size={20} className={stat.color} />
@@ -723,7 +723,7 @@ export default function SocialPage() {
 
               {/* Top Posts */}
               {performanceData?.posts?.length > 0 && (
-                <Card>
+                <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
                   <CardHeader>
                     <h3 className="text-lg font-heading font-semibold text-text-primary">Melhores Posts</h3>
                   </CardHeader>
@@ -749,7 +749,7 @@ export default function SocialPage() {
 
               {/* Best Times */}
               {performanceData?.bestTimes && (
-                <Card>
+                <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
                   <CardHeader>
                     <h3 className="text-lg font-heading font-semibold text-text-primary">Melhores Horários para Postar</h3>
                   </CardHeader>
@@ -903,7 +903,7 @@ export default function SocialPage() {
                   <Badge variant="default" className="ml-2 normal-case">{scheduledPosts.length}</Badge>
                 </h3>
                 {scheduledPosts.length === 0 ? (
-                  <Card>
+                  <Card className="bg-surface/80 backdrop-blur-sm border-border/60">
                     <CardContent className="p-8 text-center">
                       <Zap size={32} className="text-text-secondary mx-auto mb-2 opacity-40" />
                       <p className="text-text-secondary text-sm">Nenhum post agendado. Gere um com IA!</p>
@@ -912,7 +912,7 @@ export default function SocialPage() {
                 ) : (
                   <div className="space-y-3">
                     {scheduledPosts.map((post) => (
-                      <Card key={post.id}>
+                      <Card key={post.id} className="bg-surface/80 backdrop-blur-sm border-border/60 hover:border-primary/20 transition-all">
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
@@ -978,7 +978,7 @@ export default function SocialPage() {
                   <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4">Últimos Relatórios de Métricas</h3>
                   <div className="space-y-3">
                     {metricsReports.slice(0, 3).map((report) => (
-                      <Card key={report.id}>
+                      <Card key={report.id} className="bg-surface/80 backdrop-blur-sm border-border/60 hover:border-primary/20 transition-all">
                         <CardContent className="p-5">
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center gap-2">

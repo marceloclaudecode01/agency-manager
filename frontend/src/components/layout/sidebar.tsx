@@ -59,7 +59,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </button>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto [&>a:nth-child(7)]:mt-4 [&>a:nth-child(7)]:pt-4 [&>a:nth-child(7)]:border-t [&>a:nth-child(7)]:border-border/40 [&>a:nth-child(11)]:mt-4 [&>a:nth-child(11)]:pt-4 [&>a:nth-child(11)]:border-t [&>a:nth-child(11)]:border-border/40">
           {menuItems.map((item) => {
             const isActive = pathname === item.href || (pathname.startsWith(item.href + '/') && !menuItems.some(m => m.href !== item.href && m.href.startsWith(item.href + '/') && (pathname === m.href || pathname.startsWith(m.href + '/'))));
             return (

@@ -111,7 +111,7 @@ export default function CampaignsPage() {
       {loading ? (
         <Loading />
       ) : campaigns.length === 0 ? (
-        <Card className="text-center py-12">
+        <Card className="text-center py-12 bg-surface/80 backdrop-blur-sm border-border/60">
           <Megaphone size={48} className="mx-auto text-text-secondary/30 mb-4" />
           <p className="text-text-secondary">Nenhuma campanha encontrada</p>
         </Card>
@@ -119,7 +119,7 @@ export default function CampaignsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {campaigns.map((campaign) => (
             <Link key={campaign.id} href={`/campaigns/${campaign.id}`}>
-              <Card className="hover:border-primary/30 transition-colors cursor-pointer">
+              <Card className="bg-surface/80 backdrop-blur-sm border-border/60 hover:border-primary/20 hover:shadow-glow-sm transition-all cursor-pointer">
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="font-medium text-text-primary">{campaign.name}</h3>
                   <Badge variant={statusBadge[campaign.status]?.variant}>
