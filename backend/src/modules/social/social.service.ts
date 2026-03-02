@@ -1,4 +1,6 @@
 import axios from 'axios';
+import fs from 'fs';
+import FormData from 'form-data';
 
 const GRAPH_API = 'https://graph.facebook.com/v19.0';
 
@@ -246,6 +248,24 @@ export class SocialService {
     await axios.post(`${GRAPH_API}/${commentId}/comments`, null, {
       params: { message, access_token: token },
     });
+  }
+
+  async publishVideoFromFile(message: string, filePath: string) {
+    const token = await getPageToken();
+    const pageId = getPageId();
+
+    const form = new FormData();
+    form.append('source', fs.createReadStream(filePath));
+    form.append('description', message);
+    form.append('access_token', token);
+
+    const { data } = await axios.post(`${GRAPH_API}/${pageId}/videos`, form, {
+      headers: form.getHeaders(),
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      timeout: 120000,
+    });
+    return data;
   }
 
   async checkConnection() {

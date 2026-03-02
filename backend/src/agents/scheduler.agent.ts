@@ -10,6 +10,7 @@ import { generatePostFromStrategy } from './content-creator.agent';
 import { analyzeTrendingTopics } from './trending-topics.agent';
 import { orchestrateProductPosts } from './product-orchestrator.agent';
 import { runTokenMonitor } from './token-monitor.agent';
+import { generateVideoForPost } from './video-generator.agent';
 import { agentLog } from './agent-logger';
 import { startContentGovernor } from './content-governor.agent';
 import { startGrowthDirector } from './growth-director.agent';
@@ -98,9 +99,34 @@ export function startPostScheduler() {
 
       const fullMessage = post.hashtags ? `${post.message}\n\n${post.hashtags}` : post.message;
 
-      const publishResult = post.imageUrl
-        ? await socialService.publishMediaPost(fullMessage, post.imageUrl)
-        : await socialService.publishPost(fullMessage);
+      let publishResult: any;
+
+      if (post.contentType === 'video') {
+        // Generate and upload video
+        try {
+          await agentLog('Scheduler', `🎬 Gerando vídeo para: "${post.topic || 'post'}"`, { type: 'action' });
+          const { videoPath, cleanup } = await generateVideoForPost(
+            post.topic || 'conteúdo',
+            'engajamento'
+          );
+          try {
+            publishResult = await socialService.publishVideoFromFile(fullMessage, videoPath);
+          } finally {
+            cleanup();
+          }
+          await agentLog('Scheduler', '✅ Vídeo publicado no Facebook!', { type: 'result' });
+        } catch (videoErr: any) {
+          await agentLog('Scheduler', `⚠️ Falha no vídeo: ${videoErr.message}. Publicando como imagem.`, { type: 'error' });
+          publishResult = post.imageUrl
+            ? await socialService.publishMediaPost(fullMessage, post.imageUrl)
+            : await socialService.publishPost(fullMessage);
+        }
+      } else {
+        publishResult = post.imageUrl
+          ? await socialService.publishMediaPost(fullMessage, post.imageUrl)
+          : await socialService.publishPost(fullMessage);
+      }
+
       const fbPostId = publishResult?.id || null;
 
       await prisma.scheduledPost.update({ where: { id: post.id }, data: { status: 'PUBLISHED', publishedAt: now } });
@@ -379,6 +405,10 @@ export function startAutonomousContentEngine() {
             ? generated.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ')
             : null;
 
+          // ~30% of posts are video (every 3rd post)
+          const isVideo = i % 3 === 2;
+          const postContentType = isVideo ? 'video' : 'organic';
+
           const saved = await prisma.scheduledPost.create({
             data: {
               topic: generated.topic || topic,
@@ -387,7 +417,7 @@ export function startAutonomousContentEngine() {
               imageUrl,
               status: 'PENDING',
               source: 'autonomous-engine',
-              contentType: 'organic',
+              contentType: postContentType,
               scheduledFor,
             },
           });
