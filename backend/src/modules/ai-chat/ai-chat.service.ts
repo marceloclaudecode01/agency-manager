@@ -1,5 +1,6 @@
 import { askGemini } from '../../agents/gemini';
 import prisma from '../../config/database';
+import { executeCommand, CommandResult, COMMAND_LIST } from './orion-commands';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -163,7 +164,10 @@ Regras:
 - Recomende ações baseadas nos dados disponíveis`;
 }
 
-export async function getOrionResponse(userMessage: string, history: ChatMessage[]): Promise<string> {
+export async function getOrionResponse(userMessage: string, history: ChatMessage[]): Promise<{ response: string; commandResult?: CommandResult }> {
+  // Try to execute a command first
+  const commandResult = await executeCommand(userMessage);
+
   const ctx = await gatherAgencyContext();
   const systemPrompt = buildSystemPrompt(ctx);
 
@@ -172,15 +176,22 @@ export async function getOrionResponse(userMessage: string, history: ChatMessage
     .map((msg) => `${msg.role === 'user' ? 'Usuário' : 'Orion'}: ${msg.content}`)
     .join('\n');
 
-  const prompt = `${systemPrompt}
+  const commandContext = commandResult
+    ? `\n\n[COMANDO EXECUTADO]: ${commandResult.command} → ${commandResult.success ? 'SUCESSO' : 'FALHA'}: ${commandResult.message}${commandResult.data ? `\nDados: ${JSON.stringify(commandResult.data)}` : ''}\nNarre o resultado ao usuário de forma natural.`
+    : '';
 
-${conversationContext ? `Histórico recente:\n${conversationContext}\n` : ''}
-Usuário: ${userMessage}
+  const prompt = `${systemPrompt}
+${COMMAND_LIST}
+${conversationContext ? `\nHistórico recente:\n${conversationContext}\n` : ''}
+Usuário: ${userMessage}${commandContext}
 
 Orion:`;
 
   const response = await askGemini(prompt);
-  return response || 'Desculpe, não consegui processar sua mensagem. Tente novamente.';
+  return {
+    response: response || 'Desculpe, não consegui processar sua mensagem. Tente novamente.',
+    commandResult: commandResult || undefined,
+  };
 }
 
 export async function getAgentInventory() {

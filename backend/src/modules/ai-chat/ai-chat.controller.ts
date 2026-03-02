@@ -11,9 +11,12 @@ export async function sendMessage(req: AuthRequest, res: Response) {
       return ApiResponse.badRequest(res, 'Mensagem é obrigatória');
     }
 
-    const response = await getOrionResponse(message.trim(), history || []);
+    const result = await getOrionResponse(message.trim(), history || []);
 
-    return ApiResponse.success(res, { response }, 'Resposta gerada com sucesso');
+    return ApiResponse.success(res, {
+      response: result.response,
+      commandExecuted: result.commandResult || null,
+    }, 'Resposta gerada com sucesso');
   } catch (error: any) {
     console.error('[AI Chat] Error:', error.message);
     return ApiResponse.error(res, 'Erro ao gerar resposta do Orion');

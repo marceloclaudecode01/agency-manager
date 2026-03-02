@@ -2,11 +2,18 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
-import { Send, Brain, User, Bot, BarChart3, Target, Zap, Users, Activity, Clock, Wifi, WifiOff } from 'lucide-react';
+import { Send, Brain, User, Bot, BarChart3, Target, Zap, Users, Activity, Clock, Shield, ShieldOff, Radar, Info, CheckCircle, XCircle } from 'lucide-react';
+
+interface CommandExecuted {
+  command: string;
+  success: boolean;
+  message: string;
+}
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  commandExecuted?: CommandExecuted | null;
 }
 
 interface Agent {
@@ -35,6 +42,13 @@ const QUICK_ACTIONS = [
   { label: 'Performance', prompt: 'Como está a performance dos posts e engajamento?', icon: BarChart3 },
   { label: 'Estratégia', prompt: 'Qual a estratégia atual e recomendações?', icon: Target },
   { label: 'Leads', prompt: 'Como estão os leads e o funil de vendas?', icon: Users },
+];
+
+const COMMAND_ACTIONS = [
+  { label: 'Safe Mode ON', prompt: 'ativar safe mode', icon: Shield, color: 'text-red-400 border-red-500/30' },
+  { label: 'Safe Mode OFF', prompt: 'desativar safe mode', icon: ShieldOff, color: 'text-green-400 border-green-500/30' },
+  { label: 'Sentinel Scan', prompt: 'rodar sentinel', icon: Radar, color: 'text-blue-400 border-blue-500/30' },
+  { label: 'Status Sistema', prompt: 'status do sistema', icon: Info, color: 'text-yellow-400 border-yellow-500/30' },
 ];
 
 export default function OrionPage() {
@@ -79,7 +93,9 @@ export default function OrionPage() {
 
     try {
       const { data } = await api.post('/ai-chat/message', { message: text, history: messages });
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.data.response }]);
+      const cmdExec = data.data.commandExecuted || null;
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.data.response, commandExecuted: cmdExec }]);
+      if (cmdExec) fetchData();
     } catch {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Erro ao processar. Tente novamente.' }]);
     }
@@ -143,6 +159,21 @@ export default function OrionPage() {
         ))}
       </div>
 
+      {/* Command Actions */}
+      <div className="flex gap-2 flex-wrap">
+        {COMMAND_ACTIONS.map((action) => (
+          <button
+            key={action.label}
+            onClick={() => sendMessage(action.prompt)}
+            disabled={loading}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border bg-surface hover:bg-surface-hover transition-colors disabled:opacity-50 ${action.color}`}
+          >
+            <action.icon size={14} />
+            {action.label}
+          </button>
+        ))}
+      </div>
+
       {/* Main Content: Chat + Inventory */}
       <div className="flex-1 flex gap-4 min-h-0">
         {/* Chat (60%) */}
@@ -163,6 +194,12 @@ export default function OrionPage() {
                   }`}
                 >
                   {msg.content}
+                  {msg.commandExecuted && (
+                    <div className={`mt-2 flex items-center gap-1.5 text-xs font-medium ${msg.commandExecuted.success ? 'text-green-400' : 'text-red-400'}`}>
+                      {msg.commandExecuted.success ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                      {msg.commandExecuted.command}
+                    </div>
+                  )}
                 </div>
                 {msg.role === 'user' && (
                   <div className="h-8 w-8 rounded-full bg-surface-hover flex-shrink-0 flex items-center justify-center">
