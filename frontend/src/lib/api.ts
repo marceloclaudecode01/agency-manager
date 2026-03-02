@@ -27,6 +27,15 @@ function onRefreshFailure(error: unknown) {
   pendingRequests = [];
 }
 
+function clearAuthAndRedirect() {
+  if (typeof document !== 'undefined') {
+    document.cookie = 'token=; path=/; max-age=0';
+  }
+  if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+    window.location.href = '/login';
+  }
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -35,7 +44,8 @@ api.interceptors.response.use(
     const isAuthRoute =
       originalRequest?.url?.includes('/auth/login') ||
       originalRequest?.url?.includes('/auth/register') ||
-      originalRequest?.url?.includes('/auth/refresh');
+      originalRequest?.url?.includes('/auth/refresh') ||
+      originalRequest?.url?.includes('/auth/me');
 
     if (
       error.response?.status === 401 &&
@@ -44,14 +54,12 @@ api.interceptors.response.use(
       !originalRequest._retry
     ) {
       if (isRefreshing) {
-        // Queue this request until the in-flight refresh completes
         return new Promise((resolve, reject) => {
           pendingRequests.push({ resolve, reject });
         })
           .then(() => api(originalRequest))
           .catch(() => {
-            document.cookie = 'token=; path=/; max-age=0';
-        window.location.href = '/login';
+            clearAuthAndRedirect();
             return Promise.reject(error);
           });
       }
@@ -60,7 +68,6 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Attempt token refresh — refresh_token cookie is sent automatically via withCredentials
         await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'}/auth/refresh`,
           {},
@@ -70,13 +77,11 @@ api.interceptors.response.use(
         isRefreshing = false;
         onRefreshSuccess();
 
-        // Retry the original request — new access token cookie is now set
         return api(originalRequest);
       } catch (refreshError) {
         isRefreshing = false;
         onRefreshFailure(refreshError);
-        document.cookie = 'token=; path=/; max-age=0';
-        window.location.href = '/login';
+        clearAuthAndRedirect();
         return Promise.reject(refreshError);
       }
     }
