@@ -32,7 +32,7 @@ export interface SystemStatus {
 export interface EngineStatus {
   active: boolean;
   lastCycle: string | null;
-  todayPosts: Array<{ id: string; topic: string; scheduledFor: string; status: string }>;
+  todayPosts: Array<{ id: string; topic: string; scheduledFor: string; status: string; contentType?: string; qualityScore?: number; governorDecision?: string }>;
   weekStats: { generated: number; published: number; failed: number };
 }
 
@@ -56,13 +56,27 @@ export function useCommandCenter() {
   const [error, setError] = useState<string | null>(null);
   const logsRef = useRef<AgentLog[]>([]);
 
+  // New state for expanded data
+  const [scheduledPosts, setScheduledPosts] = useState<any[]>([]);
+  const [brandConfig, setBrandConfig] = useState<any>(null);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [tokenStatus, setTokenStatus] = useState<any>(null);
+  const [performance, setPerformance] = useState<any>(null);
+  const [strategy, setStrategy] = useState<any>(null);
+
   const fetchAll = useCallback(async () => {
     try {
-      const [statusRes, engineRes, logsRes, metricsRes] = await Promise.allSettled([
+      const [statusRes, engineRes, logsRes, metricsRes, scheduledRes, brandRes, campaignsRes, tokenRes, perfRes, strategyRes] = await Promise.allSettled([
         api.get('/agents/status'),
         api.get('/agents/engine/status'),
         api.get('/agents/logs?limit=200'),
         api.get('/agents/metrics'),
+        api.get('/agents/scheduled'),
+        api.get('/agents/brand'),
+        api.get('/agents/campaigns'),
+        api.get('/agents/token/status'),
+        api.get('/agents/performance'),
+        api.get('/agents/strategy'),
       ]);
 
       if (statusRes.status === 'fulfilled') setSystemStatus(statusRes.value.data.data);
@@ -73,6 +87,12 @@ export function useCommandCenter() {
         logsRef.current = data;
       }
       if (metricsRes.status === 'fulfilled') setMetrics(metricsRes.value.data.data || []);
+      if (scheduledRes.status === 'fulfilled') setScheduledPosts(scheduledRes.value.data.data || []);
+      if (brandRes.status === 'fulfilled') setBrandConfig(brandRes.value.data.data || null);
+      if (campaignsRes.status === 'fulfilled') setCampaigns(campaignsRes.value.data.data || []);
+      if (tokenRes.status === 'fulfilled') setTokenStatus(tokenRes.value.data.data || null);
+      if (perfRes.status === 'fulfilled') setPerformance(perfRes.value.data.data || null);
+      if (strategyRes.status === 'fulfilled') setStrategy(strategyRes.value.data.data || null);
 
       setError(null);
     } catch (err: any) {
@@ -121,6 +141,16 @@ export function useCommandCenter() {
     return res.data.data;
   }, [fetchAll]);
 
+  const saveBrand = useCallback(async (data: any) => {
+    await api.put('/agents/brand', data);
+    await fetchAll();
+  }, [fetchAll]);
+
+  const saveStrategy = useCallback(async (data: any) => {
+    await api.put('/agents/strategy', data);
+    await fetchAll();
+  }, [fetchAll]);
+
   // Derived data
   const totalErrors = systemStatus?.errorCounts.reduce((sum, e) => sum + e._count.id, 0) || 0;
   const runningAgents = systemStatus?.agents.filter(a => a.status === 'running').length || 0;
@@ -147,5 +177,14 @@ export function useCommandCenter() {
     runningAgents,
     totalAgents,
     globalStatus,
+    // New data
+    scheduledPosts,
+    brandConfig,
+    campaigns,
+    tokenStatus,
+    performance,
+    strategy,
+    saveBrand,
+    saveStrategy,
   };
 }
