@@ -42,6 +42,8 @@ const AGENTS = [
   { name: 'Dashboard Reporter', function: 'dashboard-reporter', description: 'Relatórios do dashboard', autonomyLevel: 5, cronExpression: null },
   { name: 'Notification Dispatcher', function: 'notification-dispatcher', description: 'Envio de notificações', autonomyLevel: 5, cronExpression: null },
   { name: 'Orion AI', function: 'orion-chat', description: 'Cérebro central da agência', autonomyLevel: 1, cronExpression: null },
+  { name: 'Strategic Engine', function: 'strategic-engine', description: 'Avaliação estratégica do sistema', autonomyLevel: 5, cronExpression: '0 */6 * * *' },
+  { name: 'Evolution Engine', function: 'evolution-engine', description: 'Auto-evolução baseada em performance', autonomyLevel: 5, cronExpression: '0 */12 * * *' },
 ];
 
 async function main() {

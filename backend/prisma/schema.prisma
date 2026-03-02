@@ -597,8 +597,42 @@ model Agent {
   updatedAt       DateTime @updatedAt
 
   logs AgentLog[]
+  performances AgentPerformance[]
 
   @@map("agents")
+}
+
+// Orion Strategic: Agent Performance Tracking
+model AgentPerformance {
+  id             String   @id @default(cuid())
+  agentId        String
+  successRate    Float    @default(100)
+  errorCount     Int      @default(0)
+  totalExecs     Int      @default(0)
+  avgDurationMs  Float    @default(0)
+  lastExecAt     DateTime?
+  classification String   @default("STABLE") // HIGH_PERFORMER | STABLE | LOW_PERFORMER | CRITICAL
+  impactScore    Float    @default(50) // 0-100
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId])
+  @@map("agent_performance")
+}
+
+// Orion Strategic: System Evaluation Snapshots
+model StrategicReport {
+  id              String   @id @default(cuid())
+  healthScore     Float    @default(0) // 0-100
+  totalAgents     Int      @default(0)
+  classifications Json     // { HIGH_PERFORMER: n, STABLE: n, LOW_PERFORMER: n, CRITICAL: n }
+  agentDetails    Json     // array of { name, classification, successRate, autonomyLevel }
+  evolutionActions Json?   // actions taken by evolution engine
+  createdAt       DateTime @default(now())
+
+  @@map("strategic_reports")
 }
 
 // Phase 8: Content Campaigns

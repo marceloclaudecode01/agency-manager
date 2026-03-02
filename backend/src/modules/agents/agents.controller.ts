@@ -20,6 +20,8 @@ import { checkReputation, getReputationHistory } from '../../agents/reputation-m
 import { replicateContent, replicateAll, getReplicasForPost, getReplicaStats, ReplicaFormat } from '../../agents/content-replicator.agent';
 import { optimizeForPlatform, optimizeForAllPlatforms } from '../../agents/platform-optimizer.agent';
 import { generateCarousel, getCarouselStyles } from '../../agents/carousel-generator.agent';
+import { evaluateSystem } from '../../agents/strategic-engine.agent';
+import { evolveSystem } from '../../agents/evolution-engine.agent';
 import cloudinary from '../../config/cloudinary';
 import { SocialService } from '../social/social.service';
 import { notificationsService } from '../notifications/notifications.service';
@@ -769,6 +771,52 @@ Retorne APENAS JSON válido:
       const agent = await prisma.agent.delete({ where: { id } });
       await agentLog('Orion', `Agent deleted: "${agent.name}"`, { type: 'action' });
       return ApiResponse.success(res, null, `Agent ${agent.name} deleted`);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Orion Strategic State
+  async getStrategicState(_req: AuthRequest, res: Response) {
+    try {
+      const totalAgents = await prisma.agent.count();
+      const performances = await prisma.agentPerformance.findMany();
+
+      const classifications: Record<string, number> = { HIGH_PERFORMER: 0, STABLE: 0, LOW_PERFORMER: 0, CRITICAL: 0 };
+      for (const p of performances) {
+        classifications[p.classification] = (classifications[p.classification] || 0) + 1;
+      }
+
+      const lastReport = await prisma.strategicReport.findFirst({ orderBy: { createdAt: 'desc' } });
+
+      return ApiResponse.success(res, {
+        totalAgents,
+        classifications,
+        healthScore: lastReport?.healthScore ?? null,
+        lastEvolution: lastReport?.createdAt ?? null,
+        evolutionActions: lastReport?.evolutionActions ?? null,
+        nextScheduled: { strategicEngine: '0 */6 * * *', evolutionEngine: '0 */12 * * *' },
+      }, 'Strategic state');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Run strategic evaluation now
+  async runStrategicEvaluation(_req: AuthRequest, res: Response) {
+    try {
+      const result = await evaluateSystem();
+      return ApiResponse.success(res, result, 'Strategic evaluation complete');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Run evolution now
+  async runEvolution(_req: AuthRequest, res: Response) {
+    try {
+      const result = await evolveSystem();
+      return ApiResponse.success(res, result, `Evolution complete: ${result.actions.length} actions`);
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);
     }

@@ -88,6 +88,11 @@ router.post('/aggressive-mode', requireRole('ADMIN'), (req, res) => controller.t
 // Epic 1: Reputation Monitor
 router.get('/reputation', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getReputationStatus(req as any, res));
 
+// Orion Strategic
+router.get('/orion/strategic-state', (req, res) => controller.getStrategicState(req as any, res));
+router.post('/orion/evaluate', requireRole('ADMIN'), (req, res) => controller.runStrategicEvaluation(req as any, res));
+router.post('/orion/evolve', requireRole('ADMIN'), (req, res) => controller.runEvolution(req as any, res));
+
 // Agent Registry CRUD
 router.get('/registry', (req, res) => controller.getAgentRegistry(req as any, res));
 router.post('/registry', requireRole('ADMIN'), (req, res) => controller.createAgent(req as any, res));

@@ -12,6 +12,7 @@ import { orchestrateProductPosts } from './product-orchestrator.agent';
 import { runTokenMonitor } from './token-monitor.agent';
 import { generateVideoForPost } from './video-generator.agent';
 import { agentLog } from './agent-logger';
+import { trackAgentExecution } from './agent-performance-tracker';
 import { startContentGovernor } from './content-governor.agent';
 import { startGrowthDirector } from './growth-director.agent';
 import { startSystemSentinel } from './system-sentinel.agent';
@@ -27,6 +28,8 @@ import { startStrategicCommandAgent } from './strategic-command.agent';
 import { startMarketIntelligenceAgent } from './market-intelligence.agent';
 import { startNicheLearningAgent } from './niche-learning.agent';
 import { startPaidTrafficAgent } from './paid-traffic.agent';
+import { startStrategicEngine } from './strategic-engine.agent';
+import { startEvolutionEngine } from './evolution-engine.agent';
 
 const socialService = new SocialService();
 
@@ -58,6 +61,7 @@ async function getLastPublishedAt(): Promise<Date | null> {
 // Roda a cada 5 minutos: verifica posts agendados para publicar
 export function startPostScheduler() {
   cron.schedule('*/5 * * * *', async () => {
+    await trackAgentExecution('post-scheduler', async () => {
     let pendingPosts: Awaited<ReturnType<typeof prisma.scheduledPost.findMany>> = [];
     try {
       // Phase 1: Safe mode check
@@ -173,6 +177,7 @@ export function startPostScheduler() {
         await prisma.scheduledPost.update({ where: { id: pendingPosts[0]?.id }, data: { status: 'FAILED' } });
       } catch {}
     }
+    }); // trackAgentExecution
   });
 
   console.log('[Scheduler] Post scheduler iniciado (verificação a cada 5 minutos)');
@@ -194,6 +199,7 @@ function hasBuyIntent(text: string): boolean {
 // Roda a cada 30 minutos: verifica e responde comentários novos
 export function startCommentResponder() {
   cron.schedule('*/30 * * * *', async () => {
+    await trackAgentExecution('comment-responder', async () => {
     try {
       await agentLog('Comment Responder', 'Verificando comentários novos nos posts...', { type: 'action', to: 'Facebook API' });
       let posts: any[] = [];
@@ -286,6 +292,7 @@ Retorne APENAS a classificação.`);
       console.error('[Comments] Erro:', err.message);
       await agentLog('Comment Responder', `❌ Erro: ${err.message}`, { type: 'error' });
     }
+    }); // trackAgentExecution
   });
 
   console.log('[Comments] Comment responder iniciado (verificação a cada 30 minutos)');
@@ -294,6 +301,7 @@ Retorne APENAS a classificação.`);
 // Roda todo dia às 8h: análise de métricas
 export function startMetricsAnalyzer() {
   cron.schedule('0 8 * * *', async () => {
+    await trackAgentExecution('metrics-collector', async () => {
     try {
       await agentLog('Metrics Analyzer', 'Coletando dados da página no Facebook...', { type: 'action', to: 'Facebook API' });
       const pageInfo = await socialService.getPageInfo();
@@ -326,6 +334,7 @@ export function startMetricsAnalyzer() {
       console.error('[Metrics] Erro:', err.message);
       await agentLog('Metrics Analyzer', `❌ Erro ao analisar métricas: ${err.message}`, { type: 'error' });
     }
+    }); // trackAgentExecution
   });
 
   console.log('[Metrics] Metrics analyzer iniciado (roda todo dia às 08:00)');
@@ -333,6 +342,7 @@ export function startMetricsAnalyzer() {
 
 function startDueDateNotifier() {
   cron.schedule('0 8 * * *', async () => {
+    await trackAgentExecution('deadline-notifier', async () => {
     try {
       const twoDaysFromNow = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
       const tasks = await prisma.task.findMany({
@@ -359,6 +369,7 @@ function startDueDateNotifier() {
     } catch (err: any) {
       console.error('[DueDate] Erro:', err.message);
     }
+    }); // trackAgentExecution
   });
 
   console.log('[DueDate] Verificador de prazos iniciado (roda todo dia às 08:00)');
@@ -367,6 +378,7 @@ function startDueDateNotifier() {
 // Motor autônomo: roda todo dia às 07:00 e agenda posts do dia
 export function startAutonomousContentEngine() {
   cron.schedule('0 7 * * *', async () => {
+    await trackAgentExecution('content-engine', async () => {
     await agentLog('Autonomous Engine', '🚀 Iniciando ciclo autônomo de conteúdo do dia...', { type: 'action' });
     try {
       await agentLog('Autonomous Engine', 'Solicitando estratégia diária ao Content Strategist...', { type: 'communication', to: 'Content Strategist' });
@@ -499,6 +511,7 @@ export function startAutonomousContentEngine() {
       console.error('[Engine] Erro no ciclo autônomo:', err.message);
       await agentLog('Autonomous Engine', `❌ Erro no ciclo autônomo: ${err.message}`, { type: 'error' });
     }
+    }); // trackAgentExecution
   });
 
   console.log('[Engine] Motor autônomo iniciado (roda todo dia às 07:00)');
@@ -507,6 +520,7 @@ export function startAutonomousContentEngine() {
 // Roda toda segunda-feira às 6h: analisa tendências e notifica admins
 export function startTrendingTopicsAgent() {
   cron.schedule('0 6 * * 1', async () => {
+    await trackAgentExecution('trending-topics', async () => {
     await agentLog('Trending Topics', '🔍 Analisando tendências da semana via Gemini AI...', { type: 'action', to: 'Gemini AI' });
     try {
       const report = await analyzeTrendingTopics();
@@ -532,6 +546,7 @@ export function startTrendingTopicsAgent() {
       console.error('[Trending] Erro ao analisar tendências:', err.message);
       await agentLog('Trending Topics', `❌ Erro ao analisar tendências: ${err.message}`, { type: 'error' });
     }
+    }); // trackAgentExecution
   });
 
   console.log('[Trending] Agente de tendências iniciado (roda toda segunda às 06:00)');
@@ -540,6 +555,7 @@ export function startTrendingTopicsAgent() {
 // Roda todo dia às 10h e 15h: orquestra posts de produtos TikTok Shop
 export function startProductOrchestrator() {
   cron.schedule('0 10,15 * * *', async () => {
+    await trackAgentExecution('tiktok-products', async () => {
     await agentLog('Product Orchestrator', '🛍️ Iniciando ciclo de produtos TikTok Shop...', { type: 'action', to: 'TikTok Researcher' });
     try {
       await agentLog('Product Orchestrator', 'Solicitando produtos em tendência ao TikTok Researcher...', { type: 'communication', to: 'TikTok Researcher' });
@@ -554,6 +570,7 @@ export function startProductOrchestrator() {
       console.error('[Products] Erro no ciclo de produtos:', err.message);
       await agentLog('Product Orchestrator', `❌ Erro no ciclo de produtos: ${err.message}`, { type: 'error' });
     }
+    }); // trackAgentExecution
   });
 
   console.log('[Products] Orquestrador de produtos iniciado (roda às 10:00 e 15:00)');
@@ -562,6 +579,7 @@ export function startProductOrchestrator() {
 // Verifica token do Facebook todo dia às 9h
 export function startTokenMonitor() {
   cron.schedule('0 9 * * *', async () => {
+    await trackAgentExecution('token-monitor', async () => {
     try {
       await agentLog('Token Monitor', '🔑 Verificando validade do token do Facebook...', { type: 'action', to: 'Facebook API' });
       await runTokenMonitor();
@@ -570,6 +588,7 @@ export function startTokenMonitor() {
       console.error('[TokenMonitor] Erro:', err.message);
       await agentLog('Token Monitor', `❌ Problema com token do Facebook: ${err.message}`, { type: 'error' });
     }
+    }); // trackAgentExecution
   });
 
   runTokenMonitor().catch(() => {});
@@ -598,6 +617,8 @@ const AGENT_FUNCTION_MAP: Record<string, () => void> = {
   'market-intelligence': startMarketIntelligenceAgent,
   'niche-learning': startNicheLearningAgent,
   'paid-traffic': startPaidTrafficAgent,
+  'strategic-engine': startStrategicEngine,
+  'evolution-engine': startEvolutionEngine,
 };
 
 export async function updateLastRun(agentName: string): Promise<void> {
