@@ -12,8 +12,11 @@ type PublishMediaOptions = PublishOptions & {
   mediaType?: 'image' | 'video' | null;
 };
 
+// Cache do Page Token para não converter a cada request
+let cachedPageToken: string | null = null;
+let pageTokenExpiresAt = 0;
 
-function getToken() {
+function getUserToken() {
   const token = (process.env.FACEBOOK_ACCESS_TOKEN || '').trim();
   if (!token || token === 'cole_seu_novo_token_aqui') {
     throw { statusCode: 503, message: 'Facebook token not configured' };
@@ -29,9 +32,42 @@ function getPageId() {
   return id;
 }
 
+async function getPageToken(): Promise<string> {
+  // Cache válido por 1h
+  if (cachedPageToken && Date.now() < pageTokenExpiresAt) {
+    return cachedPageToken;
+  }
+
+  const userToken = getUserToken();
+  const pageId = getPageId();
+
+  try {
+    const { data } = await axios.get(`${GRAPH_API}/${pageId}`, {
+      params: { fields: 'access_token', access_token: userToken },
+    });
+
+    if (data.access_token) {
+      cachedPageToken = data.access_token;
+      pageTokenExpiresAt = Date.now() + 60 * 60 * 1000;
+      console.log('[SocialService] Page token obtained successfully');
+      return data.access_token as string;
+    }
+  } catch (err: any) {
+    console.warn('[SocialService] Could not get page token, falling back to user token:', err.response?.data?.error?.message || err.message);
+  }
+
+  // Fallback: o token configurado já pode ser um Page Token
+  return userToken;
+}
+
+// Leitura (GET) usa user token direto, escrita (POST/DELETE) usa page token
+function getReadToken() {
+  return getUserToken();
+}
+
 export class SocialService {
   async getPageInfo() {
-    const token = getToken();
+    const token = getReadToken();
     const pageId = getPageId();
     const { data } = await axios.get(`${GRAPH_API}/${pageId}`, {
       params: {
@@ -43,7 +79,7 @@ export class SocialService {
   }
 
   async getPageInsights(period: 'day' | 'week' | 'month' = 'month') {
-    const token = getToken();
+    const token = getReadToken();
     const pageId = getPageId();
 
     const metrics = [
@@ -76,7 +112,7 @@ export class SocialService {
   }
 
   async getPosts(limit = 10) {
-    const token = getToken();
+    const token = getReadToken();
     const pageId = getPageId();
     try {
       const { data } = await axios.get(`${GRAPH_API}/${pageId}/posts`, {
@@ -113,7 +149,7 @@ export class SocialService {
   }
 
   async publishPost(message: string, options?: PublishOptions) {
-    const token = getToken();
+    const token = await getPageToken();
     const pageId = getPageId();
 
     const finalMessage = this.buildMessageWithLink(message, options?.linkUrl);
@@ -124,7 +160,7 @@ export class SocialService {
   }
 
   async publishPhotoPost(message: string, imageUrl: string, options?: PublishOptions) {
-    const token = getToken();
+    const token = await getPageToken();
     const pageId = getPageId();
 
     const finalCaption = this.buildMessageWithLink(message, options?.linkUrl);
@@ -142,7 +178,7 @@ export class SocialService {
   }
 
   async publishVideoPost(message: string, videoUrl: string, options?: PublishOptions) {
-    const token = getToken();
+    const token = await getPageToken();
     const pageId = getPageId();
 
     const finalDescription = this.buildMessageWithLink(message, options?.linkUrl);
@@ -175,7 +211,7 @@ export class SocialService {
   }
 
   async getScheduledPosts() {
-    const token = getToken();
+    const token = getReadToken();
     const pageId = getPageId();
     const { data } = await axios.get(`${GRAPH_API}/${pageId}/scheduled_posts`, {
       params: {
@@ -187,7 +223,7 @@ export class SocialService {
   }
 
   async deletePost(postId: string) {
-    const token = getToken();
+    const token = await getPageToken();
     const { data } = await axios.delete(`${GRAPH_API}/${postId}`, {
       params: { access_token: token },
     });
@@ -195,7 +231,7 @@ export class SocialService {
   }
 
   async getPostComments(postId: string) {
-    const token = getToken();
+    const token = getReadToken();
     const { data } = await axios.get(`${GRAPH_API}/${postId}/comments`, {
       params: {
         fields: 'id,message,from,created_time,like_count',
@@ -206,7 +242,7 @@ export class SocialService {
   }
 
   async replyToComment(commentId: string, message: string): Promise<void> {
-    const token = getToken();
+    const token = await getPageToken();
     await axios.post(`${GRAPH_API}/${commentId}/comments`, null, {
       params: { message, access_token: token },
     });
