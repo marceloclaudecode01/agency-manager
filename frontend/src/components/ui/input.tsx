@@ -18,7 +18,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           className={cn(
-            'w-full rounded-lg border bg-surface px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary/50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary',
+            'w-full rounded-lg border bg-surface/60 backdrop-blur-sm px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary/50 transition-all focus:outline-none focus:border-primary focus:shadow-[0_0_12px_rgba(108,43,217,0.3)]',
             error ? 'border-error' : 'border-border',
             className
           )}

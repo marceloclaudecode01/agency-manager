@@ -1,8 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --hud-glow: rgba(108, 43, 217, 0.4);
+  --hud-border: rgba(108, 43, 217, 0.2);
+  --hud-cyan: rgba(0, 212, 255, 0.4);
+}
 
 * {
   margin: 0;
@@ -29,17 +35,28 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #475569;
+  background: #6C2BD9;
   border-radius: 3px;
+  box-shadow: 0 0 6px rgba(108, 43, 217, 0.3);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748B;
+  background: #8A45F0;
 }
 
 @keyframes slide-in-from-right-5 {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: rgba(108, 43, 217, 0.2); }
+  50% { border-color: rgba(108, 43, 217, 0.5); }
+}
+
+@keyframes hud-scanline {
+  0% { top: -10%; }
+  100% { top: 110%; }
 }
 
 .animate-in {
@@ -48,4 +65,23 @@ h1, h2, h3, h4, h5, h6 {
 
 .slide-in-from-right-5 {
   animation-name: slide-in-from-right-5;
+}
+
+/* HUD grid background for auth pages */
+.hud-grid-bg {
+  background-image:
+    linear-gradient(rgba(108, 43, 217, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108, 43, 217, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* HUD scanline overlay */
+.hud-scanline::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(transparent 50%, rgba(108, 43, 217, 0.02) 50%);
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 1;
 }

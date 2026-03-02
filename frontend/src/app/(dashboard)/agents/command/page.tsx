@@ -39,7 +39,7 @@ const AGENT_META: Record<string, { icon: any; color: string; glow: string; role:
 };
 
 const LOG_TYPE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  info:          { label: 'INFO',    color: 'text-gray-400',   bg: 'bg-gray-500/10' },
+  info:          { label: 'INFO',    color: 'text-text-secondary',   bg: 'bg-text-secondary/10' },
   action:        { label: 'ACTION',  color: 'text-blue-400',   bg: 'bg-blue-500/10' },
   communication: { label: 'COMM',    color: 'text-purple-400', bg: 'bg-purple-500/10' },
   result:        { label: 'RESULT',  color: 'text-green-400',  bg: 'bg-green-500/10' },
@@ -142,8 +142,8 @@ function StatsRow({ running, total, errors, published, failed, todayPosts }: {
     { label: 'Agentes Ativos', value: `${running}/${total}`, icon: Cpu, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', glow: 'shadow-[0_0_15px_rgba(52,211,153,0.08)]' },
     { label: 'Posts Hoje', value: todayPosts, icon: Radio, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', glow: 'shadow-[0_0_15px_rgba(96,165,250,0.08)]' },
     { label: 'Publicados (7d)', value: published, icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20', glow: '' },
-    { label: 'Falhas (7d)', value: failed, icon: XCircle, color: failed > 0 ? 'text-red-400' : 'text-gray-500', bg: failed > 0 ? 'bg-red-500/10' : 'bg-gray-500/10', border: failed > 0 ? 'border-red-500/20' : 'border-gray-500/20', glow: failed > 0 ? 'shadow-[0_0_15px_rgba(248,113,113,0.1)]' : '' },
-    { label: 'Erros (30min)', value: errors, icon: AlertTriangle, color: errors > 0 ? 'text-yellow-400' : 'text-gray-500', bg: errors > 0 ? 'bg-yellow-500/10' : 'bg-gray-500/10', border: errors > 0 ? 'border-yellow-500/20' : 'border-gray-500/20', glow: errors > 0 ? 'shadow-[0_0_15px_rgba(250,204,21,0.1)]' : '' },
+    { label: 'Falhas (7d)', value: failed, icon: XCircle, color: failed > 0 ? 'text-red-400' : 'text-text-secondary', bg: failed > 0 ? 'bg-red-500/10' : 'bg-text-secondary/10', border: failed > 0 ? 'border-red-500/20' : 'border-text-secondary/20', glow: failed > 0 ? 'shadow-[0_0_15px_rgba(248,113,113,0.1)]' : '' },
+    { label: 'Erros (30min)', value: errors, icon: AlertTriangle, color: errors > 0 ? 'text-yellow-400' : 'text-text-secondary', bg: errors > 0 ? 'bg-yellow-500/10' : 'bg-text-secondary/10', border: errors > 0 ? 'border-yellow-500/20' : 'border-text-secondary/20', glow: errors > 0 ? 'shadow-[0_0_15px_rgba(250,204,21,0.1)]' : '' },
   ];
 
   return (
@@ -176,13 +176,13 @@ function AgentCard({ agent, errorCount, logs, onToggle }: {
   onToggle: (name: string, paused: boolean) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const meta = AGENT_META[agent.name] || { icon: Bot, color: 'text-gray-400', glow: '', role: 'Agente', schedule: '-' };
+  const meta = AGENT_META[agent.name] || { icon: Bot, color: 'text-text-secondary', glow: '', role: 'Agente', schedule: '-' };
   const Icon = meta.icon;
   const recentLogs = logs.filter(l => l.from === agent.name).slice(-5);
   const lastLog = recentLogs[recentLogs.length - 1];
 
   const statusColor = agent.status === 'running' ? 'bg-emerald-400' :
-    agent.status === 'paused' ? 'bg-gray-500' :
+    agent.status === 'paused' ? 'bg-text-secondary' :
     agent.status === 'safe_mode' ? 'bg-red-400' : 'bg-yellow-400';
 
   const glowClass = agent.status === 'running' && !agent.paused
@@ -336,7 +336,7 @@ function MissionLog({ logs, filterAgent, setFilterAgent }: {
                 <span className={`px-1 py-0.5 rounded ${cfg.color} ${cfg.bg} flex-shrink-0 w-14 text-center`}>
                   {cfg.label}
                 </span>
-                <span className={`font-semibold flex-shrink-0 ${meta?.color || 'text-gray-400'}`}>
+                <span className={`font-semibold flex-shrink-0 ${meta?.color || 'text-text-secondary'}`}>
                   {log.from}
                 </span>
                 {log.to && (
@@ -501,11 +501,6 @@ export default function CommandCenterPage() {
 
   return (
     <div className="space-y-5 pb-8">
-      {/* Jarvis scan-line overlay */}
-      <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.015]"
-        style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(99,102,241,0.3) 2px, rgba(99,102,241,0.3) 4px)' }}
-      />
-
       {/* ─── HEADER ─── */}
       <div className="flex items-center justify-between relative z-10">
         <div className="flex items-center gap-3">

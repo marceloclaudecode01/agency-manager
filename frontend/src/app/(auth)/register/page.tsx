@@ -29,16 +29,16 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-background hud-grid-bg flex items-center justify-center p-4 relative">
+      <div className="w-full max-w-md relative z-10">
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
+          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center animate-pulse-glow">
             <Megaphone size={24} className="text-white" />
           </div>
           <h1 className="text-3xl font-heading font-bold text-text-primary">Agency</h1>
         </div>
 
-        <div className="rounded-xl border border-border bg-surface p-8">
+        <div className="rounded-xl border border-primary/20 bg-surface/30 backdrop-blur-xl p-8 shadow-glow-sm">
           <h2 className="text-xl font-heading font-semibold text-text-primary mb-6">Criar Conta</h2>
 
           {error && (

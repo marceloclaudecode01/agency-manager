@@ -139,7 +139,7 @@ const AGENTS = [
 // Helpers
 // ──────────────────────────────────────────────────────────
 const TYPE_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  info:          { label: 'Info',          color: 'text-gray-400',   dot: 'bg-gray-400' },
+  info:          { label: 'Info',          color: 'text-text-secondary',   dot: 'bg-text-secondary' },
   action:        { label: 'Ação',          color: 'text-blue-400',   dot: 'bg-blue-400' },
   communication: { label: 'Comunicação',   color: 'text-purple-400', dot: 'bg-purple-400' },
   result:        { label: 'Resultado',     color: 'text-green-400',  dot: 'bg-green-400' },
@@ -236,11 +236,11 @@ export default function AgentsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Bot className="w-6 h-6 text-purple-400" />
+          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+            <Bot className="w-6 h-6 text-primary-300" />
             Agentes da Agência
           </h1>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-text-secondary text-sm mt-1">
             {AGENTS.length} agentes autônomos gerenciando suas redes sociais
           </p>
         </div>
@@ -248,24 +248,24 @@ export default function AgentsPage() {
           <span className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
             activeCount > 0
               ? 'text-green-400 bg-green-400/10 border-green-400/30'
-              : 'text-gray-400 bg-gray-400/10 border-gray-400/30'
+              : 'text-text-secondary bg-text-secondary/10 border-text-secondary/30'
           }`}>
-            <span className={`w-2 h-2 rounded-full ${activeCount > 0 ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
+            <span className={`w-2 h-2 rounded-full ${activeCount > 0 ? 'bg-green-400 animate-pulse' : 'bg-text-secondary/70'}`} />
             {activeCount} {activeCount === 1 ? 'agente ativo' : 'agentes ativos'}
           </span>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-700 pb-0">
+      <div className="flex gap-2 border-b border-border/60 pb-0">
         {(['agents', 'chat'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab
-                ? 'border-purple-500 text-purple-400'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
+                ? 'border-primary text-primary-300'
+                : 'border-transparent text-text-secondary hover:text-text-primary'
             }`}
           >
             {tab === 'agents' ? 'Todos os Agentes' : 'Chat entre Agentes'}
@@ -282,7 +282,7 @@ export default function AgentsPage() {
             const lastRun = lastLogByAgent[agent.name];
             const todayCount = logCountByAgent[agent.name] || 0;
             return (
-              <Card key={agent.name} className={`border ${agent.bg} bg-gray-800/50 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5`}>
+              <Card key={agent.name} className={`border ${agent.bg} bg-surface/60 backdrop-blur-sm transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5`}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-lg ${agent.bg} flex-shrink-0`}>
@@ -290,29 +290,29 @@ export default function AgentsPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-white text-sm">{agent.name}</h3>
-                        <span className={`flex items-center gap-1 text-xs ${isActive ? 'text-green-400' : 'text-gray-500'}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}`} />
+                        <h3 className="font-semibold text-text-primary text-sm">{agent.name}</h3>
+                        <span className={`flex items-center gap-1 text-xs ${isActive ? 'text-green-400' : 'text-text-secondary/70'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-400 animate-pulse' : 'bg-text-secondary/50'}`} />
                           {isActive ? 'ativo' : 'standby'}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500 mb-2">{agent.role}</p>
-                      <p className="text-xs text-gray-400 leading-relaxed">{agent.description}</p>
+                      <p className="text-xs text-text-secondary/70 mb-2">{agent.role}</p>
+                      <p className="text-xs text-text-secondary leading-relaxed">{agent.description}</p>
                       <div className="mt-3 flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
-                          <Calendar className="w-3 h-3 text-gray-500" />
-                          <span className="text-xs text-gray-500">{agent.schedule}</span>
+                          <Calendar className="w-3 h-3 text-text-secondary/70" />
+                          <span className="text-xs text-text-secondary/70">{agent.schedule}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           {todayCount > 0 && (
-                            <span className="text-xs text-gray-500 bg-gray-700/50 px-1.5 py-0.5 rounded">
+                            <span className="text-xs text-text-secondary/70 bg-surface-hover/50 px-1.5 py-0.5 rounded">
                               {todayCount}x hoje
                             </span>
                           )}
                         </div>
                       </div>
                       {lastRun && (
-                        <p className="text-xs text-gray-600 mt-1.5">
+                        <p className="text-xs text-text-secondary/50 mt-1.5">
                           Última ação: {timeAgo(lastRun)}
                         </p>
                       )}
@@ -331,11 +331,11 @@ export default function AgentsPage() {
           {/* Filtros */}
           <div className="flex gap-3 flex-wrap">
             <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-400" />
+              <Filter className="w-4 h-4 text-text-secondary" />
               <select
                 value={filterAgent}
                 onChange={e => setFilterAgent(e.target.value)}
-                className="bg-gray-700 border border-gray-600 text-gray-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-purple-500"
+                className="bg-surface-hover border border-border/50 text-text-primary text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-primary"
               >
                 <option value="">Todos os agentes</option>
                 {AGENTS.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
@@ -344,7 +344,7 @@ export default function AgentsPage() {
             <select
               value={filterType}
               onChange={e => setFilterType(e.target.value)}
-              className="bg-gray-700 border border-gray-600 text-gray-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-purple-500"
+              className="bg-surface-hover border border-border/50 text-text-primary text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-primary"
             >
               <option value="">Todos os tipos</option>
               {Object.entries(TYPE_CONFIG).map(([k, v]) => (
@@ -353,22 +353,22 @@ export default function AgentsPage() {
             </select>
             <button
               onClick={fetchLogs}
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 bg-gray-700 border border-gray-600 px-3 py-1.5 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary bg-surface-hover border border-border/50 px-3 py-1.5 rounded-lg transition-colors"
             >
               <RefreshCw className="w-3 h-3" /> Atualizar
             </button>
-            <span className="text-xs text-gray-500 flex items-center gap-1">
+            <span className="text-xs text-text-secondary/70 flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
               Recebendo em tempo real via Socket.io
             </span>
           </div>
 
           {/* Feed de logs */}
-          <Card className="bg-gray-900 border-gray-700">
+          <Card className="bg-surface/80 border-border/60">
             <CardContent className="p-0">
               <div className="h-[580px] overflow-y-auto p-4 space-y-2 font-mono text-xs">
                 {filteredLogs.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                  <div className="flex flex-col items-center justify-center h-full text-text-secondary/70">
                     <Bot className="w-12 h-12 mb-3 opacity-30" />
                     <p>Nenhuma comunicação registrada ainda.</p>
                     <p className="text-xs mt-1">Os logs aparecerão aqui quando os agentes trabalharem.</p>
@@ -381,28 +381,28 @@ export default function AgentsPage() {
                     return (
                       <div
                         key={log.id || idx}
-                        className="flex items-start gap-3 py-2 border-b border-gray-800/60 last:border-0 group hover:bg-gray-800/30 rounded px-2 -mx-2 transition-colors"
+                        className="flex items-start gap-3 py-2 border-b border-border/40 last:border-0 group hover:bg-surface-hover/30 rounded px-2 -mx-2 transition-colors"
                       >
-                        <div className={`p-1.5 rounded flex-shrink-0 mt-0.5 ${agentDef?.bg || 'bg-gray-700'}`}>
-                          <AgIcon className={`w-3 h-3 ${agentDef?.color || 'text-gray-400'}`} />
+                        <div className={`p-1.5 rounded flex-shrink-0 mt-0.5 ${agentDef?.bg || 'bg-surface-hover'}`}>
+                          <AgIcon className={`w-3 h-3 ${agentDef?.color || 'text-text-secondary'}`} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                            <span className={`font-semibold ${agentDef?.color || 'text-gray-300'}`}>
+                            <span className={`font-semibold ${agentDef?.color || 'text-text-secondary'}`}>
                               {log.from}
                             </span>
                             {log.to && (
                               <>
-                                <ArrowRight className="w-3 h-3 text-gray-500" />
-                                <span className="text-gray-400">{log.to}</span>
+                                <ArrowRight className="w-3 h-3 text-text-secondary/70" />
+                                <span className="text-text-secondary">{log.to}</span>
                               </>
                             )}
-                            <span className={`px-1.5 py-0.5 rounded text-xs ${cfg.color} bg-gray-800 border border-gray-700`}>
+                            <span className={`px-1.5 py-0.5 rounded text-xs ${cfg.color} bg-surface-hover border border-border/60`}>
                               {cfg.label}
                             </span>
-                            <span className="text-gray-600 ml-auto text-xs">{timeAgo(log.createdAt)}</span>
+                            <span className="text-text-secondary/50 ml-auto text-xs">{timeAgo(log.createdAt)}</span>
                           </div>
-                          <p className="text-gray-300 leading-relaxed">{log.message}</p>
+                          <p className="text-text-secondary leading-relaxed">{log.message}</p>
                         </div>
                       </div>
                     );
@@ -416,7 +416,7 @@ export default function AgentsPage() {
           {/* Legenda */}
           <div className="flex gap-4 flex-wrap">
             {Object.entries(TYPE_CONFIG).map(([k, v]) => (
-              <div key={k} className="flex items-center gap-1.5 text-xs text-gray-400">
+              <div key={k} className="flex items-center gap-1.5 text-xs text-text-secondary">
                 <span className={`w-2 h-2 rounded-full ${v.dot}`} />
                 {v.label}
               </div>

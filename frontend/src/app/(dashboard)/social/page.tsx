@@ -539,10 +539,10 @@ export default function SocialPage() {
                   : 'bg-surface border-border opacity-50 cursor-not-allowed'
               }`}
             >
-              <Icon size={18} className={p.enabled ? p.color : 'text-gray-500'} />
-              <span className={`text-sm font-medium ${p.enabled ? 'text-text-primary' : 'text-gray-500'}`}>{p.label}</span>
-              {!p.enabled && <Lock size={12} className="text-gray-600 ml-1" />}
-              {!p.enabled && <span className="text-xs text-gray-600">Em breve</span>}
+              <Icon size={18} className={p.enabled ? p.color : 'text-text-secondary'} />
+              <span className={`text-sm font-medium ${p.enabled ? 'text-text-primary' : 'text-text-secondary'}`}>{p.label}</span>
+              {!p.enabled && <Lock size={12} className="text-text-secondary ml-1" />}
+              {!p.enabled && <span className="text-xs text-text-secondary">Em breve</span>}
             </div>
           );
         })}
@@ -1238,7 +1238,7 @@ export default function SocialPage() {
               placeholder="https://vt.tiktok.com/... ou qualquer link de produto"
               value={productLink}
               onChange={(e) => setProductLink(e.target.value)}
-              className="w-full bg-gray-800 border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary"
+              className="w-full bg-surface/60 border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary focus:shadow-[0_0_12px_rgba(108,43,217,0.3)]"
             />
 
             {/* Upload de mídia */}

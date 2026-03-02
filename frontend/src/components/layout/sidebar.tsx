@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, Users, UsersRound, Megaphone, CheckSquare,
-  DollarSign, BarChart3, Calendar, LogOut, Settings, X, Facebook, MessageSquare, Package, Bot,
+  DollarSign, BarChart3, Calendar, LogOut, Settings, X, Facebook, MessageSquare, Package, Bot, Monitor,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -20,6 +20,7 @@ const menuItems = [
   { href: '/social', icon: Facebook, label: 'Social Media' },
   { href: '/products', icon: Package, label: 'Produtos IA' },
   { href: '/agents', icon: Bot, label: 'Agentes IA' },
+  { href: '/agents/command', icon: Monitor, label: 'Command Center' },
   { href: '/chat', icon: MessageSquare, label: 'Chat' },
   { href: '/team', icon: UsersRound, label: 'Equipe' },
   { href: '/settings', icon: Settings, label: 'Configurações' },
@@ -41,7 +42,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       )}
       <aside
         className={cn(
-          'fixed left-0 top-0 z-40 h-screen w-64 border-r border-border bg-surface flex flex-col transition-transform duration-300',
+          'fixed left-0 top-0 z-40 h-screen w-64 border-r border-border bg-surface/90 backdrop-blur-md flex flex-col transition-transform duration-300',
           'lg:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
@@ -60,7 +61,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {menuItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            const isActive = pathname === item.href || (pathname.startsWith(item.href + '/') && !menuItems.some(m => m.href !== item.href && m.href.startsWith(item.href + '/') && (pathname === m.href || pathname.startsWith(m.href + '/'))));
             return (
               <Link
                 key={item.href}
@@ -69,7 +70,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
                   isActive
-                    ? 'bg-primary/10 text-primary-300'
+                    ? 'bg-primary/15 text-primary-300 shadow-[0_0_12px_rgba(99,102,241,0.15)] border border-primary/30'
                     : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
                 )}
               >

@@ -19,6 +19,8 @@ const pageTitles: Record<string, string> = {
   '/social': 'Social Media',
   '/chat': 'Chat',
   '/settings': 'Configurações',
+  '/agents': 'Agentes IA',
+  '/products': 'Produtos',
 };
 
 interface HeaderProps {

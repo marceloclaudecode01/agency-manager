@@ -32,10 +32,10 @@ const icons = {
 };
 
 const styles = {
-  success: 'border-success/30 bg-success/10 text-success',
-  error: 'border-error/30 bg-error/10 text-error',
-  warning: 'border-warning/30 bg-warning/10 text-warning',
-  info: 'border-blue-400/30 bg-blue-400/10 text-blue-400',
+  success: 'border-success/30 bg-success/10 text-success shadow-[0_0_12px_rgba(16,185,129,0.15)]',
+  error: 'border-error/30 bg-error/10 text-error shadow-[0_0_12px_rgba(239,68,68,0.15)]',
+  warning: 'border-warning/30 bg-warning/10 text-warning shadow-[0_0_12px_rgba(245,158,11,0.15)]',
+  info: 'border-blue-400/30 bg-blue-400/10 text-blue-400 shadow-[0_0_12px_rgba(96,165,250,0.15)]',
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -63,7 +63,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={t.id}
               className={cn(
-                'flex items-center gap-3 rounded-lg border px-4 py-3 shadow-lg backdrop-blur-sm animate-in slide-in-from-right-5 min-w-[300px] max-w-[420px]',
+                'flex items-center gap-3 rounded-lg border px-4 py-3 backdrop-blur-sm animate-in slide-in-from-right-5 min-w-[300px] max-w-[420px]',
                 styles[t.type]
               )}
             >

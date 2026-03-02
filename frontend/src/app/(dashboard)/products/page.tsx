@@ -133,11 +133,11 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Package className="w-6 h-6 text-purple-400" />
+          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+            <Package className="w-6 h-6 text-primary-300" />
             Produtos IA
           </h1>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-text-secondary text-sm mt-1">
             Cole o link de um produto — a IA analisa, cria o copy e agenda o post automaticamente.
           </p>
         </div>
@@ -155,12 +155,12 @@ export default function ProductsPage() {
           { label: 'Publicados', value: campaigns.filter(c => c.status === 'PUBLISHED').length, icon: CheckCircle, color: 'text-green-400' },
           { label: 'Falhos', value: campaigns.filter(c => c.status === 'FAILED').length, icon: XCircle, color: 'text-red-400' },
         ].map(stat => (
-          <Card key={stat.label} className="bg-gray-800 border-gray-700">
+          <Card key={stat.label} className="bg-surface/80 border-border/60 backdrop-blur-sm">
             <CardContent className="p-4 flex items-center gap-3">
               <stat.icon className={`w-8 h-8 ${stat.color}`} />
               <div>
-                <p className="text-2xl font-bold text-white">{stat.value}</p>
-                <p className="text-xs text-gray-400">{stat.label}</p>
+                <p className="text-2xl font-bold text-text-primary">{stat.value}</p>
+                <p className="text-xs text-text-secondary">{stat.label}</p>
               </div>
             </CardContent>
           </Card>
@@ -169,11 +169,11 @@ export default function ProductsPage() {
 
       {/* Lista de campanhas */}
       {campaigns.length === 0 ? (
-        <Card className="bg-gray-800 border-gray-700">
+        <Card className="bg-surface/80 border-border/60 backdrop-blur-sm">
           <CardContent className="p-12 text-center">
-            <Package className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400 text-lg">Nenhuma campanha de produto ainda.</p>
-            <p className="text-gray-500 text-sm mt-1">Cole o link de um produto e a IA faz o resto!</p>
+            <Package className="w-16 h-16 text-text-secondary/50 mx-auto mb-4" />
+            <p className="text-text-secondary text-lg">Nenhuma campanha de produto ainda.</p>
+            <p className="text-text-secondary/70 text-sm mt-1">Cole o link de um produto e a IA faz o resto!</p>
             <Button onClick={() => setShowCreateModal(true)} className="mt-4">
               <Plus className="w-4 h-4 mr-2" /> Criar Primeiro Produto
             </Button>
@@ -182,7 +182,7 @@ export default function ProductsPage() {
       ) : (
         <div className="grid gap-4">
           {campaigns.map(campaign => (
-            <Card key={campaign.id} className="bg-gray-800 border-gray-700 hover:border-gray-600 transition-colors">
+            <Card key={campaign.id} className="bg-surface/80 border-border/60 backdrop-blur-sm hover:border-primary/30 transition-colors">
               <CardContent className="p-4">
                 <div className="flex items-start gap-4">
                   {/* Imagem */}
@@ -190,7 +190,7 @@ export default function ProductsPage() {
                     <img
                       src={campaign.imageUrl}
                       alt={campaign.productName}
-                      className="w-16 h-16 object-cover rounded-lg flex-shrink-0 bg-gray-700"
+                      className="w-16 h-16 object-cover rounded-lg flex-shrink-0 bg-surface-hover"
                       onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                   )}
@@ -198,8 +198,8 @@ export default function ProductsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <h3 className="font-semibold text-white truncate">{campaign.title || campaign.productName}</h3>
-                        <p className="text-xs text-gray-400 mt-0.5">{campaign.sourceDomain}</p>
+                        <h3 className="font-semibold text-text-primary truncate">{campaign.title || campaign.productName}</h3>
+                        <p className="text-xs text-text-secondary mt-0.5">{campaign.sourceDomain}</p>
                       </div>
                       <Badge variant={STATUS_VARIANTS[campaign.status] || 'default'}>
                         {STATUS_LABELS[campaign.status] || campaign.status}
@@ -214,11 +214,11 @@ export default function ProductsPage() {
                     )}
 
                     {campaign.generatedCopy && (
-                      <p className="text-gray-400 text-xs mt-2 line-clamp-2">{campaign.generatedCopy}</p>
+                      <p className="text-text-secondary text-xs mt-2 line-clamp-2">{campaign.generatedCopy}</p>
                     )}
 
                     <div className="flex items-center gap-3 mt-3">
-                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <span className="text-xs text-text-secondary/70 flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {formatDateTime(campaign.createdAt)}
                       </span>
@@ -236,7 +236,7 @@ export default function ProductsPage() {
                       <ChevronRight className="w-4 h-4" />
                     </Button>
                     <a href={campaign.productUrl} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm" variant="ghost" className="text-gray-400 hover:text-gray-300">
+                      <Button size="sm" variant="ghost" className="text-text-secondary hover:text-text-primary">
                         <ExternalLink className="w-4 h-4" />
                       </Button>
                     </a>
@@ -258,16 +258,16 @@ export default function ProductsPage() {
         title="Novo Produto com IA"
       >
         <div className="space-y-4">
-          <div className="bg-purple-900/20 border border-purple-700/40 rounded-lg p-3 flex gap-2">
+          <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 flex gap-2">
             <Sparkles className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
-            <p className="text-purple-300 text-xs">
+            <p className="text-primary-300 text-xs">
               A IA vai analisar o produto, criar um copy persuasivo e agendar o post no melhor horário automaticamente.
             </p>
           </div>
 
           {/* URL do produto */}
           <div>
-            <label className="text-sm text-gray-300 mb-1 block">URL do Produto *</label>
+            <label className="text-sm text-text-secondary mb-1 block">URL do Produto *</label>
             <div className="flex gap-2">
               <Input
                 placeholder="https://produto.com/item/..."
@@ -288,21 +288,21 @@ export default function ProductsPage() {
 
           {/* Pré-visualização do produto analisado */}
           {preview && (
-            <div className="bg-gray-700/50 border border-gray-600 rounded-lg p-3 space-y-1">
+            <div className="bg-surface-hover/50 border border-border/50 rounded-lg p-3 space-y-1">
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle className="w-4 h-4 text-green-400" />
                 <span className="text-green-400 text-sm font-medium">Produto identificado</span>
               </div>
-              <p className="text-white font-medium text-sm">{preview.name}</p>
+              <p className="text-text-primary font-medium text-sm">{preview.name}</p>
               {preview.price && <p className="text-green-400 text-sm">{preview.price}</p>}
-              {preview.description && <p className="text-gray-400 text-xs line-clamp-2">{preview.description}</p>}
-              {preview.sourceDomain && <p className="text-gray-500 text-xs">{preview.sourceDomain}</p>}
+              {preview.description && <p className="text-text-secondary text-xs line-clamp-2">{preview.description}</p>}
+              {preview.sourceDomain && <p className="text-text-secondary/70 text-xs">{preview.sourceDomain}</p>}
             </div>
           )}
 
           {/* URL da imagem */}
           <div>
-            <label className="text-sm text-gray-300 mb-1 block">URL da Imagem do Post *</label>
+            <label className="text-sm text-text-secondary mb-1 block">URL da Imagem do Post *</label>
             <Input
               placeholder="https://cdn.site.com/imagem-produto.jpg"
               value={form.imageUrl}
@@ -320,7 +320,7 @@ export default function ProductsPage() {
 
           {/* Título opcional */}
           <div>
-            <label className="text-sm text-gray-300 mb-1 block">Título da Campanha (opcional)</label>
+            <label className="text-sm text-text-secondary mb-1 block">Título da Campanha (opcional)</label>
             <Input
               placeholder="Ex: Promoção Tênis Nike Air"
               value={form.title}
@@ -383,50 +383,50 @@ export default function ProductsPage() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               {selected.productPrice && (
                 <div>
-                  <p className="text-gray-500 text-xs">Preço</p>
+                  <p className="text-text-secondary/70 text-xs">Preço</p>
                   <p className="text-green-400 font-medium">{selected.productPrice}</p>
                 </div>
               )}
               {selected.sourceDomain && (
                 <div>
-                  <p className="text-gray-500 text-xs">Fonte</p>
-                  <p className="text-gray-300">{selected.sourceDomain}</p>
+                  <p className="text-text-secondary/70 text-xs">Fonte</p>
+                  <p className="text-text-secondary">{selected.sourceDomain}</p>
                 </div>
               )}
             </div>
 
             {selected.productDesc && (
               <div>
-                <p className="text-gray-500 text-xs mb-1">Descrição do Produto</p>
-                <p className="text-gray-300 text-sm">{selected.productDesc}</p>
+                <p className="text-text-secondary/70 text-xs mb-1">Descrição do Produto</p>
+                <p className="text-text-secondary text-sm">{selected.productDesc}</p>
               </div>
             )}
 
             {selected.generatedCopy && (
               <div>
-                <p className="text-gray-500 text-xs mb-1 flex items-center gap-1">
+                <p className="text-text-secondary/70 text-xs mb-1 flex items-center gap-1">
                   <Sparkles className="w-3 h-3 text-purple-400" /> Copy Gerado pela IA
                 </p>
-                <div className="bg-gray-700/50 rounded-lg p-3">
-                  <p className="text-gray-200 text-sm whitespace-pre-wrap">{selected.generatedCopy}</p>
+                <div className="bg-surface-hover/50 rounded-lg p-3">
+                  <p className="text-text-primary text-sm whitespace-pre-wrap">{selected.generatedCopy}</p>
                 </div>
               </div>
             )}
 
             {selected.hashtags && (
               <div>
-                <p className="text-gray-500 text-xs mb-1">Hashtags</p>
+                <p className="text-text-secondary/70 text-xs mb-1">Hashtags</p>
                 <p className="text-blue-400 text-sm">{selected.hashtags}</p>
               </div>
             )}
 
             {selected.replyTemplate && (
               <div>
-                <p className="text-gray-500 text-xs mb-1 flex items-center gap-1">
+                <p className="text-text-secondary/70 text-xs mb-1 flex items-center gap-1">
                   <Brain className="w-3 h-3 text-purple-400" /> Template de Resposta Automática
                 </p>
-                <div className="bg-gray-700/50 rounded-lg p-3">
-                  <p className="text-gray-300 text-sm">{selected.replyTemplate}</p>
+                <div className="bg-surface-hover/50 rounded-lg p-3">
+                  <p className="text-text-secondary text-sm">{selected.replyTemplate}</p>
                 </div>
               </div>
             )}
