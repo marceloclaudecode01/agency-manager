@@ -3,6 +3,7 @@ import prisma from '../config/database';
 import { SocialService } from '../modules/social/social.service';
 import { generateCommentReply } from './comment-responder.agent';
 import { analyzeMetrics } from './metrics-analyzer.agent';
+import { generateImageForPost } from './image-generator.agent';
 import { notificationsService } from '../modules/notifications/notifications.service';
 import { buildDailyStrategy } from './content-strategist.agent';
 import { generatePostFromStrategy } from './content-creator.agent';
@@ -359,6 +360,17 @@ export function startAutonomousContentEngine() {
           const generated = await generatePostFromStrategy(topic, focusType, recentTopics);
           await agentLog('Content Creator', `Post criado: "${generated.message.substring(0, 60)}..."`, { type: 'result', to: 'Autonomous Engine' });
 
+          // Generate image for every post
+          let imageUrl: string | null = null;
+          try {
+            await agentLog('Autonomous Engine', `Gerando imagem para "${topic}"...`, { type: 'communication', to: 'Image Generator' });
+            const image = await generateImageForPost(topic, focusType);
+            imageUrl = image.url || null;
+            await agentLog('Image Generator', `Imagem gerada para "${topic}"`, { type: 'result', to: 'Autonomous Engine' });
+          } catch (imgErr: any) {
+            await agentLog('Image Generator', `⚠️ Falha ao gerar imagem: ${imgErr.message}. Post será publicado sem imagem.`, { type: 'error' });
+          }
+
           const [hours, minutes] = timeStr.split(':').map(Number);
           const scheduledFor = new Date(today);
           scheduledFor.setHours(hours, minutes, 0, 0);
@@ -372,6 +384,7 @@ export function startAutonomousContentEngine() {
               topic: generated.topic || topic,
               message: generated.message,
               hashtags: hashtagsStr,
+              imageUrl,
               status: 'PENDING',
               source: 'autonomous-engine',
               contentType: 'organic',
