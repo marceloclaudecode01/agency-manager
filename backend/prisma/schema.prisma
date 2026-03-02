@@ -241,6 +241,12 @@ model ScheduledPost {
   timezone        String?
   nativeScheduled Boolean             @default(false)
   metaPostId      String?
+  source          String?
+  contentType     String?
+  governorDecision    String?
+  governorReason      String?
+  governorReviewedAt  DateTime?
+  qualityScore        Int?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -297,6 +303,28 @@ model ProductCampaign {
   updatedAt       DateTime              @updatedAt
 
   @@map("product_campaigns")
+}
+
+model WeeklyStrategy {
+  id               String   @id @default(cuid())
+  weekStart        DateTime
+  maxPostsPerDay   Int      @default(5)
+  contentMix       Json
+  bestPostingHours Json
+  adjustmentReason String
+  createdAt        DateTime @default(now())
+
+  @@map("weekly_strategies")
+}
+
+model TrendingCache {
+  id          String   @id @default(cuid())
+  trends      Json
+  generatedAt DateTime
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@map("trending_cache")
 }
 
 model AgentLog {

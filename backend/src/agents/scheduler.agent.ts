@@ -10,6 +10,8 @@ import { analyzeTrendingTopics } from './trending-topics.agent';
 import { orchestrateProductPosts } from './product-orchestrator.agent';
 import { runTokenMonitor } from './token-monitor.agent';
 import { agentLog } from './agent-logger';
+import { startContentGovernor } from './content-governor.agent';
+import { startGrowthDirector } from './growth-director.agent';
 
 const socialService = new SocialService();
 
@@ -46,7 +48,14 @@ export function startPostScheduler() {
       const now = new Date();
 
       pendingPosts = await prisma.scheduledPost.findMany({
-        where: { status: 'APPROVED', scheduledFor: { lte: now } },
+        where: {
+          status: 'APPROVED',
+          scheduledFor: { lte: now },
+          OR: [
+            { governorDecision: 'APPROVE' },
+            { governorDecision: null, source: null }, // backward compat: manual posts
+          ],
+        },
         orderBy: { scheduledFor: 'asc' },
         take: 1,
       });
@@ -330,7 +339,9 @@ export function startAutonomousContentEngine() {
               topic: generated.topic || topic,
               message: generated.message,
               hashtags: hashtagsStr,
-              status: 'APPROVED',
+              status: 'PENDING',
+              source: 'autonomous-engine',
+              contentType: 'organic',
               scheduledFor,
             },
           });
@@ -367,6 +378,16 @@ export function startTrendingTopicsAgent() {
     await agentLog('Trending Topics', '🔍 Analisando tendências da semana via Gemini AI...', { type: 'action', to: 'Gemini AI' });
     try {
       const report = await analyzeTrendingTopics();
+
+      // Store in TrendingCache for Content Strategist consumption
+      await prisma.trendingCache.create({
+        data: {
+          trends: report.trends as any,
+          generatedAt: new Date(),
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      });
+
       const topicNames = report.trends.map((t: any) => t.topic).join(', ');
 
       await agentLog('Trending Topics', `📈 ${report.trends.length} tendências identificadas: ${topicNames}. Enviando para Content Strategist...`, { type: 'result', to: 'Content Strategist', payload: { trends: report.trends } });
@@ -432,7 +453,9 @@ export function startAllAgents() {
   startTrendingTopicsAgent();
   startProductOrchestrator();
   startTokenMonitor();
+  startContentGovernor();
+  startGrowthDirector();
   // Log de inicialização
-  agentLog('Sistema', '🟢 Todos os 13 agentes da agência iniciados e monitorando.', { type: 'info' }).catch(() => {});
+  agentLog('Sistema', '🟢 Todos os 15 agentes da agência iniciados (incl. Content Governor e Growth Director).', { type: 'info' }).catch(() => {});
   console.log('[Agents] Todos os agentes iniciados ✓');
 }

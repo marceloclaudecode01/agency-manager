@@ -23,6 +23,16 @@ export async function buildDailyStrategy(): Promise<DailyStrategy> {
     select: { topic: true, message: true },
   });
 
+  // Fetch trending topics from cache
+  const trendingCache = await prisma.trendingCache.findFirst({
+    where: { expiresAt: { gte: new Date() } },
+    orderBy: { generatedAt: 'desc' },
+  });
+
+  const trendingContext = trendingCache
+    ? `Tendências em alta esta semana: ${(trendingCache.trends as any[]).map((t: any) => t.topic).join(', ')}. Use como inspiração para temas mais relevantes.`
+    : '';
+
   const recentTopics = recentPosts.map((p) => p.topic).filter(Boolean).join(', ');
   const metricsContext = lastReport
     ? `Último relatório de métricas (score ${lastReport.growthScore}/10):
@@ -43,6 +53,8 @@ Hoje é ${dayOfWeek}, ${dateStr}.
 ${metricsContext}
 
 Temas publicados recentemente (NÃO repita): ${recentTopics || 'nenhum ainda'}
+
+${trendingContext}
 
 Com base nesses dados, crie a estratégia de conteúdo para HOJE.
 
