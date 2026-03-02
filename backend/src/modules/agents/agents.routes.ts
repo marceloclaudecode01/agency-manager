@@ -49,4 +49,24 @@ router.get('/token/status', requireRole('ADMIN', 'MANAGER'), (req, res) => contr
 // Logs de comunicação entre agentes
 router.get('/logs', (req, res) => controller.getAgentLogs(req as any, res));
 
+// Phase 6: Control panel routes
+router.get('/status', (req, res) => controller.getAgentsStatus(req as any, res));
+router.post('/safe-mode', requireRole('ADMIN'), (req, res) => controller.setSafeMode(req as any, res));
+router.post('/pause/:agentName', requireRole('ADMIN'), (req, res) => controller.toggleAgent(req as any, res));
+router.post('/override/:id', requireRole('ADMIN'), (req, res) => controller.overridePost(req as any, res));
+router.post('/strategy', requireRole('ADMIN'), (req, res) => controller.overrideStrategy(req as any, res));
+router.post('/sentinel/run', requireRole('ADMIN'), (req, res) => controller.runSentinelNow(req as any, res));
+
+// Phase 4: Brand config
+router.get('/brand', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getBrandConfig(req as any, res));
+router.put('/brand', requireRole('ADMIN'), (req, res) => controller.updateBrandConfigEndpoint(req as any, res));
+
+// Phase 9: Performance insights
+router.get('/performance', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getPerformanceInsightsEndpoint(req as any, res));
+
+// Phase 8: Content campaigns
+router.get('/campaigns', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getCampaigns(req as any, res));
+router.post('/campaigns', requireRole('ADMIN'), (req, res) => controller.createCampaign(req as any, res));
+router.patch('/campaigns/:id', requireRole('ADMIN'), (req, res) => controller.updateCampaign(req as any, res));
+
 export default router;

@@ -1,4 +1,5 @@
 import { askGemini } from './gemini';
+import { getBrandContext } from './brand-brain.agent';
 
 const PAGE_CONTEXT = `
 Você é o agente de conteúdo da página "NewPlay Tv Online" no Facebook.
@@ -59,8 +60,14 @@ export async function generatePostFromStrategy(
   const focusGuide = focusInstructions[focusType] || focusInstructions['entretenimento'];
   const recentStr = recentTopics.length > 0 ? recentTopics.join(', ') : 'nenhum';
 
+  // Phase 4: Brand Brain context + Phase 2: style variation
+  let brandCtx = '';
+  try { brandCtx = await getBrandContext(); } catch {}
+
   const prompt = `
 ${PAGE_CONTEXT}
+${brandCtx}
+INSTRUÇÃO DE ESTILO: Varie o tom e formato a cada post. Alterne entre pergunta, afirmação, curiosidade, lista e opinião.
 
 Crie um post para o Facebook sobre o tema: "${topic}"
 Tipo de foco: ${focusType} — ${focusGuide}

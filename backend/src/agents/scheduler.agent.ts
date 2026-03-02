@@ -12,6 +12,10 @@ import { runTokenMonitor } from './token-monitor.agent';
 import { agentLog } from './agent-logger';
 import { startContentGovernor } from './content-governor.agent';
 import { startGrowthDirector } from './growth-director.agent';
+import { startSystemSentinel } from './system-sentinel.agent';
+import { startPerformanceLearner } from './performance-learner.agent';
+import { isSafeModeActive, isAgentPaused } from './safe-mode';
+import { seedBrandConfig } from './brand-brain.agent';
 
 const socialService = new SocialService();
 
@@ -45,6 +49,11 @@ export function startPostScheduler() {
   cron.schedule('*/5 * * * *', async () => {
     let pendingPosts: Awaited<ReturnType<typeof prisma.scheduledPost.findMany>> = [];
     try {
+      // Phase 1: Safe mode check
+      if (await isSafeModeActive() || await isAgentPaused('Scheduler')) {
+        return;
+      }
+
       const now = new Date();
 
       pendingPosts = await prisma.scheduledPost.findMany({
@@ -190,8 +199,32 @@ export function startCommentResponder() {
             reply = await generateCommentReply(comment.message, post.message || post.story);
           }
 
+          // Phase 5: Sentiment analysis before replying
+          let sentiment: string | null = null;
+          try {
+            const { askGemini: askGeminiSentiment } = await import('./gemini');
+            const sentimentRaw = await askGeminiSentiment(`Classifique o sentimento deste comentário em uma palavra: POSITIVE, NEUTRAL, NEGATIVE ou CRISIS.
+Comentário: "${comment.message.substring(0, 200)}"
+Retorne APENAS a classificação.`);
+            const cleaned = sentimentRaw.trim().toUpperCase();
+            if (['POSITIVE', 'NEUTRAL', 'NEGATIVE', 'CRISIS'].includes(cleaned)) {
+              sentiment = cleaned;
+            }
+          } catch {}
+
+          // Phase 5: CRISIS — don't auto-reply, alert admin
+          if (sentiment === 'CRISIS') {
+            await prisma.commentLog.create({ data: { commentId: comment.id, action: 'CRISIS_HOLD', reply: '', sentiment } });
+            await agentLog('Comment Responder', `🚨 CRISE detectada: "${comment.message.substring(0, 60)}" — resposta suspensa, admin notificado`, { type: 'error' });
+            const crisisAdmins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+            for (const admin of crisisAdmins) {
+              await notificationsService.createAndEmit(admin.id, 'TASK_ASSIGNED', 'CRISE: Comentário negativo', `Comentário de crise detectado: "${comment.message.substring(0, 100)}". Responda manualmente.`);
+            }
+            continue;
+          }
+
           if (!reply) {
-            await prisma.commentLog.create({ data: { commentId: comment.id, action: 'IGNORED', reply: '' } });
+            await prisma.commentLog.create({ data: { commentId: comment.id, action: 'IGNORED', reply: '', sentiment } });
             continue;
           }
 
@@ -199,10 +232,10 @@ export function startCommentResponder() {
             await socialService.replyToComment(comment.id, reply);
           } catch (replyErr: any) {
             await agentLog('Comment Responder', `⚠️ Não foi possível responder comentário: ${replyErr.message}`, { type: 'info' });
-            await prisma.commentLog.create({ data: { commentId: comment.id, action: 'FAILED', reply } });
+            await prisma.commentLog.create({ data: { commentId: comment.id, action: 'FAILED', reply, sentiment } });
             continue;
           }
-          await prisma.commentLog.create({ data: { commentId: comment.id, action: 'REPLIED', reply } });
+          await prisma.commentLog.create({ data: { commentId: comment.id, action: 'REPLIED', reply, sentiment } });
           repliedCount++;
 
           await agentLog('Comment Responder', `✅ Respondido: "${comment.message.substring(0, 40)}" → "${reply.substring(0, 40)}"`, { type: 'result' });
@@ -455,7 +488,11 @@ export function startAllAgents() {
   startTokenMonitor();
   startContentGovernor();
   startGrowthDirector();
+  startSystemSentinel();
+  startPerformanceLearner();
+  // Seed brand config on startup
+  seedBrandConfig().catch(() => {});
   // Log de inicialização
-  agentLog('Sistema', '🟢 Todos os 15 agentes da agência iniciados (incl. Content Governor e Growth Director).', { type: 'info' }).catch(() => {});
+  agentLog('Sistema', '🟢 Todos os agentes iniciados (incl. Sentinel, Learner, Brand Brain).', { type: 'info' }).catch(() => {});
   console.log('[Agents] Todos os agentes iniciados ✓');
 }

@@ -2,6 +2,8 @@ import cron from 'node-cron';
 import prisma from '../config/database';
 import { askGemini } from './gemini';
 import { agentLog } from './agent-logger';
+import { isSafeModeActive, isAgentPaused } from './safe-mode';
+import { getBrandContext } from './brand-brain.agent';
 
 interface GovernorDecision {
   decision: 'APPROVE' | 'REJECT' | 'RESCHEDULE' | 'QUEUE_FOR_NEXT_DAY';
@@ -98,22 +100,24 @@ async function evaluatePost(
     };
   }
 
-  // Rule 4: LLM quality check + duplicate detection
+  // Rule 4: LLM quality check + duplicate detection (Phase 2: expanded to 20 posts)
   let qualityScore = 7; // default if LLM fails
   try {
     const recentPosts = await prisma.scheduledPost.findMany({
       where: { status: 'PUBLISHED' },
       orderBy: { publishedAt: 'desc' },
-      take: 10,
+      take: 20,
       select: { topic: true, message: true },
     });
 
     const recentTopics = recentPosts.map((p) => p.topic).join(', ');
+    const brandContext = await getBrandContext();
 
     const prompt = `Avalie este post para redes sociais de 1 a 10 (qualidade, originalidade, engajamento) e verifique duplicatas.
+${brandContext}
 Post: "${post.message.substring(0, 300)}"
 Tópico: "${post.topic}"
-Tópicos recentes publicados: ${recentTopics || 'nenhum'}
+Tópicos recentes publicados (últimos 20): ${recentTopics || 'nenhum'}
 Retorne APENAS JSON: { "score": 7, "isDuplicate": false, "reason": "motivo breve" }`;
 
     const raw = await askGemini(prompt);
@@ -160,6 +164,12 @@ Retorne APENAS JSON: { "score": 7, "isDuplicate": false, "reason": "motivo breve
 }
 
 export async function reviewPendingPosts(): Promise<void> {
+  // Safe mode check — do not approve anything
+  if (await isSafeModeActive() || await isAgentPaused('Content Governor')) {
+    await agentLog('Content Governor', 'Safe mode ou agente pausado — revisão suspensa', { type: 'info' });
+    return;
+  }
+
   // 1. Load current strategy
   const strategy = await prisma.weeklyStrategy.findFirst({
     orderBy: { createdAt: 'desc' },
@@ -168,6 +178,35 @@ export async function reviewPendingPosts(): Promise<void> {
   const maxPerDay = strategy?.maxPostsPerDay ?? 5;
   const contentMix = (strategy?.contentMix as any) ?? { organic: 60, product: 40 };
   const bestHours = (strategy?.bestPostingHours as any) ?? ['10:00', '14:00', '18:00'];
+
+  // Phase 2: Anti-spam — weekly limit (max 30 posts/week)
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const weeklyApproved = await prisma.scheduledPost.count({
+    where: { governorDecision: 'APPROVE', governorReviewedAt: { gte: weekAgo } },
+  });
+  if (weeklyApproved >= 30) {
+    await agentLog('Content Governor', `Limite semanal atingido (30 posts/semana). Revisão suspensa.`, { type: 'info' });
+    return;
+  }
+
+  // Phase 2: Anti-spam — cooldown after FAILED post (4h)
+  const lastFailed = await prisma.scheduledPost.findFirst({
+    where: { status: 'FAILED' },
+    orderBy: { updatedAt: 'desc' },
+    select: { updatedAt: true },
+  });
+  if (lastFailed && Date.now() - lastFailed.updatedAt.getTime() < 4 * 60 * 60 * 1000) {
+    await agentLog('Content Governor', 'Cooldown ativo (post FAILED < 4h). Revisão adiada.', { type: 'info' });
+    return;
+  }
+
+  // Phase 8: Load active campaigns
+  let activeCampaigns: any[] = [];
+  try {
+    activeCampaigns = await prisma.contentCampaign.findMany({
+      where: { status: 'ACTIVE', startDate: { lte: new Date() }, endDate: { gte: new Date() } },
+    });
+  } catch {}
 
   // 2. Fetch pending posts not yet reviewed
   const pending = await prisma.scheduledPost.findMany({
@@ -226,11 +265,13 @@ export async function reviewPendingPosts(): Promise<void> {
 
     if (decision.decision === 'APPROVE') {
       updateData.status = 'APPROVED';
-      if (decision.newScheduledFor) {
-        updateData.scheduledFor = decision.newScheduledFor;
-      }
+      // Phase 2: Anti-spam humanization — ±15min random offset
+      const baseTime = decision.newScheduledFor || post.scheduledFor;
+      const offsetMs = (Math.random() * 30 - 15) * 60 * 1000; // -15 to +15 min
+      const humanizedTime = new Date(baseTime.getTime() + offsetMs);
+      updateData.scheduledFor = humanizedTime;
       approvedToday++;
-      approvedTimes.push(decision.newScheduledFor || post.scheduledFor);
+      approvedTimes.push(humanizedTime);
       if (post.contentType === 'product') productToday++;
       else organicToday++;
     } else if (decision.decision === 'REJECT') {

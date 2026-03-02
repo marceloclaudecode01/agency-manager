@@ -258,6 +258,7 @@ model CommentLog {
   commentId String   @unique
   action    String
   reply     String
+  sentiment String?  // POSITIVE | NEUTRAL | NEGATIVE | CRISIS
   createdAt DateTime @default(now())
 
   @@map("comment_logs")
@@ -337,4 +338,56 @@ model AgentLog {
   createdAt DateTime @default(now())
 
   @@map("agent_logs")
+}
+
+// Phase 1: System Sentinel + Safe Mode
+model SystemConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("system_config")
+}
+
+// Phase 3: Feedback Loop de Performance
+model ContentPerformance {
+  id              String   @id @default(cuid())
+  postId          String
+  likes           Int      @default(0)
+  comments        Int      @default(0)
+  shares          Int      @default(0)
+  engagementScore Float    @default(0)
+  contentType     String?
+  topic           String?
+  publishedHour   Int?
+  createdAt       DateTime @default(now())
+
+  @@map("content_performance")
+}
+
+// Phase 4: Brand Brain
+model BrandConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("brand_config")
+}
+
+// Phase 8: Content Campaigns
+model ContentCampaign {
+  id           String   @id @default(cuid())
+  name         String
+  type         String   // "seasonal" | "launch" | "awareness" | "engagement"
+  startDate    DateTime
+  endDate      DateTime
+  priority     Int      @default(5)
+  contentRules Json     // { requiredTopics, forbiddenTopics, toneOverride, etc }
+  status       String   @default("ACTIVE") // ACTIVE | PAUSED | COMPLETED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("content_campaigns")
 }

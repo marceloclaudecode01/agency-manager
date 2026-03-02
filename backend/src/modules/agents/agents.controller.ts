@@ -10,6 +10,11 @@ import { fetchBestProducts, fetchTrendingProducts } from '../../agents/tiktok-re
 import { analyzePageGrowth } from '../../agents/growth-analyst.agent';
 import { checkFacebookToken } from '../../agents/token-monitor.agent';
 import { agentLog } from '../../agents/agent-logger';
+import { getSafeModeStatus, activateSafeMode, deactivateSafeMode, pauseAgent, resumeAgent } from '../../agents/safe-mode';
+import { runSentinel } from '../../agents/system-sentinel.agent';
+import { getAllBrandConfig, updateBrandConfig } from '../../agents/brand-brain.agent';
+import { getPerformanceInsights } from '../../agents/performance-learner.agent';
+import { generateWeeklyStrategy } from '../../agents/growth-director.agent';
 import cloudinary from '../../config/cloudinary';
 import { SocialService } from '../social/social.service';
 import { notificationsService } from '../notifications/notifications.service';
@@ -418,6 +423,180 @@ Retorne APENAS JSON válido:
       return ApiResponse.success(res, logs.reverse());
     } catch (error: any) {
       return ApiResponse.error(res, 'Failed to get agent logs', 500);
+    }
+  }
+
+  // Phase 6: Safe mode control
+  async setSafeMode(req: AuthRequest, res: Response) {
+    try {
+      const { enabled, reason } = req.body;
+      if (enabled) {
+        await activateSafeMode(reason || 'Ativado manualmente pelo admin', 'Admin');
+      } else {
+        await deactivateSafeMode();
+      }
+      const status = await getSafeModeStatus();
+      return ApiResponse.success(res, status, enabled ? 'Safe mode ativado' : 'Safe mode desativado');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Phase 6: Pause/resume agent
+  async toggleAgent(req: AuthRequest, res: Response) {
+    try {
+      const agentName = req.params.agentName as string;
+      const { paused } = req.body;
+      if (paused) {
+        await pauseAgent(agentName);
+      } else {
+        await resumeAgent(agentName);
+      }
+      return ApiResponse.success(res, { agentName, paused }, `Agente ${agentName} ${paused ? 'pausado' : 'retomado'}`);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Phase 6: Override approve/reject post
+  async overridePost(req: AuthRequest, res: Response) {
+    try {
+      const id = req.params.id as string;
+      const { action } = req.body; // 'approve' or 'reject'
+      const newStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
+      const post = await prisma.scheduledPost.update({
+        where: { id },
+        data: { status: newStatus, governorDecision: action === 'approve' ? 'APPROVE' : 'REJECT', governorReason: `Override manual pelo admin`, governorReviewedAt: new Date() },
+      });
+      await agentLog('Admin Override', `Post "${post.topic}" ${action === 'approve' ? 'aprovado' : 'rejeitado'} manualmente`, { type: 'action' });
+      return ApiResponse.success(res, post, `Post ${action === 'approve' ? 'aprovado' : 'rejeitado'}`);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Phase 6: Full agents status
+  async getAgentsStatus(req: AuthRequest, res: Response) {
+    try {
+      const safeMode = await getSafeModeStatus();
+      const pausedConfig = await prisma.systemConfig.findUnique({ where: { key: 'pausedAgents' } }).catch(() => null);
+      const pausedAgents: string[] = Array.isArray(pausedConfig?.value) ? (pausedConfig.value as string[]) : [];
+
+      const agentNames = [
+        'Scheduler', 'Comment Responder', 'Metrics Analyzer', 'Autonomous Engine',
+        'Trending Topics', 'Product Orchestrator', 'Token Monitor', 'Content Governor',
+        'Growth Director', 'System Sentinel', 'Performance Learner',
+      ];
+
+      const agents = agentNames.map((name) => ({
+        name,
+        paused: pausedAgents.includes(name),
+        status: pausedAgents.includes(name) ? 'paused' : safeMode.enabled ? 'safe_mode' : 'running',
+      }));
+
+      // Recent errors per agent
+      const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+      const errorCounts = await prisma.agentLog.groupBy({
+        by: ['from'],
+        where: { type: 'error', createdAt: { gte: thirtyMinAgo } },
+        _count: { id: true },
+      });
+
+      return ApiResponse.success(res, { safeMode, agents, errorCounts, pausedAgents });
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Phase 6: Override strategy
+  async overrideStrategy(req: AuthRequest, res: Response) {
+    try {
+      const data = req.body;
+      const nextMonday = new Date();
+      nextMonday.setDate(nextMonday.getDate() + ((8 - nextMonday.getDay()) % 7 || 7));
+      nextMonday.setHours(0, 0, 0, 0);
+
+      const saved = await prisma.weeklyStrategy.create({
+        data: {
+          weekStart: nextMonday,
+          maxPostsPerDay: data.maxPostsPerDay || 5,
+          contentMix: data.contentMix || { organic: 60, product: 40 },
+          bestPostingHours: data.bestPostingHours || ['10:00', '14:00', '18:00'],
+          adjustmentReason: data.adjustmentReason || 'Override manual pelo admin',
+        },
+      });
+      return ApiResponse.success(res, saved, 'Estratégia atualizada');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Phase 1: Run sentinel check now
+  async runSentinelNow(req: AuthRequest, res: Response) {
+    try {
+      const report = await runSentinel();
+      return ApiResponse.success(res, report, 'Sentinel check executado');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Phase 4: Brand config
+  async getBrandConfig(req: AuthRequest, res: Response) {
+    try {
+      const config = await getAllBrandConfig();
+      return ApiResponse.success(res, config);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  async updateBrandConfigEndpoint(req: AuthRequest, res: Response) {
+    try {
+      const { key, value } = req.body;
+      await updateBrandConfig(key, value);
+      return ApiResponse.success(res, { key, value }, 'Brand config atualizada');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Phase 9: Performance insights
+  async getPerformanceInsightsEndpoint(req: AuthRequest, res: Response) {
+    try {
+      const insights = await getPerformanceInsights();
+      return ApiResponse.success(res, insights, 'Performance insights');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Phase 8: Content campaigns CRUD
+  async getCampaigns(req: AuthRequest, res: Response) {
+    try {
+      const campaigns = await prisma.contentCampaign.findMany({ orderBy: { priority: 'desc' } });
+      return ApiResponse.success(res, campaigns);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  async createCampaign(req: AuthRequest, res: Response) {
+    try {
+      const campaign = await prisma.contentCampaign.create({ data: req.body });
+      return ApiResponse.created(res, campaign, 'Campanha criada');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  async updateCampaign(req: AuthRequest, res: Response) {
+    try {
+      const id = req.params.id as string;
+      const campaign = await prisma.contentCampaign.update({ where: { id }, data: req.body });
+      return ApiResponse.success(res, campaign, 'Campanha atualizada');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
     }
   }
 
