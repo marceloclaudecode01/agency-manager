@@ -38,6 +38,13 @@ export async function getSafeModeStatus(): Promise<{ enabled: boolean; reason?: 
 
 export async function isAgentPaused(agentName: string): Promise<boolean> {
   try {
+    const agent = await prisma.agent.findFirst({
+      where: {
+        OR: [{ name: agentName }, { function: agentName }],
+      },
+    });
+    if (agent) return agent.status === 'paused';
+    // Fallback to legacy SystemConfig for agents not yet in DB
     const config = await prisma.systemConfig.findUnique({ where: { key: 'pausedAgents' } });
     if (!config) return false;
     const paused = config.value as any;
@@ -48,6 +55,17 @@ export async function isAgentPaused(agentName: string): Promise<boolean> {
 }
 
 export async function pauseAgent(agentName: string): Promise<void> {
+  // Try Agent table first
+  const agent = await prisma.agent.findFirst({
+    where: { OR: [{ name: agentName }, { function: agentName }] },
+  }).catch(() => null);
+
+  if (agent) {
+    await prisma.agent.update({ where: { id: agent.id }, data: { status: 'paused' } });
+    return;
+  }
+
+  // Fallback to legacy SystemConfig
   const config = await prisma.systemConfig.findUnique({ where: { key: 'pausedAgents' } });
   const current: string[] = Array.isArray(config?.value) ? (config.value as string[]) : [];
   if (!current.includes(agentName)) current.push(agentName);
@@ -59,6 +77,17 @@ export async function pauseAgent(agentName: string): Promise<void> {
 }
 
 export async function resumeAgent(agentName: string): Promise<void> {
+  // Try Agent table first
+  const agent = await prisma.agent.findFirst({
+    where: { OR: [{ name: agentName }, { function: agentName }] },
+  }).catch(() => null);
+
+  if (agent) {
+    await prisma.agent.update({ where: { id: agent.id }, data: { status: 'active' } });
+    return;
+  }
+
+  // Fallback to legacy SystemConfig
   const config = await prisma.systemConfig.findUnique({ where: { key: 'pausedAgents' } });
   const current: string[] = Array.isArray(config?.value) ? (config.value as string[]) : [];
   const updated = current.filter((a) => a !== agentName);

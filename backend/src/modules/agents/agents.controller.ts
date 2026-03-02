@@ -480,24 +480,25 @@ Retorne APENAS JSON válido:
     }
   }
 
-  // Phase 6: Full agents status
+  // Phase 6: Full agents status (now from DB)
   async getAgentsStatus(req: AuthRequest, res: Response) {
     try {
       const safeMode = await getSafeModeStatus();
-      const pausedConfig = await prisma.systemConfig.findUnique({ where: { key: 'pausedAgents' } }).catch(() => null);
-      const pausedAgents: string[] = Array.isArray(pausedConfig?.value) ? (pausedConfig.value as string[]) : [];
 
-      const agentNames = [
-        'Scheduler', 'Comment Responder', 'Metrics Analyzer', 'Autonomous Engine',
-        'Trending Topics', 'Product Orchestrator', 'Token Monitor', 'Content Governor',
-        'Growth Director', 'System Sentinel', 'Performance Learner',
-        'A/B Testing', 'Viral Mechanics', 'Reputation Monitor',
-      ];
+      // Load all agents from DB
+      const dbAgents = await prisma.agent.findMany({ orderBy: { name: 'asc' } });
+      const pausedAgents = dbAgents.filter((a) => a.status === 'paused').map((a) => a.name);
 
-      const agents = agentNames.map((name) => ({
-        name,
-        paused: pausedAgents.includes(name),
-        status: pausedAgents.includes(name) ? 'paused' : safeMode.enabled ? 'safe_mode' : 'running',
+      const agents = dbAgents.map((a) => ({
+        id: a.id,
+        name: a.name,
+        function: a.function,
+        description: a.description,
+        cronExpression: a.cronExpression,
+        autonomyLevel: a.autonomyLevel,
+        lastRunAt: a.lastRunAt,
+        paused: a.status === 'paused',
+        status: a.status === 'paused' ? 'paused' : a.status === 'error' ? 'error' : safeMode.enabled ? 'safe_mode' : 'running',
       }));
 
       // Recent errors per agent
@@ -723,6 +724,54 @@ Retorne APENAS JSON válido:
 
   async getCarouselStylesEndpoint(_req: AuthRequest, res: Response) {
     return ApiResponse.success(res, getCarouselStyles());
+  }
+
+  // ─── Agent Registry CRUD ───
+  async getAgentRegistry(_req: AuthRequest, res: Response) {
+    try {
+      const agents = await prisma.agent.findMany({ orderBy: { name: 'asc' } });
+      return ApiResponse.success(res, agents);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  async createAgent(req: AuthRequest, res: Response) {
+    try {
+      const { name, function: fn, description, cronExpression, autonomyLevel, status } = req.body;
+      if (!name || !fn) return ApiResponse.error(res, 'name and function are required', 400);
+      const agent = await prisma.agent.create({
+        data: { name, function: fn, description, cronExpression, autonomyLevel: autonomyLevel || 5, status: status || 'active' },
+      });
+      await agentLog('Orion', `Agent created: "${name}" (${fn})`, { type: 'action' });
+      return ApiResponse.created(res, agent, 'Agent created');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  async updateAgentStatus(req: AuthRequest, res: Response) {
+    try {
+      const id = req.params.id as string;
+      const { status } = req.body;
+      if (!['active', 'paused', 'error'].includes(status)) return ApiResponse.error(res, 'Invalid status', 400);
+      const agent = await prisma.agent.update({ where: { id }, data: { status } });
+      await agentLog('Orion', `Agent "${agent.name}" status → ${status}`, { type: 'action' });
+      return ApiResponse.success(res, agent, `Agent ${agent.name} is now ${status}`);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  async deleteAgent(req: AuthRequest, res: Response) {
+    try {
+      const id = req.params.id as string;
+      const agent = await prisma.agent.delete({ where: { id } });
+      await agentLog('Orion', `Agent deleted: "${agent.name}"`, { type: 'action' });
+      return ApiResponse.success(res, null, `Agent ${agent.name} deleted`);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
   }
 
   // Upload de imagem ou vídeo para o Cloudinary

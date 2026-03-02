@@ -88,4 +88,10 @@ router.post('/aggressive-mode', requireRole('ADMIN'), (req, res) => controller.t
 // Epic 1: Reputation Monitor
 router.get('/reputation', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getReputationStatus(req as any, res));
 
+// Agent Registry CRUD
+router.get('/registry', (req, res) => controller.getAgentRegistry(req as any, res));
+router.post('/registry', requireRole('ADMIN'), (req, res) => controller.createAgent(req as any, res));
+router.patch('/registry/:id/status', requireRole('ADMIN'), (req, res) => controller.updateAgentStatus(req as any, res));
+router.delete('/registry/:id', requireRole('ADMIN'), (req, res) => controller.deleteAgent(req as any, res));
+
 export default router;

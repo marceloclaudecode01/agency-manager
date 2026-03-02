@@ -87,13 +87,20 @@ const COMMANDS: CommandDef[] = [
       /(?:pausar?|pause|parar?|stop)\s+(?:o\s+)?(?:agente?\s+)?(.+)/i,
     ],
     execute: async (match) => {
-      const agentName = resolveAgent(match[1]);
+      const agentFunction = resolveAgent(match[1]);
       try {
-        await pauseAgent(agentName);
-        await agentLog('Orion', `Comando: pausar agente "${agentName}"`, { type: 'action' });
-        return { command: 'pause_agent', success: true, message: `Agente "${agentName}" pausado com sucesso.` };
+        const agent = await prisma.agent.findFirst({
+          where: { OR: [{ name: { contains: match[1].trim(), mode: 'insensitive' as any } }, { function: agentFunction }] },
+        });
+        if (agent) {
+          await prisma.agent.update({ where: { id: agent.id }, data: { status: 'paused' } });
+        } else {
+          await pauseAgent(agentFunction); // legacy fallback
+        }
+        await agentLog('Orion', `Comando: pausar agente "${agent?.name || agentFunction}"`, { type: 'action' });
+        return { command: 'pause_agent', success: true, message: `Agente "${agent?.name || agentFunction}" pausado com sucesso.` };
       } catch (e: any) {
-        return { command: 'pause_agent', success: false, message: `Falha ao pausar "${agentName}": ${e.message}` };
+        return { command: 'pause_agent', success: false, message: `Falha ao pausar "${agentFunction}": ${e.message}` };
       }
     },
   },
@@ -103,13 +110,20 @@ const COMMANDS: CommandDef[] = [
       /(?:retomar|resume|reativar?|reactivate|despausar?|unpause)\s+(?:o\s+)?(?:agente?\s+)?(.+)/i,
     ],
     execute: async (match) => {
-      const agentName = resolveAgent(match[1]);
+      const agentFunction = resolveAgent(match[1]);
       try {
-        await resumeAgent(agentName);
-        await agentLog('Orion', `Comando: retomar agente "${agentName}"`, { type: 'action' });
-        return { command: 'resume_agent', success: true, message: `Agente "${agentName}" retomado com sucesso.` };
+        const agent = await prisma.agent.findFirst({
+          where: { OR: [{ name: { contains: match[1].trim(), mode: 'insensitive' as any } }, { function: agentFunction }] },
+        });
+        if (agent) {
+          await prisma.agent.update({ where: { id: agent.id }, data: { status: 'active' } });
+        } else {
+          await resumeAgent(agentFunction); // legacy fallback
+        }
+        await agentLog('Orion', `Comando: retomar agente "${agent?.name || agentFunction}"`, { type: 'action' });
+        return { command: 'resume_agent', success: true, message: `Agente "${agent?.name || agentFunction}" retomado com sucesso.` };
       } catch (e: any) {
-        return { command: 'resume_agent', success: false, message: `Falha ao retomar "${agentName}": ${e.message}` };
+        return { command: 'resume_agent', success: false, message: `Falha ao retomar "${agentFunction}": ${e.message}` };
       }
     },
   },
@@ -190,8 +204,8 @@ const COMMANDS: CommandDef[] = [
     execute: async () => {
       try {
         const safeStatus = await getSafeModeStatus();
-        const pausedAgents = await prisma.systemConfig.findMany({ where: { key: { startsWith: 'paused_agent_' } } }).catch(() => []);
-        const paused = pausedAgents.map((p: any) => p.key.replace('paused_agent_', ''));
+        const pausedFromDB = await prisma.agent.findMany({ where: { status: 'paused' } }).catch(() => []);
+        const paused = pausedFromDB.map((a: any) => a.name);
         await agentLog('Orion', 'Comando: consultar status do sistema', { type: 'action' });
         return {
           command: 'get_status',

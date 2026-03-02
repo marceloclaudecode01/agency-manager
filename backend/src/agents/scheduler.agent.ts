@@ -576,30 +576,73 @@ export function startTokenMonitor() {
   console.log('[TokenMonitor] Monitor de token iniciado (verifica todo dia às 09:00)');
 }
 
-export function startAllAgents() {
-  startPostScheduler();
-  startCommentResponder();
-  startMetricsAnalyzer();
-  startDueDateNotifier();
-  startAutonomousContentEngine();
-  startTrendingTopicsAgent();
-  startProductOrchestrator();
-  startTokenMonitor();
-  startContentGovernor();
-  startGrowthDirector();
-  startSystemSentinel();
-  startPerformanceLearner();
-  startABTestingEngine();
-  startReputationMonitor();
-  startLeadCaptureAgent();
-  startMonetizationEngine();
-  startStrategicCommandAgent();
-  startMarketIntelligenceAgent();
-  startNicheLearningAgent();
-  startPaidTrafficAgent();
+// Maps DB function field → actual start function
+const AGENT_FUNCTION_MAP: Record<string, () => void> = {
+  'post-scheduler': startPostScheduler,
+  'comment-responder': startCommentResponder,
+  'metrics-collector': startMetricsAnalyzer,
+  'deadline-notifier': startDueDateNotifier,
+  'content-engine': startAutonomousContentEngine,
+  'trending-topics': startTrendingTopicsAgent,
+  'tiktok-products': startProductOrchestrator,
+  'token-monitor': startTokenMonitor,
+  'content-governor': startContentGovernor,
+  'growth-director': startGrowthDirector,
+  'system-sentinel': startSystemSentinel,
+  'performance-learner': startPerformanceLearner,
+  'ab-testing': startABTestingEngine,
+  'reputation-monitor': startReputationMonitor,
+  'lead-capture': startLeadCaptureAgent,
+  'monetization-engine': startMonetizationEngine,
+  'strategic-command': startStrategicCommandAgent,
+  'market-intelligence': startMarketIntelligenceAgent,
+  'niche-learning': startNicheLearningAgent,
+  'paid-traffic': startPaidTrafficAgent,
+};
+
+export async function updateLastRun(agentName: string): Promise<void> {
+  try {
+    await prisma.agent.updateMany({
+      where: { OR: [{ name: agentName }, { function: agentName }] },
+      data: { lastRunAt: new Date() },
+    });
+  } catch {}
+}
+
+export async function startAllAgents() {
+  // Try loading active cron agents from DB
+  let startedFromDB = false;
+  try {
+    const activeAgents = await prisma.agent.findMany({
+      where: { status: 'active', cronExpression: { not: null } },
+    });
+
+    if (activeAgents.length > 0) {
+      startedFromDB = true;
+      let started = 0;
+      for (const agent of activeAgents) {
+        const fn = AGENT_FUNCTION_MAP[agent.function];
+        if (fn) {
+          fn();
+          started++;
+        }
+      }
+      console.log(`[Agents] ${started}/${activeAgents.length} cron agents started from DB`);
+    }
+  } catch {
+    // DB not ready or agents table doesn't exist yet — fall back to hardcoded
+  }
+
+  // Fallback: start all if DB didn't provide agents
+  if (!startedFromDB) {
+    for (const fn of Object.values(AGENT_FUNCTION_MAP)) {
+      fn();
+    }
+    console.log(`[Agents] ${Object.keys(AGENT_FUNCTION_MAP).length} agents started (hardcoded fallback)`);
+  }
+
   // Seed brand config on startup
   seedBrandConfig().catch(() => {});
-  // Log de inicialização
-  agentLog('Sistema', 'All agents started (incl. Growth System: Leads, Monetization, Strategic, Market Intel, Niche Learning, Paid Traffic, Compliance, Pattern Variation).', { type: 'info' }).catch(() => {});
+  agentLog('Sistema', `All agents started (DB-driven: ${startedFromDB}).`, { type: 'info' }).catch(() => {});
   console.log('[Agents] Todos os agentes iniciados ✓');
 }

@@ -338,7 +338,10 @@ model AgentLog {
   type      String   // "info" | "action" | "result" | "error" | "communication"
   message   String
   payload   Json?    // dados extras opcionais
+  agentId   String?  // FK to Agent (optional, for future use)
   createdAt DateTime @default(now())
+
+  agent Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
 
   @@map("agent_logs")
 }
@@ -576,6 +579,26 @@ model AdCreative {
   campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@map("ad_creatives")
+}
+
+// Agent Registry (persistent, single source of truth)
+model Agent {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  function        String   // maps to AGENT_FUNCTION_MAP key
+  description     String?  // specialty
+  status          String   @default("active") // active | paused | error
+  autonomyLevel   Int      @default(5) // 1=interactive, 3=supervised, 5=full
+  cronExpression  String?  // null = on-demand/inline
+  lastRunAt       DateTime?
+  errorCount      Int      @default(0)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  logs AgentLog[]
+
+  @@map("agents")
 }
 
 // Phase 8: Content Campaigns
