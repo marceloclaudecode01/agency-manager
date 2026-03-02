@@ -78,42 +78,6 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.1.0' });
 });
 
-// TEMP: trigger engine without auth (remove after first run)
-app.post('/api/temp/engine-run', async (_req, res) => {
-  try {
-    const { buildDailyStrategy } = await import('./agents/content-strategist.agent');
-    const { generatePostFromStrategy } = await import('./agents/content-creator.agent');
-    const strategy = await buildDailyStrategy();
-    const today = new Date();
-    const created: string[] = [];
-    const recentTopics: string[] = [];
-
-    for (let i = 0; i < strategy.postsToCreate; i++) {
-      try {
-        const topic = strategy.topics[i];
-        const focusType = strategy.focusType[i] || 'entretenimento';
-        const timeStr = strategy.scheduledTimes[i] || '18:00';
-        const generated = await generatePostFromStrategy(topic, focusType, recentTopics);
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        const scheduledFor = new Date(today);
-        scheduledFor.setHours(hours, minutes, 0, 0);
-        if (scheduledFor <= new Date()) scheduledFor.setTime(Date.now() + (i + 1) * 10 * 60 * 1000);
-        const hashtagsStr = generated.hashtags ? generated.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ') : null;
-        const saved = await (await import('./config/database')).default.scheduledPost.create({
-          data: { topic: generated.topic || topic, message: generated.message, hashtags: hashtagsStr, status: 'APPROVED', scheduledFor },
-        });
-        created.push(saved.id);
-        recentTopics.push(topic);
-      } catch (err: any) {
-        console.error(`[TempEngine] Error post ${i}:`, err.message);
-        created.push(`ERROR:${err.message}`);
-      }
-    }
-    res.json({ success: true, strategy: { postsToCreate: strategy.postsToCreate, topics: strategy.topics }, results: created });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 
 // Error handler
 app.use(errorHandler);
