@@ -50,7 +50,8 @@ api.interceptors.response.use(
         })
           .then(() => api(originalRequest))
           .catch(() => {
-            window.location.href = '/login';
+            document.cookie = 'token=; path=/; max-age=0';
+        window.location.href = '/login';
             return Promise.reject(error);
           });
       }
@@ -74,6 +75,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         isRefreshing = false;
         onRefreshFailure(refreshError);
+        document.cookie = 'token=; path=/; max-age=0';
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }

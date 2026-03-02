@@ -26,14 +26,15 @@ export function useAuth() {
 
   const login = async (email: string, password: string) => {
     const { data } = await api.post('/auth/login', { email, password });
-    // Cookie is set by the server via Set-Cookie header
+    // Set a client-side cookie so Next.js middleware can detect auth state
+    document.cookie = `token=authenticated; path=/; max-age=${15 * 60}; SameSite=Strict`;
     setUser(data.data.user);
     router.push('/dashboard');
   };
 
   const register = async (name: string, email: string, password: string) => {
     const { data } = await api.post('/auth/register', { name, email, password });
-    // Cookie is set by the server via Set-Cookie header
+    document.cookie = `token=authenticated; path=/; max-age=${15 * 60}; SameSite=Strict`;
     setUser(data.data.user);
     router.push('/dashboard');
   };
@@ -44,6 +45,8 @@ export function useAuth() {
     } catch {
       // Proceed with client-side cleanup even if the request fails
     }
+    // Clear the client-side auth cookie
+    document.cookie = 'token=; path=/; max-age=0';
     setUser(null);
     router.push('/login');
   };
