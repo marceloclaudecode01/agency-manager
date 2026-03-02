@@ -9,8 +9,7 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY frontend/ .
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=https://agency-manager-production.up.railway.app/api
 RUN npm run build
 
 FROM base AS runner
@@ -27,4 +26,5 @@ RUN mkdir -p ./public
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
+ENV NEXT_PUBLIC_API_URL=https://agency-manager-production.up.railway.app/api
 CMD ["node", "server.js"]
