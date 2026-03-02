@@ -23,6 +23,7 @@ import agentsRoutes from './modules/agents/agents.routes';
 import agentsGrowthRoutes from './modules/agents/agents-growth.routes';
 import productsRoutes from './modules/products/products.routes';
 import chatRoutes from './modules/chat/chat.routes';
+import aiChatRoutes from './modules/ai-chat/ai-chat.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
 import { startAllAgents } from './agents/scheduler.agent';
 import { setAgentLoggerIo } from './agents/agent-logger';
@@ -73,6 +74,7 @@ app.use('/api/agents', agentsRoutes);
 app.use('/api/agents/growth', agentsGrowthRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/ai-chat', aiChatRoutes);
 app.use('/api/notifications', notificationsRoutes);
 
 // Health check

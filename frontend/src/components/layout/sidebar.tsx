@@ -30,6 +30,7 @@ const menuItems = [
   { href: '/agents/strategic', icon: Compass, label: 'Strategic AI' },
   { href: '/agents/market-intel', icon: Radar, label: 'Market Intel' },
   { href: '/agents/ads', icon: Zap, label: 'Paid Traffic' },
+  { href: '/agents/orion', icon: Brain, label: 'Orion IA' },
   { href: '/chat', icon: MessageSquare, label: 'Chat' },
   { href: '/team', icon: UsersRound, label: 'Equipe' },
   { href: '/settings', icon: Settings, label: 'Configurações' },
