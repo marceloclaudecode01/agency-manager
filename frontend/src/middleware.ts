@@ -5,7 +5,8 @@ const publicPaths = ['/login', '/register'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const accessToken = request.cookies.get('token')?.value;
+  // Check both: client-side flag (auth_flag) and httpOnly JWT (token) from backend
+  const accessToken = request.cookies.get('auth_flag')?.value || request.cookies.get('token')?.value;
 
   // Root path: redirect based on auth state
   if (pathname === '/') {

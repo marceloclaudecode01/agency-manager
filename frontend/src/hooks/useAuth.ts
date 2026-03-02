@@ -27,14 +27,15 @@ export function useAuth() {
   const login = async (email: string, password: string) => {
     const { data } = await api.post('/auth/login', { email, password });
     // Set a client-side cookie so Next.js middleware can detect auth state
-    document.cookie = `token=authenticated; path=/; max-age=${15 * 60}; SameSite=None; Secure`;
+    // Uses different name (auth_flag) to avoid conflict with httpOnly 'token' cookie from backend
+    document.cookie = `auth_flag=1; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=None; Secure`;
     setUser(data.data.user);
     window.location.href = '/dashboard';
   };
 
   const register = async (name: string, email: string, password: string) => {
     const { data } = await api.post('/auth/register', { name, email, password });
-    document.cookie = `token=authenticated; path=/; max-age=${15 * 60}; SameSite=None; Secure`;
+    document.cookie = `auth_flag=1; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=None; Secure`;
     setUser(data.data.user);
     window.location.href = '/dashboard';
   };
@@ -46,7 +47,7 @@ export function useAuth() {
       // Proceed with client-side cleanup even if the request fails
     }
     // Clear the client-side auth cookie
-    document.cookie = 'token=; path=/; max-age=0';
+    document.cookie = 'auth_flag=; path=/; max-age=0; SameSite=None; Secure';
     setUser(null);
     router.push('/login');
   };
