@@ -71,13 +71,29 @@ function cleanupFile(filePath: string) {
   } catch {}
 }
 
+// Minimum free memory (MB) required to start video generation
+const MIN_FREE_MEMORY_MB = 200;
+
+function checkMemoryAvailable(): boolean {
+  const freeMem = os.freemem() / (1024 * 1024);
+  return freeMem >= MIN_FREE_MEMORY_MB;
+}
+
 /**
- * Generate a 15s vertical video (1080x1920) from a static image with Ken Burns effect + music
+ * Generate a 15s vertical video (720x1280) from a static image with Ken Burns effect + music.
+ * Uses ultrafast preset and lower resolution to minimize RAM usage on cloud (Railway 1GB).
  */
 export async function generateVideoForPost(
   topic: string,
   category: string
 ): Promise<{ videoPath: string; cleanup: () => void }> {
+  // Memory guard: abort early if not enough RAM available
+  if (!checkMemoryAvailable()) {
+    const freeMb = Math.round(os.freemem() / (1024 * 1024));
+    await agentLog('Video Generator', `⚠️ Memória insuficiente (${freeMb}MB livre, mínimo ${MIN_FREE_MEMORY_MB}MB). Abortando geração de vídeo.`, { type: 'error' });
+    throw new Error(`Insufficient memory for video generation (${freeMb}MB free, need ${MIN_FREE_MEMORY_MB}MB)`);
+  }
+
   const outputPath = path.join(os.tmpdir(), `reel-${Date.now()}.mp4`);
   let imgPath = '';
   let musicPath = '';
@@ -93,7 +109,7 @@ export async function generateVideoForPost(
     musicPath = await getMusic();
 
     // 3. Compose video with ffmpeg
-    await agentLog('Video Generator', 'Compondo vídeo com Ken Burns + música...', { type: 'action' });
+    await agentLog('Video Generator', 'Compondo vídeo com Ken Burns + música (720x1280 ultrafast)...', { type: 'action' });
 
     await new Promise<void>((resolve, reject) => {
       ffmpeg()
@@ -103,13 +119,13 @@ export async function generateVideoForPost(
         .input(musicPath)
         .outputOptions([
           '-t', '15',
-          // Ken Burns: zoom from 1.0 to 1.3 over 15s, centered, output 1080x1920
-          '-vf', "scale=8000:-1,zoompan=z='min(zoom+0.002,1.3)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=450:s=1080x1920:fps=30",
+          // Ken Burns: zoom from 1.0 to 1.3 over 15s, centered, output 720x1280 (lower res for cloud)
+          '-vf', "scale=4000:-1,zoompan=z='min(zoom+0.002,1.3)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=450:s=720x1280:fps=30",
           '-c:v', 'libx264',
-          '-preset', 'fast',
-          '-crf', '23',
+          '-preset', 'ultrafast',
+          '-crf', '26',
           '-c:a', 'aac',
-          '-b:a', '128k',
+          '-b:a', '96k',
           '-shortest',
           '-pix_fmt', 'yuv420p',
           '-movflags', '+faststart',
