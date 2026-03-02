@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../types';
 import { ApiResponse } from '../../utils/api-response';
-import { getOrionResponse } from './ai-chat.service';
+import { getOrionResponse, getAgentInventory, getDashboardData } from './ai-chat.service';
 
 export async function sendMessage(req: AuthRequest, res: Response) {
   try {
@@ -17,5 +17,25 @@ export async function sendMessage(req: AuthRequest, res: Response) {
   } catch (error: any) {
     console.error('[AI Chat] Error:', error.message);
     return ApiResponse.error(res, 'Erro ao gerar resposta do Orion');
+  }
+}
+
+export async function getInventory(_req: AuthRequest, res: Response) {
+  try {
+    const inventory = await getAgentInventory();
+    return ApiResponse.success(res, { agents: inventory });
+  } catch (error: any) {
+    console.error('[AI Chat] Inventory error:', error.message);
+    return ApiResponse.error(res, 'Erro ao carregar inventário de agentes');
+  }
+}
+
+export async function getDashboard(_req: AuthRequest, res: Response) {
+  try {
+    const dashboard = await getDashboardData();
+    return ApiResponse.success(res, dashboard);
+  } catch (error: any) {
+    console.error('[AI Chat] Dashboard error:', error.message);
+    return ApiResponse.error(res, 'Erro ao carregar dashboard');
   }
 }
