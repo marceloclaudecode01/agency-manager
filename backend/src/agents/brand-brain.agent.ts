@@ -1,12 +1,14 @@
 import prisma from '../config/database';
 
 const DEFAULT_BRAND: Record<string, string> = {
-  tom_de_voz: 'Descontraído, animado e próximo do público. Use linguagem informal brasileira.',
-  persona: 'Somos a NewPlay Tv Online — entretenimento, TV online, streaming e cultura pop.',
-  valores: 'Entretenimento acessível, comunidade, inovação, diversão.',
-  posicionamento: 'O melhor destino para quem ama TV online e streaming no Brasil.',
-  palavras_proibidas: 'pirata, ilegal, grátis, crack, torrent, hack',
-  emojis_preferidos: '🎬 📺 🍿 🔥 ✨ 🎉 💥',
+  tom_de_voz: 'Inteligente, direto, provocativo e humano. Alterna entre educativo, inspirador e descontraído. Linguagem informal brasileira.',
+  persona: 'Somos uma página de conteúdo de alto valor — dicas práticas, insights poderosos, tendências e conhecimento que transforma. Autoridade com proximidade.',
+  valores: 'Valor real, crescimento pessoal, conhecimento prático, comunidade engajada, autenticidade.',
+  posicionamento: 'Referência em conteúdo útil, surpreendente e compartilhável. Cada post entrega algo que vale salvar.',
+  palavras_proibidas: 'pirata, ilegal, crack, torrent, hack, clickbait vazio, spam',
+  emojis_preferidos: '🔥 💡 🚀 ✨ 📌 💪 🧠 📊 🎯',
+  nicho_proibido: 'NÃO produzir conteúdo sobre streamers, filmes, séries, entretenimento genérico ou TV online.',
+  estrategia_conteudo: 'Distribuição: 40% educativo, 30% engajamento/interação, 20% autoridade/prova social, 10% pessoal/bastidores.',
 };
 
 export async function getBrandContext(): Promise<string> {
@@ -26,7 +28,9 @@ BRAND GUIDELINES:
 - Posicionamento: ${brand.posicionamento}
 - Palavras proibidas: ${brand.palavras_proibidas}
 - Emojis preferidos: ${brand.emojis_preferidos}
-IMPORTANTE: Sempre siga estas guidelines ao gerar qualquer texto.`;
+- RESTRIÇÃO DE NICHO: ${brand.nicho_proibido || ''}
+- Estratégia de conteúdo: ${brand.estrategia_conteudo || ''}
+IMPORTANTE: Sempre siga estas guidelines. NUNCA produza conteúdo sobre filmes, séries, streaming ou entretenimento genérico.`;
   } catch {
     return '';
   }

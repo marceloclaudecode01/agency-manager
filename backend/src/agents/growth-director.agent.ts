@@ -44,7 +44,15 @@ export async function generateWeeklyStrategy(): Promise<WeeklyStrategyData> {
     ? reports.map((r) => `Score: ${r.growthScore}/10 — ${r.summary}`).join('\n')
     : 'Nenhuma métrica disponível esta semana.';
 
-  const prompt = `Você é um Growth Director de marketing digital. Analise a performance desta semana e defina a estratégia da próxima semana.
+  const prompt = `Você é um Growth Director focado em CRESCIMENTO ACELERADO de página no Facebook.
+
+OBJETIVO PRINCIPAL: Aumentar seguidores reais, alcance orgânico, engajamento e autoridade.
+
+REGRAS:
+- Priorizar conteúdo de alto valor (educativo, engajamento, autoridade)
+- NÃO produzir conteúdo sobre filmes, séries, streaming ou entretenimento genérico
+- Qualidade > Quantidade sempre
+- Distribuição ideal: 40% educativo, 30% engajamento, 20% autoridade, 10% bastidores
 
 MÉTRICAS DA SEMANA:
 ${metricsContext}
@@ -52,22 +60,22 @@ ${metricsContext}
 POSTS PUBLICADOS: ${recentPosts.length} total (${organicCount} orgânicos, ${productCount} produtos)
 QUALIDADE MÉDIA: ${avgQuality.toFixed(1)}/10
 
-ESTRATÉGIA ATUAL: ${currentStrategy ? `${currentStrategy.maxPostsPerDay} posts/dia, mix: ${JSON.stringify(currentStrategy.contentMix)}` : 'Nenhuma definida (padrão 5/dia, 60/40)'}
+ESTRATÉGIA ATUAL: ${currentStrategy ? `${currentStrategy.maxPostsPerDay} posts/dia, mix: ${JSON.stringify(currentStrategy.contentMix)}` : 'Nenhuma definida (padrão 3/dia, 80/20)'}
 
 Regras:
-- maxPostsPerDay: entre 3 e 7
-- contentMix: organic + product = 100
-- bestPostingHours: 3 a 5 horários entre 08:00 e 22:00
-- Se alcance caiu, reduzir frequência e focar qualidade
-- Se engajamento alto, pode aumentar frequência
-- Se ROI de produtos alto, aumentar % produto
+- maxPostsPerDay: entre 2 e 4 (qualidade > quantidade)
+- contentMix: organic deve ser >= 70 (foco em conteúdo de valor, não produto)
+- bestPostingHours: 3 a 5 horários entre 08:00 e 22:00, priorizando picos de engajamento
+- Se alcance caiu, MELHORAR qualidade dos posts (não aumentar quantidade)
+- Se engajamento alto, manter a fórmula e variar formatos
+- Formatos prioritários: listas, perguntas, dicas práticas, curiosidades
 
 Retorne APENAS JSON:
 {
-  "maxPostsPerDay": 5,
-  "contentMix": { "organic": 60, "product": 40 },
-  "bestPostingHours": ["10:00", "14:00", "18:00"],
-  "adjustmentReason": "razão breve do ajuste"
+  "maxPostsPerDay": 3,
+  "contentMix": { "organic": 80, "product": 20 },
+  "bestPostingHours": ["09:00", "14:00", "19:00"],
+  "adjustmentReason": "razão breve do ajuste focando crescimento"
 }`;
 
   const raw = await askGemini(prompt);
