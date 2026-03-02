@@ -36,6 +36,9 @@ const AGENT_META: Record<string, { icon: any; color: string; glow: string; role:
   'Growth Director':      { icon: Target,          color: 'text-cyan-400',    glow: 'shadow-cyan-500/20',    role: 'Diretor de Crescimento',  schedule: 'Dom 22:00' },
   'System Sentinel':      { icon: Radar,           color: 'text-red-400',     glow: 'shadow-red-500/20',     role: 'Sentinela do Sistema',    schedule: '*/5min' },
   'Performance Learner':  { icon: Brain,           color: 'text-violet-400',  glow: 'shadow-violet-500/20',  role: 'Aprendizado',             schedule: '23:00' },
+  'A/B Testing':          { icon: Activity,        color: 'text-indigo-400',  glow: 'shadow-indigo-500/20',  role: 'Testes A/B',              schedule: '*/6h' },
+  'Viral Mechanics':      { icon: Flame,           color: 'text-fuchsia-400', glow: 'shadow-fuchsia-500/20', role: 'Laboratório Viral',       schedule: 'On-demand' },
+  'Reputation Monitor':   { icon: ShieldAlert,     color: 'text-rose-400',    glow: 'shadow-rose-500/20',    role: 'Monitor de Reputação',    schedule: '*/2h' },
 };
 
 const LOG_TYPE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {

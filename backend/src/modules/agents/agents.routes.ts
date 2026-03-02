@@ -69,4 +69,15 @@ router.get('/campaigns', requireRole('ADMIN', 'MANAGER'), (req, res) => controll
 router.post('/campaigns', requireRole('ADMIN'), (req, res) => controller.createCampaign(req as any, res));
 router.patch('/campaigns/:id', requireRole('ADMIN'), (req, res) => controller.updateCampaign(req as any, res));
 
+// Epic 1: A/B Testing
+router.get('/ab-tests', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getABTestStatsEndpoint(req as any, res));
+router.post('/ab-tests/measure', requireRole('ADMIN'), (req, res) => controller.runABMeasurement(req as any, res));
+
+// Epic 1: Aggressive Growth Mode
+router.get('/aggressive-mode', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getAggressiveMode(req as any, res));
+router.post('/aggressive-mode', requireRole('ADMIN'), (req, res) => controller.toggleAggressiveMode(req as any, res));
+
+// Epic 1: Reputation Monitor
+router.get('/reputation', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getReputationStatus(req as any, res));
+
 export default router;

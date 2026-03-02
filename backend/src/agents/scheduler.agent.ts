@@ -18,6 +18,9 @@ import { startSystemSentinel } from './system-sentinel.agent';
 import { startPerformanceLearner } from './performance-learner.agent';
 import { isSafeModeActive, isAgentPaused } from './safe-mode';
 import { seedBrandConfig } from './brand-brain.agent';
+import { enhanceWithViralMechanics } from './viral-mechanics.agent';
+import { createABVariant, startABTestingEngine } from './ab-testing-engine.agent';
+import { startReputationMonitor } from './reputation-monitor.agent';
 
 const socialService = new SocialService();
 
@@ -386,6 +389,26 @@ export function startAutonomousContentEngine() {
           const generated = await generatePostFromStrategy(topic, focusType, recentTopics);
           await agentLog('Content Creator', `Post criado: "${generated.message.substring(0, 60)}..."`, { type: 'result', to: 'Autonomous Engine' });
 
+          // Viral Mechanics Lab: enhance post before scheduling
+          let viralScore: number | null = null;
+          let viralEnhancements: any = null;
+          try {
+            await agentLog('Autonomous Engine', `Aplicando Viral Mechanics em "${topic}"...`, { type: 'communication', to: 'Viral Mechanics' });
+            const enhanced = await enhanceWithViralMechanics(generated.message, topic, focusType);
+            if (enhanced.viralScore > 5) {
+              generated.message = enhanced.enhancedMessage;
+              viralScore = enhanced.viralScore;
+              viralEnhancements = {
+                techniques: enhanced.appliedTechniques,
+                hookType: enhanced.hookType,
+                emotionalTrigger: enhanced.emotionalTrigger,
+              };
+              await agentLog('Viral Mechanics', `Post enhanced: score ${enhanced.viralScore}/10, hook: ${enhanced.hookType}`, { type: 'result', to: 'Autonomous Engine' });
+            }
+          } catch (viralErr: any) {
+            await agentLog('Viral Mechanics', `⚠️ Enhancement falhou: ${viralErr.message}`, { type: 'error' });
+          }
+
           // Generate image for every post
           let imageUrl: string | null = null;
           try {
@@ -419,12 +442,39 @@ export function startAutonomousContentEngine() {
               source: 'autonomous-engine',
               contentType: postContentType,
               scheduledFor,
+              viralScore,
+              viralEnhancements,
             },
           });
 
           scheduledIds.push(saved.id);
           recentTopics.push(topic);
           await agentLog('Autonomous Engine', `📅 Post ${i + 1}/${strategy.postsToCreate} agendado: "${topic}" para as ${timeStr}`, { type: 'action', to: 'Scheduler' });
+
+          // A/B Testing: create variant B for non-video posts
+          if (postContentType !== 'video') {
+            try {
+              // Check if A/B testing is enabled (aggressive mode = always, normal = 50% of posts)
+              let abEnabled = false;
+              try {
+                const aggConfig = await prisma.systemConfig.findUnique({ where: { key: 'aggressive_growth_mode' } });
+                const isAggressive = aggConfig?.value === true || (aggConfig?.value as any)?.enabled === true;
+                abEnabled = isAggressive || Math.random() < 0.5;
+              } catch { abEnabled = Math.random() < 0.5; }
+
+              if (abEnabled) {
+                await agentLog('Autonomous Engine', `Criando variante A/B para "${topic}"...`, { type: 'communication', to: 'A/B Testing' });
+                await createABVariant({
+                  id: saved.id,
+                  topic: generated.topic || topic,
+                  contentType: postContentType,
+                  scheduledFor,
+                });
+              }
+            } catch (abErr: any) {
+              await agentLog('A/B Testing', `⚠️ Falha ao criar variante: ${abErr.message}`, { type: 'error' });
+            }
+          }
         } catch (err: any) {
           await agentLog('Autonomous Engine', `❌ Erro ao gerar post ${i + 1}: ${err.message}`, { type: 'error' });
         }
@@ -533,9 +583,11 @@ export function startAllAgents() {
   startGrowthDirector();
   startSystemSentinel();
   startPerformanceLearner();
+  startABTestingEngine();
+  startReputationMonitor();
   // Seed brand config on startup
   seedBrandConfig().catch(() => {});
   // Log de inicialização
-  agentLog('Sistema', '🟢 Todos os agentes iniciados (incl. Sentinel, Learner, Brand Brain).', { type: 'info' }).catch(() => {});
+  agentLog('Sistema', '🟢 Todos os agentes iniciados (incl. Sentinel, Learner, Brand Brain, A/B Testing, Viral Mechanics, Reputation Monitor).', { type: 'info' }).catch(() => {});
   console.log('[Agents] Todos os agentes iniciados ✓');
 }

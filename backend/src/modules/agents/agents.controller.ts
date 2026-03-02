@@ -15,6 +15,8 @@ import { runSentinel } from '../../agents/system-sentinel.agent';
 import { getAllBrandConfig, updateBrandConfig } from '../../agents/brand-brain.agent';
 import { getPerformanceInsights } from '../../agents/performance-learner.agent';
 import { generateWeeklyStrategy } from '../../agents/growth-director.agent';
+import { getABTestStats, measureABTests } from '../../agents/ab-testing-engine.agent';
+import { checkReputation, getReputationHistory } from '../../agents/reputation-monitor.agent';
 import cloudinary from '../../config/cloudinary';
 import { SocialService } from '../social/social.service';
 import { notificationsService } from '../notifications/notifications.service';
@@ -486,6 +488,7 @@ Retorne APENAS JSON válido:
         'Scheduler', 'Comment Responder', 'Metrics Analyzer', 'Autonomous Engine',
         'Trending Topics', 'Product Orchestrator', 'Token Monitor', 'Content Governor',
         'Growth Director', 'System Sentinel', 'Performance Learner',
+        'A/B Testing', 'Viral Mechanics', 'Reputation Monitor',
       ];
 
       const agents = agentNames.map((name) => ({
@@ -595,6 +598,62 @@ Retorne APENAS JSON válido:
       const id = req.params.id as string;
       const campaign = await prisma.contentCampaign.update({ where: { id }, data: req.body });
       return ApiResponse.success(res, campaign, 'Campanha atualizada');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Epic 1: A/B Testing stats
+  async getABTestStatsEndpoint(req: AuthRequest, res: Response) {
+    try {
+      const stats = await getABTestStats();
+      return ApiResponse.success(res, stats, 'A/B test stats');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  async runABMeasurement(req: AuthRequest, res: Response) {
+    try {
+      const result = await measureABTests();
+      return ApiResponse.success(res, result, `${result.measured} testes medidos`);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Epic 1: Aggressive Growth Mode toggle
+  async toggleAggressiveMode(req: AuthRequest, res: Response) {
+    try {
+      const { enabled } = req.body;
+      await prisma.systemConfig.upsert({
+        where: { key: 'aggressive_growth_mode' },
+        update: { value: { enabled, activatedAt: new Date().toISOString() } },
+        create: { key: 'aggressive_growth_mode', value: { enabled, activatedAt: new Date().toISOString() } },
+      });
+      await agentLog('Admin', `Aggressive Growth Mode ${enabled ? 'ATIVADO' : 'DESATIVADO'}`, { type: 'action' });
+      return ApiResponse.success(res, { enabled }, `Modo agressivo ${enabled ? 'ativado' : 'desativado'}`);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  async getAggressiveMode(req: AuthRequest, res: Response) {
+    try {
+      const config = await prisma.systemConfig.findUnique({ where: { key: 'aggressive_growth_mode' } });
+      const enabled = config ? ((config.value as any)?.enabled === true || config.value === true) : false;
+      return ApiResponse.success(res, { enabled });
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Epic 1: Reputation Monitor
+  async getReputationStatus(req: AuthRequest, res: Response) {
+    try {
+      const current = await checkReputation();
+      const history = await getReputationHistory(7);
+      return ApiResponse.success(res, { current, history }, 'Reputation status');
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);
     }

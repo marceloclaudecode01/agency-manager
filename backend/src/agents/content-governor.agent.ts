@@ -175,7 +175,24 @@ export async function reviewPendingPosts(): Promise<void> {
     orderBy: { createdAt: 'desc' },
   });
 
-  const maxPerDay = strategy?.maxPostsPerDay ?? 5;
+  let maxPerDay = strategy?.maxPostsPerDay ?? 5;
+
+  // Reputation throttle: reduce max if reputation is in danger
+  try {
+    const throttle = await prisma.systemConfig.findUnique({ where: { key: 'reputation_throttle' } });
+    if (throttle && (throttle.value as any)?.enabled) {
+      maxPerDay = Math.min(maxPerDay, (throttle.value as any)?.reducedMaxPerDay ?? 2);
+      await agentLog('Content Governor', `Reputation throttle ativo: limite reduzido para ${maxPerDay}/dia`, { type: 'info' });
+    }
+  } catch {}
+
+  // Aggressive growth mode: increase max
+  try {
+    const aggConfig = await prisma.systemConfig.findUnique({ where: { key: 'aggressive_growth_mode' } });
+    if (aggConfig && ((aggConfig.value as any)?.enabled === true || aggConfig.value === true)) {
+      maxPerDay = Math.max(maxPerDay, 8); // aggressive = up to 8/day
+    }
+  } catch {}
   const contentMix = (strategy?.contentMix as any) ?? { organic: 60, product: 40 };
   const bestHours = (strategy?.bestPostingHours as any) ?? ['10:00', '14:00', '18:00'];
 

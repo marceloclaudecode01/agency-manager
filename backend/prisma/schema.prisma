@@ -247,6 +247,9 @@ model ScheduledPost {
   governorReason      String?
   governorReviewedAt  DateTime?
   qualityScore        Int?
+  abTestId            String?
+  viralScore          Int?
+  viralEnhancements   Json?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -374,6 +377,37 @@ model BrandConfig {
   updatedAt DateTime @updatedAt
 
   @@map("brand_config")
+}
+
+// Epic 1: A/B Testing
+model ABTest {
+  id            String   @id @default(cuid())
+  originalTopic String
+  variantA      String   // ScheduledPost ID
+  variantB      String   // ScheduledPost ID
+  status        String   @default("RUNNING") // RUNNING | COMPLETED | CANCELLED
+  winnerId      String?  // ID do post vencedor
+  winnerReason  String?
+  scoreA        Float    @default(0)
+  scoreB        Float    @default(0)
+  measuredAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("ab_tests")
+}
+
+// Epic 1: Reputation Monitor
+model ReputationEvent {
+  id        String   @id @default(cuid())
+  type      String   // NEGATIVE_FEEDBACK | HIDE | REPORT | ENGAGEMENT_DROP | UNLIKE
+  severity  String   @default("LOW") // LOW | MEDIUM | HIGH | CRITICAL
+  details   String
+  actionTaken String?
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("reputation_events")
 }
 
 // Phase 8: Content Campaigns

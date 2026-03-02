@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, Users, UsersRound, Megaphone, CheckSquare,
-  DollarSign, BarChart3, Calendar, LogOut, Settings, X, Facebook, MessageSquare, Package, Bot, Monitor,
+  DollarSign, BarChart3, Calendar, LogOut, Settings, X, Facebook, MessageSquare, Package, Bot, Monitor, Flame,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -21,6 +21,7 @@ const menuItems = [
   { href: '/products', icon: Package, label: 'Produtos IA' },
   { href: '/agents', icon: Bot, label: 'Agentes IA' },
   { href: '/agents/command', icon: Monitor, label: 'Command Center' },
+  { href: '/agents/growth-lab', icon: Flame, label: 'Growth Lab' },
   { href: '/chat', icon: MessageSquare, label: 'Chat' },
   { href: '/team', icon: UsersRound, label: 'Equipe' },
   { href: '/settings', icon: Settings, label: 'Configurações' },

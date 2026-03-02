@@ -133,6 +133,33 @@ const AGENTS = [
     color: 'text-amber-400',
     bg: 'bg-amber-400/10 border-amber-400/30',
   },
+  {
+    name: 'A/B Testing',
+    role: 'Motor de Testes A/B',
+    description: 'Cria variantes de cada post, publica ambas e mede qual performa melhor em 24h. Escala os vencedores.',
+    schedule: 'Medição a cada 6h',
+    icon: Activity,
+    color: 'text-indigo-400',
+    bg: 'bg-indigo-400/10 border-indigo-400/30',
+  },
+  {
+    name: 'Viral Mechanics',
+    role: 'Laboratório Viral',
+    description: 'Aplica hooks poderosos, gatilhos emocionais, pattern interrupts e CTAs de compartilhamento em cada post.',
+    schedule: 'Acionado pelo Motor',
+    icon: Zap,
+    color: 'text-fuchsia-400',
+    bg: 'bg-fuchsia-400/10 border-fuchsia-400/30',
+  },
+  {
+    name: 'Reputation Monitor',
+    role: 'Monitor de Reputação',
+    description: 'Monitora feedback negativo, queda de engajamento e crises. Auto-ajusta intensidade se reputação estiver em perigo.',
+    schedule: 'A cada 2 horas',
+    icon: Shield,
+    color: 'text-rose-400',
+    bg: 'bg-rose-400/10 border-rose-400/30',
+  },
 ];
 
 // ──────────────────────────────────────────────────────────
