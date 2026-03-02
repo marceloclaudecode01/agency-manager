@@ -21,6 +21,12 @@ import { seedBrandConfig } from './brand-brain.agent';
 import { enhanceWithViralMechanics } from './viral-mechanics.agent';
 import { createABVariant, startABTestingEngine } from './ab-testing-engine.agent';
 import { startReputationMonitor } from './reputation-monitor.agent';
+import { startLeadCaptureAgent } from './lead-capture.agent';
+import { startMonetizationEngine } from './monetization-engine.agent';
+import { startStrategicCommandAgent } from './strategic-command.agent';
+import { startMarketIntelligenceAgent } from './market-intelligence.agent';
+import { startNicheLearningAgent } from './niche-learning.agent';
+import { startPaidTrafficAgent } from './paid-traffic.agent';
 
 const socialService = new SocialService();
 
@@ -585,9 +591,15 @@ export function startAllAgents() {
   startPerformanceLearner();
   startABTestingEngine();
   startReputationMonitor();
+  startLeadCaptureAgent();
+  startMonetizationEngine();
+  startStrategicCommandAgent();
+  startMarketIntelligenceAgent();
+  startNicheLearningAgent();
+  startPaidTrafficAgent();
   // Seed brand config on startup
   seedBrandConfig().catch(() => {});
   // Log de inicialização
-  agentLog('Sistema', '🟢 Todos os agentes iniciados (incl. Sentinel, Learner, Brand Brain, A/B Testing, Viral Mechanics, Reputation Monitor).', { type: 'info' }).catch(() => {});
+  agentLog('Sistema', 'All agents started (incl. Growth System: Leads, Monetization, Strategic, Market Intel, Niche Learning, Paid Traffic, Compliance, Pattern Variation).', { type: 'info' }).catch(() => {});
   console.log('[Agents] Todos os agentes iniciados ✓');
 }

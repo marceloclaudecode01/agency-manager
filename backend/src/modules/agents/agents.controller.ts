@@ -17,6 +17,9 @@ import { getPerformanceInsights } from '../../agents/performance-learner.agent';
 import { generateWeeklyStrategy } from '../../agents/growth-director.agent';
 import { getABTestStats, measureABTests } from '../../agents/ab-testing-engine.agent';
 import { checkReputation, getReputationHistory } from '../../agents/reputation-monitor.agent';
+import { replicateContent, replicateAll, getReplicasForPost, getReplicaStats, ReplicaFormat } from '../../agents/content-replicator.agent';
+import { optimizeForPlatform, optimizeForAllPlatforms } from '../../agents/platform-optimizer.agent';
+import { generateCarousel, getCarouselStyles } from '../../agents/carousel-generator.agent';
 import cloudinary from '../../config/cloudinary';
 import { SocialService } from '../social/social.service';
 import { notificationsService } from '../notifications/notifications.service';
@@ -657,6 +660,69 @@ Retorne APENAS JSON válido:
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);
     }
+  }
+
+  // Epic 2: Content Replicator
+  async replicatePost(req: AuthRequest, res: Response) {
+    try {
+      const { postId, formats } = req.body;
+      if (!postId) return ApiResponse.error(res, 'postId é obrigatório', 400);
+      const result = formats && formats.length > 0
+        ? await replicateContent(postId, formats as ReplicaFormat[])
+        : await replicateAll(postId);
+      return ApiResponse.success(res, result, `${result.created} formatos criados`);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  async getPostReplicas(req: AuthRequest, res: Response) {
+    try {
+      const postId = req.params.postId as string;
+      const replicas = await getReplicasForPost(postId);
+      return ApiResponse.success(res, replicas);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  async getReplicaStatsEndpoint(req: AuthRequest, res: Response) {
+    try {
+      const stats = await getReplicaStats();
+      return ApiResponse.success(res, stats);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Epic 2: Platform Optimizer
+  async optimizePost(req: AuthRequest, res: Response) {
+    try {
+      const { message, topic, platform } = req.body;
+      if (!message || !topic) return ApiResponse.error(res, 'message e topic são obrigatórios', 400);
+      const result = platform
+        ? [await optimizeForPlatform(message, topic, platform)]
+        : await optimizeForAllPlatforms(message, topic);
+      return ApiResponse.success(res, result, `${result.length} versões otimizadas`);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Epic 2: Carousel Generator
+  async generateCarouselEndpoint(req: AuthRequest, res: Response) {
+    try {
+      const { topic, style, slideCount } = req.body;
+      if (!topic) return ApiResponse.error(res, 'topic é obrigatório', 400);
+      const result = await generateCarousel(topic, style, slideCount);
+      return ApiResponse.success(res, result, `Carrossel com ${result.totalSlides} slides`);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  async getCarouselStylesEndpoint(_req: AuthRequest, res: Response) {
+    return ApiResponse.success(res, getCarouselStyles());
   }
 
   // Upload de imagem ou vídeo para o Cloudinary

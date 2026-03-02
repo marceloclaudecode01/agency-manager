@@ -4,6 +4,8 @@ import { askGemini } from './gemini';
 import { agentLog } from './agent-logger';
 import { isSafeModeActive, isAgentPaused } from './safe-mode';
 import { getBrandContext } from './brand-brain.agent';
+import { checkCompliance } from './policy-compliance.agent';
+import { checkPatternVariation } from './pattern-variation.agent';
 
 interface GovernorDecision {
   decision: 'APPROVE' | 'REJECT' | 'RESCHEDULE' | 'QUEUE_FOR_NEXT_DAY';
@@ -145,6 +147,26 @@ Retorne APENAS JSON: { "score": 7, "isDuplicate": false, "reason": "motivo breve
   } catch (err: any) {
     console.log(`[Governor] LLM check falhou, usando score padrão: ${err.message}`);
   }
+
+  // Rule 5: Policy compliance check
+  try {
+    const compliance = await checkCompliance(post.message, post.platform || 'facebook');
+    if (!compliance.compliant && compliance.riskLevel === 'HIGH') {
+      return {
+        decision: 'REJECT',
+        reason: `compliance: ${compliance.issues.join('; ')}`,
+        qualityScore,
+      };
+    }
+  } catch {}
+
+  // Rule 6: Pattern variation check
+  try {
+    const variation = await checkPatternVariation(post.message);
+    if (!variation.varied && variation.similarityScore >= 70) {
+      qualityScore = Math.max(1, qualityScore - 2);
+    }
+  } catch {}
 
   // All checks passed → APPROVE (with possible reschedule)
   if (newSlot) {
