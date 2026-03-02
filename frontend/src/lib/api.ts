@@ -47,11 +47,17 @@ api.interceptors.response.use(
       originalRequest?.url?.includes('/auth/refresh') ||
       originalRequest?.url?.includes('/auth/me');
 
+    // Agent/growth endpoints: reject silently (Promise.allSettled handles it)
+    const isAgentRoute =
+      originalRequest?.url?.includes('/agents/') ||
+      originalRequest?.url?.includes('/agents?');
+
     if (
       error.response?.status === 401 &&
       typeof window !== 'undefined' &&
       !isAuthRoute &&
-      !originalRequest._retry
+      !originalRequest._retry &&
+      !isAgentRoute
     ) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
