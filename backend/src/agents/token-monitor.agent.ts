@@ -17,8 +17,9 @@ export async function checkFacebookToken(): Promise<TokenStatus> {
   }
 
   try {
-    const res = await axios.get('https://graph.facebook.com/debug_token', {
-      params: { input_token: token, access_token: token },
+    const res = await axios.get('https://graph.facebook.com/v22.0/debug_token', {
+      params: { input_token: token },
+      headers: { Authorization: `Bearer ${token}` },
       timeout: 10000,
     });
 
