@@ -70,18 +70,29 @@ export function startPostScheduler() {
       // Check safe mode — but still allow video posts through
       const safeMode = await isSafeModeActive();
 
-      pendingPosts = await prisma.scheduledPost.findMany({
-        where: {
-          status: 'APPROVED',
-          scheduledFor: { lte: now },
-          OR: [
-            { governorDecision: 'APPROVE' },
-            { governorDecision: null, source: null }, // backward compat: manual posts
-          ],
-        },
+      const approvedWhere = {
+        status: 'APPROVED' as const,
+        scheduledFor: { lte: now },
+        OR: [
+          { governorDecision: 'APPROVE' },
+          { governorDecision: null, source: null }, // backward compat: manual posts
+        ],
+      };
+
+      // Videos get priority — fetch video first, then fallback to any post
+      const videoPosts = await prisma.scheduledPost.findMany({
+        where: { ...approvedWhere, contentType: 'video' },
         orderBy: { scheduledFor: 'asc' },
         take: 1,
       });
+
+      pendingPosts = videoPosts.length > 0
+        ? videoPosts
+        : await prisma.scheduledPost.findMany({
+            where: approvedWhere,
+            orderBy: { scheduledFor: 'asc' },
+            take: 1,
+          });
 
       if (pendingPosts.length === 0) return;
 
