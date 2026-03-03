@@ -21,7 +21,6 @@ const AGENT_ALIASES: Record<string, string> = {
   'metrics': 'metrics-collector',
   'token': 'token-monitor',
   'tiktok': 'tiktok-products',
-  'video': 'motivational-video',
   'tendencias': 'trending-topics',
   'trending': 'trending-topics',
   'comentarios': 'comment-responder',

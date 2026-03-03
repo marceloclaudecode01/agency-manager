@@ -7,7 +7,6 @@ const AGENTS = [
   { name: 'Métricas', function: 'metrics-collector', description: 'Análise de engajamento', autonomyLevel: 5, cronExpression: '0 8 * * *' },
   { name: 'Token Monitor', function: 'token-monitor', description: 'Renovação de tokens', autonomyLevel: 5, cronExpression: '0 9 * * *' },
   { name: 'Produtos TikTok', function: 'tiktok-products', description: 'Posts de produtos TikTok', autonomyLevel: 5, cronExpression: '0 10,15 * * *' },
-  { name: 'Vídeo Motivacional', function: 'motivational-video', description: 'Geração de vídeos motivacionais', autonomyLevel: 5, cronExpression: '0 6,12,18 * * *' },
   { name: 'Tendências', function: 'trending-topics', description: 'Análise de temas em alta', autonomyLevel: 5, cronExpression: '0 6 * * 1' },
   { name: 'Scheduler', function: 'post-scheduler', description: 'Publicação de posts agendados', autonomyLevel: 5, cronExpression: '*/5 * * * *' },
   { name: 'Comentários', function: 'comment-responder', description: 'Resposta automática a comentários', autonomyLevel: 3, cronExpression: '*/30 * * * *' },
