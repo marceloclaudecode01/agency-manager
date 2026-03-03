@@ -57,7 +57,7 @@ REGRAS DO CARROSSEL:
 2. Slides 2-${numSlides - 1} = CONTEÚDO — informação valiosa e concisa
 3. Slide ${numSlides} = CTA — chamada para ação (salvar, seguir, compartilhar)
 4. Cada slide: título (máx 6 palavras), corpo (máx 30 palavras)
-5. Use emojis estratégicos (1 por slide)
+5. NAO use emojis — texto puro e direto, apenas caracteres ASCII
 6. Sugira cores de fundo que combinem (hex)
 7. Português do Brasil
 
@@ -68,7 +68,7 @@ Retorne APENAS JSON:
       "slideNumber": 1,
       "title": "Título da capa",
       "body": "Subtítulo ou gancho",
-      "emoji": "🔥",
+      "emoji": "",
       "designNote": "Texto grande centralizado, fundo escuro",
       "backgroundColor": "#1a1a2e"
     }
@@ -94,7 +94,7 @@ Retorne APENAS JSON:
       slideNumber: i + 1,
       title: s.title || `Slide ${i + 1}`,
       body: s.body || '',
-      emoji: s.emoji || '📌',
+      emoji: s.emoji || '',
       designNote: s.designNote || '',
       backgroundColor: s.backgroundColor || '#1a1a2e',
     }));

@@ -27,7 +27,7 @@ const PLATFORM_RULES: Record<string, string> = {
 - Perguntas abertas geram comentários
 - "Marca alguém" e "Compartilha" funcionam bem
 - Horários: 9h, 13h, 16h
-- Emojis moderados (3-5)
+- NAO usar emojis — texto puro e direto
 - Quebras de linha para legibilidade`,
 
   instagram: `INSTAGRAM:
@@ -35,7 +35,7 @@ const PLATFORM_RULES: Record<string, string> = {
 - Máximo 2200 chars mas ideal < 300
 - Hashtags: 5-10 relevantes (mistura popular + nicho)
 - CTA: "Salva pra depois", "Manda pra quem precisa"
-- Emojis são essenciais
+- NAO usar emojis — texto puro e direto
 - Formato visual: pense em como fica com a foto`,
 
   tiktok: `TIKTOK:

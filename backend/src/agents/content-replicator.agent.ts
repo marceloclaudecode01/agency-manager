@@ -21,15 +21,15 @@ const FORMAT_INSTRUCTIONS: Record<ReplicaFormat, string> = {
 Cada slide deve ter:
 - "title": título curto e impactante (máx 8 palavras)
 - "body": texto explicativo (máx 50 palavras)
-- "tip": dica visual ou emoji sugestivo
+- "tip": dica visual ou destaque do slide
 Slide 1 = capa chamativa. Último slide = CTA forte.
 Retorne JSON: { "slides": [...], "caption": "legenda para o post" }`,
 
   story: `Crie um STORY (texto curto para Instagram/Facebook Stories).
-- Máximo 100 caracteres de texto principal
-- 1 emoji dominante
+- Maximo 100 caracteres de texto principal
+- SEM emojis — texto puro e direto
 - CTA com swipe up ou enquete
-Retorne JSON: { "text": "...", "emoji": "🔥", "cta": "...", "pollOptions": ["Sim", "Não"] }`,
+Retorne JSON: { "text": "...", "cta": "...", "pollOptions": ["Sim", "Nao"] }`,
 
   video_script: `Crie um ROTEIRO de vídeo curto (15-30 segundos).
 Estrutura:

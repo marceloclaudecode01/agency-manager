@@ -6,7 +6,7 @@ const DEFAULT_BRAND: Record<string, string> = {
   valores: 'Valor real, crescimento pessoal, conhecimento prático, comunidade engajada, autenticidade.',
   posicionamento: 'Referência em conteúdo útil, surpreendente e compartilhável. Cada post entrega algo que vale salvar.',
   palavras_proibidas: 'pirata, ilegal, crack, torrent, hack, clickbait vazio, spam',
-  emojis_preferidos: '🔥 💡 🚀 ✨ 📌 💪 🧠 📊 🎯',
+  emojis_preferidos: 'NAO usar emojis — texto puro e direto, apenas caracteres ASCII',
   nicho_proibido: 'NÃO produzir conteúdo sobre streamers, filmes, séries, entretenimento genérico ou TV online.',
   estrategia_conteudo: 'Distribuição: 40% educativo, 30% engajamento/interação, 20% autoridade/prova social, 10% pessoal/bastidores.',
 };

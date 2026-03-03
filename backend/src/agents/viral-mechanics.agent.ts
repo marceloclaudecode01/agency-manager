@@ -45,7 +45,7 @@ const VIRAL_TECHNIQUES = {
   ],
   patternInterrupts: [
     'QUEBRA_LINHA_DRAMATICA', // Usar ... ou — para criar pausas
-    'EMOJI_ESTRATEGICO',      // Emoji no início para chamar atenção
+    'PALAVRA_FORTE',           // Palavra de impacto no inicio para chamar atencao
     'CAPS_SELETIVO',          // UMA palavra em caps para ênfase
     'FORMATO_INESPERADO',     // Começar com o final da história
   ],

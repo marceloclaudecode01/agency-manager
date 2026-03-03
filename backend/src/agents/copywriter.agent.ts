@@ -53,7 +53,7 @@ Crie um post para Facebook que:
 2. Gera desejo imediato de compra
 3. Termina com CTA claro direcionando para o LINK NA BIO
 4. Máximo 280 caracteres no texto principal (sem hashtags)
-5. Tom brasileiro, use emojis estrategicamente (máx 4)
+5. Tom brasileiro, NAO use emojis — texto puro e direto, apenas caracteres ASCII
 
 Retorne APENAS JSON válido:
 {

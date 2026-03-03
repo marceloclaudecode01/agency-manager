@@ -64,7 +64,7 @@ Retorne APENAS um JSON válido neste formato exato:
 Regras:
 - urgency: "alta" = tendência acontecendo AGORA, "média" = crescendo, "baixa" = oportunidade futura
 - buyingIntent: foco em como o conteúdo cria necessidade ou desejo de compra
-- postIdea: texto pronto para publicar, tom brasileiro, use emojis com moderação
+- postIdea: texto pronto para publicar, tom brasileiro, SEM emojis — apenas texto puro ASCII
 - Varie as categorias: não repita a mesma categoria mais de 1 vez
 - Pense em produtos/serviços que as pessoas compram por influência de conteúdo
 `;

@@ -52,7 +52,7 @@ Crie um post para Facebook que:
 3. Usa gatilho mental (prova social, urgência, transformação ou curiosidade)
 4. Termina com CTA: "${ctaHint}"
 5. Máximo 280 caracteres no texto (sem hashtags)
-6. Use emojis estrategicamente (máx 4)
+6. NAO use emojis — texto puro e direto, apenas caracteres ASCII
 
 Também crie um template de resposta automática para comentários do tipo "quanto custa?", "onde compro?", "link?", "quero!" — resposta deve ser amigável, enviar o link e gerar mais desejo.
 
@@ -60,7 +60,7 @@ Retorne APENAS JSON válido:
 {
   "message": "texto do post completo",
   "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4"],
-  "replyTemplate": "Oi [NOME]! Que ótimo que se interessou 😊 Você pode garantir o seu aqui: ${productUrl} Aproveita que ainda tem em estoque! 🔥",
+  "replyTemplate": "Oi [NOME]! Que otimo que se interessou. Voce pode garantir o seu aqui: ${productUrl} Aproveita que ainda tem em estoque!",
   "suggestedTime": "HH:MM"
 }
 
@@ -79,7 +79,7 @@ Regras para replyTemplate:
 
   // Garante que o link está no replyTemplate
   if (!result.replyTemplate.includes(productUrl)) {
-    result.replyTemplate = `Oi [NOME]! Aqui está o link para você garantir o seu: ${productUrl} 🛍️`;
+    result.replyTemplate = `Oi [NOME]! Aqui esta o link para voce garantir o seu: ${productUrl}`;
   }
 
   return {

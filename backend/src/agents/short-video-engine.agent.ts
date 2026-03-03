@@ -43,34 +43,10 @@ const FRAMEWORKS = [
   },
 ];
 
-// Músicas sugeridas por mood — o LLM escolhe o mood, nós mapeamos
-const MUSIC_SUGGESTIONS: Record<string, string[]> = {
-  energetico: [
-    '🎵 Imagine Dragons — Believer',
-    '🎵 Macklemore — Can\'t Hold Us',
-    '🎵 Dua Lipa — Don\'t Start Now',
-  ],
-  motivacional: [
-    '🎵 Eminem — Lose Yourself',
-    '🎵 Sia — Unstoppable',
-    '🎵 The Score — Unstoppable',
-  ],
-  reflexivo: [
-    '🎵 Ludovico Einaudi — Nuvole Bianche',
-    '🎵 Hans Zimmer — Time',
-    '🎵 Coldplay — Fix You',
-  ],
-  divertido: [
-    '🎵 Pharrell Williams — Happy',
-    '🎵 Mark Ronson ft. Bruno Mars — Uptown Funk',
-    '🎵 Doja Cat — Say So',
-  ],
-  urgente: [
-    '🎵 Two Steps From Hell — Heart of Courage',
-    '🎵 Kanye West — Stronger',
-    '🎵 Jay-Z — Run This Town',
-  ],
-};
+// Categorias de conteúdo para variação
+const CONTENT_CATEGORIES = [
+  'educativo', 'motivacional', 'engajamento', 'autoridade', 'dica_pratica', 'provocativo',
+];
 
 async function isAgentPaused(): Promise<boolean> {
   try {
@@ -93,9 +69,8 @@ function pickFramework(): (typeof FRAMEWORKS)[number] {
   return FRAMEWORKS[Math.floor(Math.random() * FRAMEWORKS.length)];
 }
 
-function pickMusic(mood: string): string {
-  const pool = MUSIC_SUGGESTIONS[mood] || MUSIC_SUGGESTIONS.motivacional;
-  return pool[Math.floor(Math.random() * pool.length)];
+function pickCategory(): string {
+  return CONTENT_CATEGORIES[Math.floor(Math.random() * CONTENT_CATEGORIES.length)];
 }
 
 function getScheduledTime(): Date {
@@ -107,30 +82,28 @@ function getScheduledTime(): Date {
 async function generateImagePost(): Promise<void> {
   const framework = pickFramework();
 
-  const prompt = `Você é o diretor criativo de uma agência top.
+  const prompt = `Voce e o diretor criativo de uma agencia top.
 Crie um post de IMAGEM para Facebook/Instagram que PARE O SCROLL.
 
 ${framework.prompt}
 
 REGRAS:
-- Texto curto e impactante (máx 280 chars para a legenda principal)
+- Texto curto e impactante (max 280 chars para a legenda principal)
 - Hook poderoso na primeira linha
-- Emojis estratégicos (máx 4)
-- CTA específico no final
-- Tom: autêntico, magnético, brasileiro
-- PROIBIDO: corporativismo, clichês, tom de vendedor
-- NÃO inclua indicações de vídeo como [colchetes] ou roteiro — é uma IMAGEM estática
-
-Escolha o mood da música de fundo: energetico, motivacional, reflexivo, divertido, urgente
+- NAO use emojis — texto puro e direto
+- CTA especifico no final
+- Tom: autentico, magnetico, brasileiro
+- PROIBIDO: corporativismo, cliches, tom de vendedor, emojis, caracteres especiais unicode
+- NAO inclua indicacoes de video como [colchetes] ou roteiro — e uma IMAGEM estatica
+- Use apenas caracteres ASCII basicos (letras, numeros, pontuacao normal)
 
 Responda APENAS JSON:
 {
-  "topic": "título curto (max 50 chars)",
-  "caption": "legenda completa do post (max 280 chars)",
+  "topic": "titulo curto (max 50 chars)",
+  "caption": "legenda completa do post (max 280 chars, SEM emojis)",
   "hook": "primeira linha que para o scroll",
   "cta": "call to action final",
   "hashtags": "#hash1 #hash2 #hash3 #hash4 #hash5",
-  "mood": "motivacional",
   "category": "educativo"
 }`;
 
@@ -142,7 +115,6 @@ Responda APENAS JSON:
     hook: string;
     cta: string;
     hashtags: string;
-    mood: string;
     category: string;
   };
 
@@ -158,10 +130,7 @@ Responda APENAS JSON:
   // Generate image from Unsplash pools (zero cost)
   const image = await generateImageForPost(parsed.topic, parsed.category || 'engajamento');
 
-  // Pick music suggestion based on mood
-  const music = pickMusic(parsed.mood || 'motivacional');
-
-  const message = `${parsed.caption}\n\n${music}\n\n${parsed.cta}`;
+  const message = `${parsed.caption}\n\n${parsed.cta}`;
   const scheduledFor = getScheduledTime();
 
   await prisma.scheduledPost.create({
@@ -179,11 +148,11 @@ Responda APENAS JSON:
 
   await agentLog(
     SOURCE,
-    `Post created — Framework: ${framework.name} | Topic: ${parsed.topic} | Music: ${music} | Scheduled: ${scheduledFor.toISOString()}`,
+    `Post created — Framework: ${framework.name} | Topic: ${parsed.topic} | Scheduled: ${scheduledFor.toISOString()}`,
     { type: 'action' }
   );
 
-  console.log(`[ShortVideoEngine] Created image post: "${parsed.topic}" (${framework.name}) ${music}`);
+  console.log(`[ShortVideoEngine] Created image post: "${parsed.topic}" (${framework.name})`);
 }
 
 export async function runShortVideoEngine(): Promise<void> {

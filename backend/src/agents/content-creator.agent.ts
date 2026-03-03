@@ -60,11 +60,12 @@ Retorne APENAS um JSON válido neste formato exato:
 Regras:
 - A mensagem DEVE ser envolvente, original e entregar valor real
 - Use quebras de linha (\\n) para formatar bem o texto
-- SEMPRE termine com uma chamada para ação que gere interação
-- As hashtags devem ser populares e relevantes em português
-- O horário sugerido deve ser entre 08:00 e 22:00
-- Não inclua as hashtags na mensagem
-- NÃO fale sobre filmes, séries, streaming ou TV
+- SEMPRE termine com uma chamada para acao que gere interacao
+- As hashtags devem ser populares e relevantes em portugues
+- O horario sugerido deve ser entre 08:00 e 22:00
+- Nao inclua as hashtags na mensagem
+- NAO fale sobre filmes, series, streaming ou TV
+- NAO use emojis — texto puro e direto, apenas caracteres ASCII
 `;
 
   const raw = await askGemini(prompt);
@@ -122,11 +123,12 @@ Retorne APENAS um JSON válido neste formato exato:
 
 Regras:
 - A mensagem DEVE ser envolvente, original e viral
-- Use formatação com quebras de linha para facilitar leitura
-- SEMPRE inclua CTA que estimule interação (pergunta, marca alguém, salva)
-- As hashtags devem ser populares em português
-- Horário sugerido entre 08:00 e 22:00
-- Não inclua as hashtags na mensagem
+- Use formatacao com quebras de linha para facilitar leitura
+- SEMPRE inclua CTA que estimule interacao (pergunta, marca alguem, salva)
+- As hashtags devem ser populares em portugues
+- Horario sugerido entre 08:00 e 22:00
+- Nao inclua as hashtags na mensagem
+- NAO use emojis — texto puro e direto, apenas caracteres ASCII
 `;
 
   const raw = await askGemini(prompt);
