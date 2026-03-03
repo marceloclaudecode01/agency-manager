@@ -222,7 +222,17 @@ export function startCommentResponder() {
       let repliedCount = 0;
 
       for (const post of posts) {
-        const comments = await socialService.getPostComments(post.id);
+        let comments: any[] = [];
+        try {
+          comments = await socialService.getPostComments(post.id);
+        } catch (commentErr: any) {
+          const msg = commentErr.response?.data?.error?.message || commentErr.message;
+          if (msg.includes('pages_read_engagement') || msg.includes('Page Public Content Access')) {
+            await agentLog('Comment Responder', '⚠️ Facebook App em modo Development — comments desabilitados. Ative Live Mode no Facebook Developers.', { type: 'info' });
+            return;
+          }
+          continue;
+        }
         const campaign = productCampaigns.find(
           (c) => c.fbPostId === post.id || (post.message && c.generatedCopy && post.message.includes(c.generatedCopy.substring(0, 50)))
         );
