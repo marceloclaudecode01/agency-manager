@@ -69,7 +69,7 @@ function getReadToken() {
 
 export class SocialService {
   async getPageInfo() {
-    const token = getReadToken();
+    const token = await getPageToken();
     const pageId = getPageId();
     const { data } = await axios.get(`${GRAPH_API}/${pageId}`, {
       params: {
@@ -81,7 +81,7 @@ export class SocialService {
   }
 
   async getPageInsights(period: 'day' | 'week' | 'month' = 'month') {
-    const token = getReadToken();
+    const token = await getPageToken();
     const pageId = getPageId();
 
     const metrics = [
@@ -114,7 +114,7 @@ export class SocialService {
   }
 
   async getPosts(limit = 10) {
-    const token = getReadToken();
+    const token = await getPageToken();
     const pageId = getPageId();
     try {
       const { data } = await axios.get(`${GRAPH_API}/${pageId}/posts`, {
@@ -213,7 +213,7 @@ export class SocialService {
   }
 
   async getScheduledPosts() {
-    const token = getReadToken();
+    const token = await getPageToken();
     const pageId = getPageId();
     const { data } = await axios.get(`${GRAPH_API}/${pageId}/scheduled_posts`, {
       params: {
@@ -233,7 +233,7 @@ export class SocialService {
   }
 
   async getPostComments(postId: string) {
-    const token = getReadToken();
+    const token = await getPageToken();
     const { data } = await axios.get(`${GRAPH_API}/${postId}/comments`, {
       params: {
         fields: 'id,message,from,created_time,like_count',
