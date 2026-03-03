@@ -30,6 +30,7 @@ import { startNicheLearningAgent } from './niche-learning.agent';
 import { startPaidTrafficAgent } from './paid-traffic.agent';
 import { startStrategicEngine } from './strategic-engine.agent';
 import { startEvolutionEngine } from './evolution-engine.agent';
+import { startShortVideoEngine } from './short-video-engine.agent';
 
 const socialService = new SocialService();
 
@@ -619,6 +620,7 @@ const AGENT_FUNCTION_MAP: Record<string, () => void> = {
   'paid-traffic': startPaidTrafficAgent,
   'strategic-engine': startStrategicEngine,
   'evolution-engine': startEvolutionEngine,
+  'short-video-engine': startShortVideoEngine,
 };
 
 export async function updateLastRun(agentName: string): Promise<void> {
