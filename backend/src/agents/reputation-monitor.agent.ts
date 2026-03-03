@@ -151,10 +151,15 @@ export async function checkReputation(): Promise<ReputationSnapshot> {
     } catch {}
   }
 
-  await agentLog('Reputation Monitor', `Saúde: ${overallHealth} | Negativos: ${negativeComments}/${totalComments} | Trend: ${engagementTrend} | Crises: ${crisisCount}`, {
-    type: 'info',
-    payload: { overallHealth, negativePct: Math.round(negativePct), engagementTrend, crisisCount },
-  });
+  // Only log to DB when issues detected — skip HEALTHY spam
+  if (overallHealth !== 'HEALTHY') {
+    await agentLog('Reputation Monitor', `Saúde: ${overallHealth} | Negativos: ${negativeComments}/${totalComments} | Trend: ${engagementTrend} | Crises: ${crisisCount}`, {
+      type: 'info',
+      payload: { overallHealth, negativePct: Math.round(negativePct), engagementTrend, crisisCount },
+    });
+  } else {
+    console.log(`[Reputation] HEALTHY | Negativos: ${negativeComments}/${totalComments}`);
+  }
 
   return {
     negativeComments,

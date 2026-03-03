@@ -162,14 +162,20 @@ async function runSentinelCheck(): Promise<SentinelReport> {
 }
 
 export async function runSentinel(): Promise<SentinelReport> {
-  await agentLog('System Sentinel', 'Verificação de saúde do sistema...', { type: 'action' });
   const report = await runSentinelCheck();
 
-  const status = report.safeModeTriggered ? 'SAFE MODE ATIVADO' : 'OK';
-  await agentLog('System Sentinel', `Check: ${status} | Erros: ${report.apiErrors} | Failed: ${report.failedPosts} | Token: ${report.tokenValid ? 'OK' : 'INVALID'} | Loops: ${report.loopDetected.length}`, {
-    type: report.safeModeTriggered ? 'error' : 'info',
-    payload: report,
-  });
+  const hasIssues = report.safeModeTriggered || report.apiErrors > 0 || report.failedPosts > 0 || !report.tokenValid || report.loopDetected.length > 0;
+
+  // Only log to DB when there are actual issues — avoid spam on healthy checks
+  if (hasIssues) {
+    const status = report.safeModeTriggered ? 'SAFE MODE ATIVADO' : 'ISSUES';
+    await agentLog('System Sentinel', `Check: ${status} | Erros: ${report.apiErrors} | Failed: ${report.failedPosts} | Token: ${report.tokenValid ? 'OK' : 'INVALID'} | Loops: ${report.loopDetected.length}`, {
+      type: 'error',
+      payload: report,
+    });
+  } else {
+    console.log('[Sentinel] Check: OK');
+  }
 
   return report;
 }

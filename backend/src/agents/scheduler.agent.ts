@@ -10,7 +10,6 @@ import { generatePostFromStrategy } from './content-creator.agent';
 import { analyzeTrendingTopics } from './trending-topics.agent';
 import { orchestrateProductPosts } from './product-orchestrator.agent';
 import { runTokenMonitor } from './token-monitor.agent';
-import { generateVideoForPost } from './video-generator.agent';
 import { agentLog } from './agent-logger';
 import { trackAgentExecution } from './agent-performance-tracker';
 import { startContentGovernor } from './content-governor.agent';
@@ -118,7 +117,8 @@ export function startPostScheduler() {
       if (lastPublished) {
         const hoursSinceLast = (now.getTime() - lastPublished.getTime()) / (1000 * 60 * 60);
         if (hoursSinceLast < effectiveInterval) {
-          await agentLog('Scheduler', `Intervalo mínimo não atingido. Próximo post em ${(effectiveInterval - hoursSinceLast).toFixed(1)}h`, { type: 'info' });
+          // Silent — only console log, avoid DB spam every 5min
+          console.log(`[Scheduler] Intervalo mínimo: próximo post em ${(effectiveInterval - hoursSinceLast).toFixed(1)}h`);
           return;
         }
       }
@@ -134,31 +134,10 @@ export function startPostScheduler() {
 
       let publishResult: any;
 
-      if (post.contentType === 'video') {
-        // Generate and upload video
-        try {
-          await agentLog('Scheduler', `🎬 Gerando vídeo para: "${post.topic || 'post'}"`, { type: 'action' });
-          const { videoPath, cleanup } = await generateVideoForPost(
-            post.topic || 'conteúdo',
-            'engajamento'
-          );
-          try {
-            publishResult = await socialService.publishVideoFromFile(fullMessage, videoPath);
-          } finally {
-            cleanup();
-          }
-          await agentLog('Scheduler', '✅ Vídeo publicado no Facebook!', { type: 'result' });
-        } catch (videoErr: any) {
-          await agentLog('Scheduler', `⚠️ Falha no vídeo: ${videoErr.message}. Publicando como imagem.`, { type: 'error' });
-          publishResult = post.imageUrl
-            ? await socialService.publishMediaPost(fullMessage, post.imageUrl)
-            : await socialService.publishPost(fullMessage);
-        }
-      } else {
-        publishResult = post.imageUrl
-          ? await socialService.publishMediaPost(fullMessage, post.imageUrl)
-          : await socialService.publishPost(fullMessage);
-      }
+      // Publish: image+text if imageUrl exists, text-only otherwise
+      publishResult = post.imageUrl
+        ? await socialService.publishMediaPost(fullMessage, post.imageUrl, { mediaType: 'image' })
+        : await socialService.publishPost(fullMessage);
 
       const fbPostId = publishResult?.id || null;
 

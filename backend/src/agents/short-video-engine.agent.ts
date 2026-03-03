@@ -2,54 +2,75 @@ import cron from 'node-cron';
 import prisma from '../config/database';
 import { askGemini } from './gemini';
 import { agentLog } from './agent-logger';
+import { generateImageForPost } from './image-generator.agent';
 
-const DAILY_LIMIT = 12;
+const DAILY_LIMIT = 8;
 const SOURCE = 'short-video-engine';
 
-// 8 frameworks de marketing bilionário — rotação para máxima variação
+// 8 frameworks de marketing — rotação para máxima variação
 const FRAMEWORKS = [
   {
     name: 'AIDA',
-    prompt: 'Use o framework AIDA (Attention → Interest → Desire → Action). Hook impossível de ignorar nos primeiros 2 segundos. Estilo Apple: minimalista e poderoso.',
+    prompt: 'Use o framework AIDA (Attention → Interest → Desire → Action). Hook impossível de ignorar. Estilo Apple: minimalista e poderoso.',
   },
   {
     name: 'PAS',
-    prompt: 'Use o framework PAS (Problem → Agitate → Solution). Exponha uma dor visceral nos primeiros 2 segundos. Estilo Nike: empoderamento e ação.',
+    prompt: 'Use o framework PAS (Problem → Agitate → Solution). Exponha uma dor visceral. Estilo Nike: empoderamento e ação.',
   },
   {
     name: 'Hero Journey Micro',
-    prompt: 'Use a Jornada do Herói em micro-formato (15s): situação → desafio → transformação épica. Estilo Coca-Cola: emoção universal que conecta.',
+    prompt: 'Jornada do Herói em micro-formato: situação → desafio → transformação. Estilo Coca-Cola: emoção universal.',
   },
   {
     name: 'Emotional Trigger',
-    prompt: 'Gatilho emocional puro (FOMO, pertencimento, aspiração). Pattern interrupt brutal nos 2 primeiros segundos. Estilo Red Bull: energia e adrenalina.',
+    prompt: 'Gatilho emocional puro (FOMO, pertencimento, aspiração). Pattern interrupt brutal. Estilo Red Bull: energia.',
   },
   {
     name: 'Dollar Shave Club',
-    prompt: 'Humor irreverente + verdade desconfortável. Quebre a quarta parede nos 2 primeiros segundos. Tom casual mas persuasivo. Faça o viewer rir E agir.',
+    prompt: 'Humor irreverente + verdade desconfortável. Quebre a quarta parede. Tom casual mas persuasivo.',
   },
   {
     name: 'Storytelling Pixar',
-    prompt: 'Use a fórmula Pixar: "Era uma vez... Todo dia... Até que um dia... Por causa disso... Até que finalmente..." em 15 segundos. Emoção crescente.',
+    prompt: 'Fórmula Pixar: "Era uma vez... Todo dia... Até que um dia... Por causa disso... Até que finalmente..." Emoção crescente.',
   },
   {
     name: 'Contrarian Hook',
-    prompt: 'Comece com uma afirmação CONTRÁRIA ao senso comum que force o viewer a parar. Estilo Gary Vee: cru, direto, sem filtro. Destrua um mito popular.',
+    prompt: 'Afirmação CONTRÁRIA ao senso comum. Estilo Gary Vee: cru, direto, sem filtro. Destrua um mito popular.',
   },
   {
     name: 'Before/After Reveal',
-    prompt: 'Mostre o RESULTADO primeiro (os 2 primeiros segundos), depois revele o processo. Dopamine loop: curiosity gap que prende até o final. Transformação viral.',
+    prompt: 'Mostre o RESULTADO primeiro, depois revele o processo. Curiosity gap que prende. Transformação viral.',
   },
 ];
 
-async function isSafeModeActive(): Promise<boolean> {
-  try {
-    const config = await prisma.systemConfig.findFirst({ where: { key: 'safe_mode' } });
-    return config?.value === 'true';
-  } catch {
-    return false;
-  }
-}
+// Músicas sugeridas por mood — o LLM escolhe o mood, nós mapeamos
+const MUSIC_SUGGESTIONS: Record<string, string[]> = {
+  energetico: [
+    '🎵 Imagine Dragons — Believer',
+    '🎵 Macklemore — Can\'t Hold Us',
+    '🎵 Dua Lipa — Don\'t Start Now',
+  ],
+  motivacional: [
+    '🎵 Eminem — Lose Yourself',
+    '🎵 Sia — Unstoppable',
+    '🎵 The Score — Unstoppable',
+  ],
+  reflexivo: [
+    '🎵 Ludovico Einaudi — Nuvole Bianche',
+    '🎵 Hans Zimmer — Time',
+    '🎵 Coldplay — Fix You',
+  ],
+  divertido: [
+    '🎵 Pharrell Williams — Happy',
+    '🎵 Mark Ronson ft. Bruno Mars — Uptown Funk',
+    '🎵 Doja Cat — Say So',
+  ],
+  urgente: [
+    '🎵 Two Steps From Hell — Heart of Courage',
+    '🎵 Kanye West — Stronger',
+    '🎵 Jay-Z — Run This Town',
+  ],
+};
 
 async function isAgentPaused(): Promise<boolean> {
   try {
@@ -60,14 +81,11 @@ async function isAgentPaused(): Promise<boolean> {
   }
 }
 
-async function getTodayVideoCount(): Promise<number> {
+async function getTodayCount(): Promise<number> {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
   return prisma.scheduledPost.count({
-    where: {
-      source: SOURCE,
-      createdAt: { gte: startOfDay },
-    },
+    where: { source: SOURCE, createdAt: { gte: startOfDay } },
   });
 }
 
@@ -75,50 +93,57 @@ function pickFramework(): (typeof FRAMEWORKS)[number] {
   return FRAMEWORKS[Math.floor(Math.random() * FRAMEWORKS.length)];
 }
 
+function pickMusic(mood: string): string {
+  const pool = MUSIC_SUGGESTIONS[mood] || MUSIC_SUGGESTIONS.motivacional;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function getScheduledTime(): Date {
   const now = new Date();
-  // Schedule 15-45 min from now (faster turnaround for video volume)
   const offsetMin = 15 + Math.floor(Math.random() * 30);
   return new Date(now.getTime() + offsetMin * 60_000);
 }
 
-async function generateShortVideoPost(): Promise<void> {
+async function generateImagePost(): Promise<void> {
   const framework = pickFramework();
 
-  const prompt = `Você é o diretor criativo de uma agência que atende Apple, Nike, Coca-Cola e Red Bull.
-Sua missão: criar um roteiro de vídeo curto (15-30 segundos) que PARE O SCROLL e gere engajamento massivo.
+  const prompt = `Você é o diretor criativo de uma agência top.
+Crie um post de IMAGEM para Facebook/Instagram que PARE O SCROLL.
 
 ${framework.prompt}
 
-REGRAS DE OURO (das maiores agências do mundo):
-- Os 2 PRIMEIROS SEGUNDOS decidem tudo — hook visual ou verbal que gera pattern interrupt
-- Formato vertical (9:16), otimizado para Reels/TikTok/Shorts
-- Linguagem de conversa real — como se falasse com um amigo
-- Tensão narrativa: cada segundo deve fazer o viewer querer ver o próximo
-- CTA específico e urgente no final (não genérico)
-- Tom: autêntico, magnético, impossível de ignorar
-- Use técnicas de billion-dollar brands: storytelling emocional, social proof, scarcity, curiosity gap
-- PROIBIDO: corporativismo, clichês, frases genéricas, tom de vendedor
+REGRAS:
+- Texto curto e impactante (máx 280 chars para a legenda principal)
+- Hook poderoso na primeira linha
+- Emojis estratégicos (máx 4)
+- CTA específico no final
+- Tom: autêntico, magnético, brasileiro
+- PROIBIDO: corporativismo, clichês, tom de vendedor
+- NÃO inclua indicações de vídeo como [colchetes] ou roteiro — é uma IMAGEM estática
 
-Responda EXATAMENTE neste formato JSON:
+Escolha o mood da música de fundo: energetico, motivacional, reflexivo, divertido, urgente
+
+Responda APENAS JSON:
 {
-  "topic": "título curto do vídeo (max 60 chars)",
-  "script": "roteiro completo com indicações visuais entre [colchetes]",
-  "hook": "frase exata do hook dos 2 primeiros segundos",
-  "cta": "call to action final específico",
-  "hashtags": "5 hashtags relevantes separadas por espaço",
-  "emotionalTrigger": "qual gatilho emocional principal"
+  "topic": "título curto (max 50 chars)",
+  "caption": "legenda completa do post (max 280 chars)",
+  "hook": "primeira linha que para o scroll",
+  "cta": "call to action final",
+  "hashtags": "#hash1 #hash2 #hash3 #hash4 #hash5",
+  "mood": "motivacional",
+  "category": "educativo"
 }`;
 
   const response = await askGemini(prompt);
 
   let parsed: {
     topic: string;
-    script: string;
+    caption: string;
     hook: string;
     cta: string;
     hashtags: string;
-    emotionalTrigger: string;
+    mood: string;
+    category: string;
   };
 
   try {
@@ -130,7 +155,13 @@ Responda EXATAMENTE neste formato JSON:
     return;
   }
 
-  const message = `🎬 ${parsed.hook}\n\n${parsed.script}\n\n${parsed.cta}`;
+  // Generate image from Unsplash pools (zero cost)
+  const image = await generateImageForPost(parsed.topic, parsed.category || 'engajamento');
+
+  // Pick music suggestion based on mood
+  const music = pickMusic(parsed.mood || 'motivacional');
+
+  const message = `${parsed.caption}\n\n${music}\n\n${parsed.cta}`;
   const scheduledFor = getScheduledTime();
 
   await prisma.scheduledPost.create({
@@ -138,42 +169,41 @@ Responda EXATAMENTE neste formato JSON:
       topic: parsed.topic,
       message,
       hashtags: parsed.hashtags,
+      imageUrl: image.url,
       status: 'PENDING',
       source: SOURCE,
-      contentType: 'video',
+      contentType: 'image',
       scheduledFor,
     },
   });
 
   await agentLog(
     SOURCE,
-    `Video created — Framework: ${framework.name} | Topic: ${parsed.topic} | Scheduled: ${scheduledFor.toISOString()}`,
+    `Post created — Framework: ${framework.name} | Topic: ${parsed.topic} | Music: ${music} | Scheduled: ${scheduledFor.toISOString()}`,
     { type: 'action' }
   );
 
-  console.log(`[ShortVideoEngine] Created video post: "${parsed.topic}" (${framework.name})`);
+  console.log(`[ShortVideoEngine] Created image post: "${parsed.topic}" (${framework.name}) ${music}`);
 }
 
 export async function runShortVideoEngine(): Promise<void> {
   console.log('[ShortVideoEngine] Starting cycle...');
 
   try {
-    // Note: Video engine does NOT check safe mode — videos must always be created
     if (await isAgentPaused()) {
       console.log('[ShortVideoEngine] Agent paused, skipping');
       return;
     }
 
-    const todayCount = await getTodayVideoCount();
+    const todayCount = await getTodayCount();
     if (todayCount >= DAILY_LIMIT) {
       console.log(`[ShortVideoEngine] Daily limit reached (${todayCount}/${DAILY_LIMIT})`);
       await agentLog(SOURCE, `Daily limit reached: ${todayCount}/${DAILY_LIMIT}`, { type: 'info' });
       return;
     }
 
-    await generateShortVideoPost();
+    await generateImagePost();
 
-    // Update lastRunAt
     await prisma.agent.updateMany({
       where: { function: SOURCE },
       data: { lastRunAt: new Date() },
@@ -187,9 +217,9 @@ export async function runShortVideoEngine(): Promise<void> {
 }
 
 export function startShortVideoEngine(): void {
-  // Every 2 hours — high volume video production
-  cron.schedule('0 */2 * * *', () => {
+  // Every 3 hours — 8 image posts/day max
+  cron.schedule('0 */3 * * *', () => {
     runShortVideoEngine().catch(console.error);
   });
-  console.log('[ShortVideoEngine] Scheduled: every 2 hours (12 videos/day max)');
+  console.log('[ShortVideoEngine] Scheduled: every 3 hours (8 posts/day max)');
 }
