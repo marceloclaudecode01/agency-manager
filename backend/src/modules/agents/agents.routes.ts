@@ -93,6 +93,9 @@ router.get('/orion/strategic-state', (req, res) => controller.getStrategicState(
 router.post('/orion/evaluate', requireRole('ADMIN'), (req, res) => controller.runStrategicEvaluation(req as any, res));
 router.post('/orion/evolve', requireRole('ADMIN'), (req, res) => controller.runEvolution(req as any, res));
 
+// Short Video Engine trigger
+router.post('/video/run', requireRole('ADMIN'), (req, res) => controller.runVideoEngineNow(req as any, res));
+
 // Agent Registry CRUD
 router.get('/registry', (req, res) => controller.getAgentRegistry(req as any, res));
 router.post('/registry', requireRole('ADMIN'), (req, res) => controller.createAgent(req as any, res));

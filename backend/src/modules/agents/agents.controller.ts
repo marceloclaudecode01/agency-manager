@@ -21,6 +21,7 @@ import { replicateContent, replicateAll, getReplicasForPost, getReplicaStats, Re
 import { optimizeForPlatform, optimizeForAllPlatforms } from '../../agents/platform-optimizer.agent';
 import { generateCarousel, getCarouselStyles } from '../../agents/carousel-generator.agent';
 import { evaluateSystem } from '../../agents/strategic-engine.agent';
+import { runShortVideoEngine } from '../../agents/short-video-engine.agent';
 import { evolveSystem } from '../../agents/evolution-engine.agent';
 import cloudinary from '../../config/cloudinary';
 import { SocialService } from '../social/social.service';
@@ -819,6 +820,16 @@ Retorne APENAS JSON válido:
     try {
       const result = await evolveSystem();
       return ApiResponse.success(res, result, `Evolution complete: ${result.actions.length} actions`);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500);
+    }
+  }
+
+  // Run Short Video Engine manually
+  async runVideoEngineNow(_req: AuthRequest, res: Response) {
+    try {
+      await runShortVideoEngine();
+      return ApiResponse.success(res, { triggered: true }, 'Short Video Engine triggered — check logs');
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);
     }

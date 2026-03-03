@@ -154,7 +154,7 @@ Responda EXATAMENTE neste formato JSON:
   console.log(`[ShortVideoEngine] Created video post: "${parsed.topic}" (${framework.name})`);
 }
 
-async function runShortVideoEngine(): Promise<void> {
+export async function runShortVideoEngine(): Promise<void> {
   console.log('[ShortVideoEngine] Starting cycle...');
 
   try {
