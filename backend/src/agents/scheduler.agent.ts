@@ -55,9 +55,9 @@ async function getLastPublishedAt(): Promise<Date | null> {
   return last?.publishedAt || null;
 }
 
-// Roda a cada 5 minutos: verifica posts agendados para publicar
+// Roda a cada 15 minutos: verifica posts agendados para publicar
 export function startPostScheduler() {
-  cron.schedule('*/5 * * * *', async () => {
+  cron.schedule('*/15 * * * *', async () => {
     await trackAgentExecution('post-scheduler', async () => {
     let pendingPosts: Awaited<ReturnType<typeof prisma.scheduledPost.findMany>> = [];
     try {
@@ -208,7 +208,7 @@ export function startPostScheduler() {
     }); // trackAgentExecution
   });
 
-  console.log('[Scheduler] Post scheduler iniciado (verificação a cada 5 minutos)');
+  console.log('[Scheduler] Post scheduler iniciado (verificação a cada 15 minutos)');
 }
 
 // Palavras-chave que indicam interesse em comprar
