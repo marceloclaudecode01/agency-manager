@@ -22,11 +22,8 @@ import { enhanceWithViralMechanics } from './viral-mechanics.agent';
 import { createABVariant, startABTestingEngine } from './ab-testing-engine.agent';
 import { startReputationMonitor } from './reputation-monitor.agent';
 import { startLeadCaptureAgent } from './lead-capture.agent';
-import { startMonetizationEngine } from './monetization-engine.agent';
 import { startStrategicCommandAgent } from './strategic-command.agent';
-import { startMarketIntelligenceAgent } from './market-intelligence.agent';
 import { startNicheLearningAgent } from './niche-learning.agent';
-import { startPaidTrafficAgent } from './paid-traffic.agent';
 import { startStrategicEngine } from './strategic-engine.agent';
 import { startEvolutionEngine } from './evolution-engine.agent';
 import { startShortVideoEngine } from './short-video-engine.agent';
@@ -653,11 +650,8 @@ const AGENT_FUNCTION_MAP: Record<string, () => void> = {
   'ab-testing': startABTestingEngine,
   'reputation-monitor': startReputationMonitor,
   'lead-capture': startLeadCaptureAgent,
-  'monetization-engine': startMonetizationEngine,
   'strategic-command': startStrategicCommandAgent,
-  'market-intelligence': startMarketIntelligenceAgent,
   'niche-learning': startNicheLearningAgent,
-  'paid-traffic': startPaidTrafficAgent,
   'strategic-engine': startStrategicEngine,
   'evolution-engine': startEvolutionEngine,
   'short-video-engine': startShortVideoEngine,

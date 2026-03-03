@@ -73,10 +73,6 @@ router.patch('/campaigns/:id', requireRole('ADMIN'), (req, res) => controller.up
 router.post('/replicate', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.replicatePost(req as any, res));
 router.get('/replicas/stats', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getReplicaStatsEndpoint(req as any, res));
 router.get('/replicas/:postId', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getPostReplicas(req as any, res));
-router.post('/optimize-platform', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.optimizePost(req as any, res));
-router.post('/carousel', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.generateCarouselEndpoint(req as any, res));
-router.get('/carousel/styles', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getCarouselStylesEndpoint(req as any, res));
-
 // Epic 1: A/B Testing
 router.get('/ab-tests', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getABTestStatsEndpoint(req as any, res));
 router.post('/ab-tests/measure', requireRole('ADMIN'), (req, res) => controller.runABMeasurement(req as any, res));

@@ -18,8 +18,6 @@ import { generateWeeklyStrategy } from '../../agents/growth-director.agent';
 import { getABTestStats, measureABTests } from '../../agents/ab-testing-engine.agent';
 import { checkReputation, getReputationHistory } from '../../agents/reputation-monitor.agent';
 import { replicateContent, replicateAll, getReplicasForPost, getReplicaStats, ReplicaFormat } from '../../agents/content-replicator.agent';
-import { optimizeForPlatform, optimizeForAllPlatforms } from '../../agents/platform-optimizer.agent';
-import { generateCarousel, getCarouselStyles } from '../../agents/carousel-generator.agent';
 import { evaluateSystem } from '../../agents/strategic-engine.agent';
 import { runShortVideoEngine } from '../../agents/short-video-engine.agent';
 import { evolveSystem } from '../../agents/evolution-engine.agent';
@@ -697,36 +695,6 @@ Retorne APENAS JSON válido:
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);
     }
-  }
-
-  // Epic 2: Platform Optimizer
-  async optimizePost(req: AuthRequest, res: Response) {
-    try {
-      const { message, topic, platform } = req.body;
-      if (!message || !topic) return ApiResponse.error(res, 'message e topic são obrigatórios', 400);
-      const result = platform
-        ? [await optimizeForPlatform(message, topic, platform)]
-        : await optimizeForAllPlatforms(message, topic);
-      return ApiResponse.success(res, result, `${result.length} versões otimizadas`);
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  // Epic 2: Carousel Generator
-  async generateCarouselEndpoint(req: AuthRequest, res: Response) {
-    try {
-      const { topic, style, slideCount } = req.body;
-      if (!topic) return ApiResponse.error(res, 'topic é obrigatório', 400);
-      const result = await generateCarousel(topic, style, slideCount);
-      return ApiResponse.success(res, result, `Carrossel com ${result.totalSlides} slides`);
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async getCarouselStylesEndpoint(_req: AuthRequest, res: Response) {
-    return ApiResponse.success(res, getCarouselStyles());
   }
 
   // ─── Agent Registry CRUD ───

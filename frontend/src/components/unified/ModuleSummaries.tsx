@@ -1,13 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, UserPlus, FileText, Compass, Zap } from 'lucide-react';
+import { ChevronDown, ChevronUp, UserPlus, FileText } from 'lucide-react';
 
 interface Props {
   leads: { pipeline: any[]; total: number };
   engine: { todayPosts: any[]; weekStats: { generated: number; published: number; failed: number } } | null;
-  funnels: any[];
-  ads: { campaigns: any[]; totalSpend: number };
 }
 
 function CollapsibleSection({ title, icon: Icon, iconColor, children, defaultOpen = true }: {
@@ -37,14 +35,12 @@ function StatLine({ label, value, color }: { label: string; value: string | numb
   );
 }
 
-export function ModuleSummaries({ leads, engine, funnels, ads }: Props) {
+export function ModuleSummaries({ leads, engine }: Props) {
   const ws = engine?.weekStats || { generated: 0, published: 0, failed: 0 };
   const pendingPosts = engine?.todayPosts?.filter(p => p.status === 'PENDING').length || 0;
-  const activeFunnels = funnels.filter((f: any) => f.status === 'active' || f.active).length;
-  const activeCampaigns = ads.campaigns.filter((c: any) => c.status === 'active' || c.active).length;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <CollapsibleSection title="Leads CRM" icon={UserPlus} iconColor="text-blue-400">
         <StatLine label="Total leads" value={leads.total} />
         <StatLine label="In pipeline" value={leads.pipeline.length} />
@@ -55,17 +51,6 @@ export function ModuleSummaries({ leads, engine, funnels, ads }: Props) {
         <StatLine label="Published" value={ws.published} color="text-emerald-400" />
         <StatLine label="Pending today" value={pendingPosts} color="text-yellow-400" />
         <StatLine label="Failed" value={ws.failed} color={ws.failed > 0 ? 'text-red-400' : undefined} />
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Strategy" icon={Compass} iconColor="text-amber-400">
-        <StatLine label="Active funnels" value={activeFunnels} />
-        <StatLine label="Total funnels" value={funnels.length} />
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Paid Traffic" icon={Zap} iconColor="text-rose-400">
-        <StatLine label="Active campaigns" value={activeCampaigns} />
-        <StatLine label="Total spend" value={`R$${ads.totalSpend.toLocaleString()}`} />
-        <StatLine label="Total campaigns" value={ads.campaigns.length} />
       </CollapsibleSection>
     </div>
   );

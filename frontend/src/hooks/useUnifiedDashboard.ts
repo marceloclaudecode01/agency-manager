@@ -21,15 +21,10 @@ export interface UnifiedData {
   reputation: any;
   replicaStats: any;
   leads: { pipeline: any[]; total: number };
-  funnels: any[];
-  offers: any[];
-  monetizationSuggestions: any[];
   strategicPlan: any;
   audience: any[];
-  marketIntel: any[];
   compliance: { score: number; total: number; passed: number };
   variation: { score: number; contentMix?: any[] };
-  ads: { campaigns: any[]; totalSpend: number; totalBudget: number; activeCount: number };
 }
 
 const INITIAL: UnifiedData = {
@@ -48,15 +43,10 @@ const INITIAL: UnifiedData = {
   reputation: null,
   replicaStats: null,
   leads: { pipeline: [], total: 0 },
-  funnels: [],
-  offers: [],
-  monetizationSuggestions: [],
   strategicPlan: null,
   audience: [],
-  marketIntel: [],
   compliance: { score: 100, total: 0, passed: 0 },
   variation: { score: 100 },
-  ads: { campaigns: [], totalSpend: 0, totalBudget: 0, activeCount: 0 },
 };
 
 export function useUnifiedDashboard() {
@@ -84,15 +74,10 @@ export function useUnifiedDashboard() {
         api.get('/agents/reputation'),        // 12
         api.get('/agents/replicas/stats'),    // 13
         api.get('/agents/growth/leads/pipeline'),       // 14
-        api.get('/agents/growth/funnels'),               // 15
-        api.get('/agents/growth/offers'),                // 16
-        api.get('/agents/growth/monetization/suggestions'), // 17
-        api.get('/agents/growth/strategic-plan'),        // 18
-        api.get('/agents/growth/audience'),              // 19
-        api.get('/agents/growth/market-intel'),          // 20
-        api.get('/agents/growth/compliance/stats'),      // 21
-        api.get('/agents/growth/variation/stats'),       // 22
-        api.get('/agents/growth/ads'),                   // 23
+        api.get('/agents/growth/strategic-plan'),        // 15
+        api.get('/agents/growth/audience'),              // 16
+        api.get('/agents/growth/compliance/stats'),      // 17
+        api.get('/agents/growth/variation/stats'),       // 18
       ]);
 
       const get = (i: number) => {
@@ -103,9 +88,8 @@ export function useUnifiedDashboard() {
       const logs = get(2) || [];
       logsRef.current = logs;
       const leadsData = get(14);
-      const adsData = get(23);
-      const compData = get(21);
-      const varData = get(22);
+      const compData = get(17);
+      const varData = get(18);
 
       setData({
         system: get(0),
@@ -125,21 +109,14 @@ export function useUnifiedDashboard() {
         leads: leadsData
           ? { pipeline: leadsData.pipeline || leadsData || [], total: leadsData.total || (Array.isArray(leadsData) ? leadsData.length : 0) }
           : { pipeline: [], total: 0 },
-        funnels: get(15) || [],
-        offers: get(16) || [],
-        monetizationSuggestions: get(17) || [],
-        strategicPlan: get(18),
-        audience: get(19) || [],
-        marketIntel: get(20) || [],
+        strategicPlan: get(15),
+        audience: get(16) || [],
         compliance: compData
           ? { score: compData.score ?? 100, total: compData.total ?? 0, passed: compData.passed ?? 0 }
           : { score: 100, total: 0, passed: 0 },
         variation: varData
           ? { score: varData.score ?? 100, contentMix: varData.contentMix }
           : { score: 100 },
-        ads: adsData
-          ? { campaigns: adsData.campaigns || adsData || [], totalSpend: adsData.totalSpend || 0, totalBudget: adsData.totalBudget || 0, activeCount: adsData.activeCount || 0 }
-          : { campaigns: [], totalSpend: 0, totalBudget: 0, activeCount: 0 },
       });
       setError(null);
     } catch (err: any) {
@@ -211,16 +188,6 @@ export function useUnifiedDashboard() {
     await fetchAll();
   }, [fetchAll]);
 
-  const createFunnel = useCallback(async (d: any) => {
-    await api.post('/agents/growth/funnels', d);
-    await fetchAll();
-  }, [fetchAll]);
-
-  const createOffer = useCallback(async (d: any) => {
-    await api.post('/agents/growth/offers', d);
-    await fetchAll();
-  }, [fetchAll]);
-
   const generatePlan = useCallback(async () => {
     await api.post('/agents/growth/strategic-plan/generate');
     await fetchAll();
@@ -228,26 +195,6 @@ export function useUnifiedDashboard() {
 
   const learnAudience = useCallback(async () => {
     await api.post('/agents/growth/audience/learn');
-    await fetchAll();
-  }, [fetchAll]);
-
-  const gatherIntel = useCallback(async () => {
-    await api.post('/agents/growth/market-intel/gather');
-    await fetchAll();
-  }, [fetchAll]);
-
-  const syncAds = useCallback(async () => {
-    await api.post('/agents/growth/ads/sync');
-    await fetchAll();
-  }, [fetchAll]);
-
-  const createCampaign = useCallback(async (d: any) => {
-    await api.post('/agents/growth/ads/campaigns', d);
-    await fetchAll();
-  }, [fetchAll]);
-
-  const generateCreatives = useCallback(async (campaignId: string) => {
-    await api.post('/agents/growth/ads/creatives', { campaignId });
     await fetchAll();
   }, [fetchAll]);
 
@@ -264,12 +211,6 @@ export function useUnifiedDashboard() {
   const replicatePost = useCallback(async (postId: string) => {
     await api.post(`/agents/replicas/${postId}`);
     await fetchAll();
-  }, [fetchAll]);
-
-  const generateCarousel = useCallback(async (topic: string, slides: number) => {
-    const res = await api.post('/agents/carousel', { topic, slides });
-    await fetchAll();
-    return res.data.data;
   }, [fetchAll]);
 
   const totalErrors = data.system?.errorCounts.reduce((s, e) => s + e._count.id, 0) || 0;
@@ -298,17 +239,10 @@ export function useUnifiedDashboard() {
     scanLeads,
     moveLeadStage,
     createLead,
-    createFunnel,
-    createOffer,
     generatePlan,
     learnAudience,
-    gatherIntel,
-    syncAds,
-    createCampaign,
-    generateCreatives,
     toggleAggressive,
     measureABTests,
     replicatePost,
-    generateCarousel,
   };
 }

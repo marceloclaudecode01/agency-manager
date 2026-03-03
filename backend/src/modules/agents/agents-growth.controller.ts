@@ -3,12 +3,8 @@ import { AuthRequest } from '../../types';
 import { ApiResponse } from '../../utils/api-response';
 import prisma from '../../config/database';
 import { scanForLeads, getLeadPipeline, updateLeadStage, addLeadInteraction } from '../../agents/lead-capture.agent';
-import { analyzeFunnelPerformance, suggestMonetization, getFunnelStats } from '../../agents/monetization-engine.agent';
 import { generateStrategicPlan, getCurrentPlan } from '../../agents/strategic-command.agent';
-import { gatherMarketIntel, getMarketInsights } from '../../agents/market-intelligence.agent';
 import { learnFromAudience, getAudienceProfile } from '../../agents/niche-learning.agent';
-import { generateAdCreative, getCreativesForCampaign } from '../../agents/ad-creative.agent';
-import { syncAdCampaigns, getAdDashboard } from '../../agents/paid-traffic.agent';
 import { checkCompliance, getComplianceStats } from '../../agents/policy-compliance.agent';
 import { getVariationStats } from '../../agents/pattern-variation.agent';
 
@@ -93,84 +89,6 @@ export class AgentsGrowthController {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // EPIC 4: MONETIZATION
-  // ═══════════════════════════════════════════════════════════
-
-  async getFunnels(_req: AuthRequest, res: Response) {
-    try {
-      const stats = await getFunnelStats();
-      return ApiResponse.success(res, stats);
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async createFunnel(req: AuthRequest, res: Response) {
-    try {
-      const funnel = await prisma.funnel.create({ data: req.body });
-      return ApiResponse.created(res, funnel, 'Funil criado');
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async updateFunnel(req: AuthRequest, res: Response) {
-    try {
-      const id = req.params.id as string;
-      const funnel = await prisma.funnel.update({ where: { id }, data: req.body });
-      return ApiResponse.success(res, funnel, 'Funil atualizado');
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async getOffers(_req: AuthRequest, res: Response) {
-    try {
-      const offers = await prisma.offer.findMany({ include: { funnel: true }, orderBy: { createdAt: 'desc' } });
-      return ApiResponse.success(res, offers);
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async createOffer(req: AuthRequest, res: Response) {
-    try {
-      const offer = await prisma.offer.create({ data: req.body });
-      return ApiResponse.created(res, offer, 'Oferta criada');
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async updateOffer(req: AuthRequest, res: Response) {
-    try {
-      const id = req.params.id as string;
-      const offer = await prisma.offer.update({ where: { id }, data: req.body });
-      return ApiResponse.success(res, offer, 'Oferta atualizada');
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async analyzeFunnels(_req: AuthRequest, res: Response) {
-    try {
-      const result = await analyzeFunnelPerformance();
-      return ApiResponse.success(res, result, 'Análise de funis concluída');
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async getMonetizationSuggestions(_req: AuthRequest, res: Response) {
-    try {
-      const suggestions = await suggestMonetization();
-      return ApiResponse.success(res, suggestions);
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════
   // EPIC 5: STRATEGIC COMMAND
   // ═══════════════════════════════════════════════════════════
 
@@ -193,29 +111,6 @@ export class AgentsGrowthController {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // EPIC 6: MARKET INTELLIGENCE
-  // ═══════════════════════════════════════════════════════════
-
-  async getMarketIntel(req: AuthRequest, res: Response) {
-    try {
-      const { type } = req.query as { type?: string };
-      const insights = await getMarketInsights(type);
-      return ApiResponse.success(res, insights);
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async gatherIntelNow(_req: AuthRequest, res: Response) {
-    try {
-      const result = await gatherMarketIntel();
-      return ApiResponse.success(res, result, `${result.created} insights coletados`);
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════
   // EPIC 7: NICHE LEARNING
   // ═══════════════════════════════════════════════════════════
 
@@ -232,68 +127,6 @@ export class AgentsGrowthController {
     try {
       const result = await learnFromAudience();
       return ApiResponse.success(res, result, 'Aprendizado concluído');
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // EPIC 8: PAID TRAFFIC
-  // ═══════════════════════════════════════════════════════════
-
-  async getAdsDashboard(_req: AuthRequest, res: Response) {
-    try {
-      const dashboard = await getAdDashboard();
-      return ApiResponse.success(res, dashboard);
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async createAdCampaign(req: AuthRequest, res: Response) {
-    try {
-      const campaign = await prisma.adCampaign.create({ data: req.body });
-      return ApiResponse.created(res, campaign, 'Campanha criada');
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async updateAdCampaign(req: AuthRequest, res: Response) {
-    try {
-      const id = req.params.id as string;
-      const campaign = await prisma.adCampaign.update({ where: { id }, data: req.body });
-      return ApiResponse.success(res, campaign, 'Campanha atualizada');
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async generateCreatives(req: AuthRequest, res: Response) {
-    try {
-      const { campaignId, count } = req.body;
-      if (!campaignId) return ApiResponse.error(res, 'campaignId é obrigatório', 400);
-      const creatives = await generateAdCreative(campaignId, count);
-      return ApiResponse.success(res, creatives, `${creatives.length} criativos gerados`);
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async getCampaignCreatives(req: AuthRequest, res: Response) {
-    try {
-      const campaignId = req.params.campaignId as string;
-      const creatives = await getCreativesForCampaign(campaignId);
-      return ApiResponse.success(res, creatives);
-    } catch (error: any) {
-      return ApiResponse.error(res, error.message, 500);
-    }
-  }
-
-  async syncAdsNow(_req: AuthRequest, res: Response) {
-    try {
-      const result = await syncAdCampaigns();
-      return ApiResponse.success(res, result, 'Sync concluído');
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);
     }

@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, Users, UsersRound, Megaphone, CheckSquare,
   DollarSign, BarChart3, Calendar, LogOut, Settings, X, Facebook, MessageSquare, Package, Bot, Monitor, Flame, Layers,
-  UserPlus, Coins, Compass, Radar, Brain, Zap, Star,
+  UserPlus, Compass, Brain, Star,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -26,10 +26,7 @@ const menuItems = [
   { href: '/agents/growth-lab', icon: Flame, label: 'Growth Lab' },
   { href: '/agents/content-lab', icon: Layers, label: 'Content Lab' },
   { href: '/agents/leads', icon: UserPlus, label: 'Leads CRM' },
-  { href: '/agents/monetization', icon: Coins, label: 'Monetização' },
   { href: '/agents/strategic', icon: Compass, label: 'Strategic AI' },
-  { href: '/agents/market-intel', icon: Radar, label: 'Market Intel' },
-  { href: '/agents/ads', icon: Zap, label: 'Paid Traffic' },
   { href: '/agents/orion', icon: Brain, label: 'Orion IA' },
   { href: '/chat', icon: MessageSquare, label: 'Chat' },
   { href: '/team', icon: UsersRound, label: 'Equipe' },

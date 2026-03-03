@@ -11,15 +11,12 @@ import { CommandTab } from '@/components/unified/tabs/CommandTab';
 import { ContentTab } from '@/components/unified/tabs/ContentTab';
 import { GrowthTab } from '@/components/unified/tabs/GrowthTab';
 import { LeadsTab } from '@/components/unified/tabs/LeadsTab';
-import { MonetizationTab } from '@/components/unified/tabs/MonetizationTab';
 import { StrategicTab } from '@/components/unified/tabs/StrategicTab';
-import { IntelTab } from '@/components/unified/tabs/IntelTab';
-import { AdsTab } from '@/components/unified/tabs/AdsTab';
 import { OperationsTab } from '@/components/unified/tabs/OperationsTab';
 import { Loading } from '@/components/ui/loading';
 import {
   LayoutDashboard, Terminal, FileText, TrendingUp, Users,
-  DollarSign, Target, Globe, Megaphone, Settings,
+  Target, Settings,
 } from 'lucide-react';
 
 const TABS = [
@@ -28,10 +25,7 @@ const TABS = [
   { id: 'content', label: 'Content', icon: FileText },
   { id: 'growth', label: 'Growth', icon: TrendingUp },
   { id: 'leads', label: 'Leads', icon: Users },
-  { id: 'monetization', label: 'Monetization', icon: DollarSign },
   { id: 'strategic', label: 'Strategic', icon: Target },
-  { id: 'intel', label: 'Intel', icon: Globe },
-  { id: 'ads', label: 'Ads', icon: Megaphone },
   { id: 'operations', label: 'Operations', icon: Settings },
 ] as const;
 
@@ -44,14 +38,12 @@ export default function UnifiedDashboardPage() {
   const {
     system, engine, logs, metrics, scheduledPosts, brandConfig, campaigns,
     tokenStatus, performance, strategy, abTests, aggressiveMode, reputation,
-    replicaStats, leads, funnels, offers, monetizationSuggestions,
-    strategicPlan, audience, marketIntel, compliance, variation, ads,
+    replicaStats, leads, strategicPlan, audience, compliance, variation,
     loading, globalStatus, totalErrors, runningAgents, totalAgents,
     toggleSafeMode, toggleAgent, overridePost, runSentinel, saveBrand,
-    saveStrategy, scanLeads, moveLeadStage, createLead, createFunnel,
-    createOffer, generatePlan, learnAudience, gatherIntel, syncAds,
-    createCampaign, generateCreatives, toggleAggressive, measureABTests,
-    replicatePost, generateCarousel, refresh,
+    saveStrategy, scanLeads, moveLeadStage, createLead,
+    generatePlan, learnAudience, toggleAggressive, measureABTests,
+    replicatePost, refresh,
   } = dashboard;
 
   if (loading && !system) {
@@ -107,10 +99,8 @@ export default function UnifiedDashboardPage() {
         <div className="space-y-4">
           <KpiCards
             leadsCount={leads.total}
-            funnelsRevenue={funnels.reduce((s: number, f: any) => s + (f.revenue || 0), 0)}
             postsToday={postsToday}
             growthScore={growthScore}
-            adSpend={ads.totalSpend}
             compliancePercent={compliance.score}
           />
           <AgentGrid
@@ -118,7 +108,7 @@ export default function UnifiedDashboardPage() {
             logs={logs}
             onToggleAgent={toggleAgent}
           />
-          <ModuleSummaries leads={leads} engine={engine} funnels={funnels} ads={ads} />
+          <ModuleSummaries leads={leads} engine={engine} />
           <UnifiedCharts performance={performance} engine={engine} />
         </div>
       )}
@@ -139,7 +129,6 @@ export default function UnifiedDashboardPage() {
           replicaStats={replicaStats}
           onOverride={overridePost}
           onReplicate={replicatePost}
-          onGenerateCarousel={generateCarousel}
         />
       )}
 
@@ -162,40 +151,12 @@ export default function UnifiedDashboardPage() {
         />
       )}
 
-      {activeTab === 'monetization' && (
-        <MonetizationTab
-          funnels={funnels}
-          offers={offers}
-          suggestions={monetizationSuggestions}
-          onCreateFunnel={createFunnel}
-          onCreateOffer={createOffer}
-        />
-      )}
-
       {activeTab === 'strategic' && (
         <StrategicTab
           strategicPlan={strategicPlan}
           audience={audience}
           onGeneratePlan={generatePlan}
           onLearnAudience={learnAudience}
-        />
-      )}
-
-      {activeTab === 'intel' && (
-        <IntelTab
-          marketIntel={marketIntel}
-          compliance={compliance}
-          variation={variation}
-          onGatherIntel={gatherIntel}
-        />
-      )}
-
-      {activeTab === 'ads' && (
-        <AdsTab
-          ads={ads}
-          onSyncAds={syncAds}
-          onCreateCampaign={createCampaign}
-          onGenerateCreatives={generateCreatives}
         />
       )}
 
