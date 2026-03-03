@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import prisma from '../config/database';
 import { askGemini } from './gemini';
 import { agentLog } from './agent-logger';
-import { isSafeModeActive, isAgentPaused } from './safe-mode';
+import { isSafeModeActive } from './safe-mode';
 import { getBrandContext } from './brand-brain.agent';
 import { checkCompliance } from './policy-compliance.agent';
 import { checkPatternVariation } from './pattern-variation.agent';
@@ -136,7 +136,7 @@ Retorne APENAS JSON: { "score": 7, "isDuplicate": false, "reason": "motivo breve
         };
       }
 
-      if (qualityScore < 4) {
+      if (qualityScore < 3) {
         return {
           decision: 'REJECT',
           reason: `Qualidade baixa (${qualityScore}/10): ${parsed.reason}`,
@@ -187,8 +187,8 @@ Retorne APENAS JSON: { "score": 7, "isDuplicate": false, "reason": "motivo breve
 
 export async function reviewPendingPosts(): Promise<void> {
   // Safe mode check — do not approve anything
-  if (await isSafeModeActive() || await isAgentPaused('Content Governor')) {
-    await agentLog('Content Governor', 'Safe mode ou agente pausado — revisão suspensa', { type: 'info' });
+  if (await isSafeModeActive()) {
+    await agentLog('Content Governor', 'Safe mode ativo — revisão suspensa', { type: 'info' });
     return;
   }
 
@@ -223,19 +223,18 @@ export async function reviewPendingPosts(): Promise<void> {
   const weeklyApproved = await prisma.scheduledPost.count({
     where: { governorDecision: 'APPROVE', governorReviewedAt: { gte: weekAgo } },
   });
-  if (weeklyApproved >= 30) {
-    await agentLog('Content Governor', `Limite semanal atingido (30 posts/semana). Revisão suspensa.`, { type: 'info' });
+  if (weeklyApproved >= 50) {
+    await agentLog('Content Governor', `Limite semanal atingido (50 posts/semana). Revisão suspensa.`, { type: 'info' });
     return;
   }
 
-  // Phase 2: Anti-spam — cooldown after FAILED post (4h)
-  const lastFailed = await prisma.scheduledPost.findFirst({
-    where: { status: 'FAILED' },
-    orderBy: { updatedAt: 'desc' },
-    select: { updatedAt: true },
+  // Anti-spam — cooldown 15min only if 3+ FAILED in last 15min
+  const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
+  const recentFailedCount = await prisma.scheduledPost.count({
+    where: { status: 'FAILED', updatedAt: { gte: fifteenMinAgo } },
   });
-  if (lastFailed && Date.now() - lastFailed.updatedAt.getTime() < 4 * 60 * 60 * 1000) {
-    await agentLog('Content Governor', 'Cooldown ativo (post FAILED < 4h). Revisão adiada.', { type: 'info' });
+  if (recentFailedCount >= 3) {
+    await agentLog('Content Governor', `Cooldown ativo (${recentFailedCount} posts FAILED nos últimos 15min). Revisão adiada.`, { type: 'info' });
     return;
   }
 

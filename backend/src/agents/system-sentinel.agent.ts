@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import prisma from '../config/database';
 import { agentLog } from './agent-logger';
-import { activateSafeMode, isSafeModeActive, isAgentPaused, pauseAgent } from './safe-mode';
+import { activateSafeMode, deactivateSafeMode, getSafeModeStatus, isSafeModeActive, pauseAgent } from './safe-mode';
 import { checkFacebookToken } from './token-monitor.agent';
 import { notificationsService } from '../modules/notifications/notifications.service';
 
@@ -28,9 +28,10 @@ async function runSentinelCheck(): Promise<SentinelReport> {
   const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  // 1. Count API errors in last 30min
+  // 1. Count API errors in last 30min (only publication agents)
+  const PUBLICATION_AGENTS = ['Scheduler', 'Content Governor', 'Autonomous Engine'];
   const errorLogs = await prisma.agentLog.count({
-    where: { type: 'error', createdAt: { gte: thirtyMinAgo } },
+    where: { type: 'error', createdAt: { gte: thirtyMinAgo }, from: { in: PUBLICATION_AGENTS } },
   });
   report.apiErrors = errorLogs;
 
@@ -40,10 +41,10 @@ async function runSentinelCheck(): Promise<SentinelReport> {
   });
   report.failedPosts = failedPosts;
 
-  // 3. Check consecutive FAILED posts
+  // 3. Check consecutive FAILED posts (5 of last 10)
   const recentPosts = await prisma.scheduledPost.findMany({
     orderBy: { updatedAt: 'desc' },
-    take: 5,
+    take: 10,
     select: { status: true },
   });
   const consecutiveFailed = recentPosts.findIndex((p) => p.status !== 'FAILED');
@@ -71,17 +72,20 @@ async function runSentinelCheck(): Promise<SentinelReport> {
     }
   }
 
-  // 6. Phase 7: Loop detection — agent with >50 entries in 30min
+  // 6. Loop detection — higher thresholds, critical agents exempt
+  const CRITICAL_AGENTS = ['Content Governor', 'Scheduler', 'Autonomous Engine', 'System Sentinel', 'Comment Responder'];
   const agentCounts = await prisma.agentLog.groupBy({
     by: ['from'],
     where: { createdAt: { gte: thirtyMinAgo } },
     _count: { id: true },
   });
   for (const ac of agentCounts) {
-    if (ac._count.id > 50) {
+    const isCritical = CRITICAL_AGENTS.includes(ac.from);
+    const threshold = isCritical ? 500 : 200;
+    if (ac._count.id > threshold) {
       report.loopDetected.push(ac.from);
       await pauseAgent(ac.from);
-      await agentLog('System Sentinel', `Loop detectado: ${ac.from} com ${ac._count.id} logs em 30min — agente pausado`, { type: 'error' });
+      await agentLog('System Sentinel', `Loop detectado: ${ac.from} com ${ac._count.id} logs em 30min (limite: ${threshold}) — agente pausado`, { type: 'error' });
     }
   }
 
@@ -101,9 +105,9 @@ async function runSentinelCheck(): Promise<SentinelReport> {
   // Determine if safe mode should activate
   let reason: string | undefined;
 
-  if (report.apiErrors >= 5) {
+  if (report.apiErrors >= 15) {
     reason = `${report.apiErrors} erros de API em 30min`;
-  } else if (consecutiveFailedCount >= 3) {
+  } else if (consecutiveFailedCount >= 5) {
     reason = `${consecutiveFailedCount} posts FAILED consecutivos`;
   } else if (!report.tokenValid) {
     reason = 'Token Facebook inválido';
@@ -120,6 +124,23 @@ async function runSentinelCheck(): Promise<SentinelReport> {
       const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
       for (const admin of admins) {
         await notificationsService.createAndEmit(admin.id, 'TASK_ASSIGNED', 'SAFE MODE ATIVADO', `Sistema em modo seguro: ${reason}. Publicações pausadas.`);
+      }
+    }
+  }
+
+  // S5: Auto-recovery — deactivate safe mode after 30min if conditions normalized
+  if (!reason) {
+    const safeModeStatus = await getSafeModeStatus();
+    if (safeModeStatus.enabled && safeModeStatus.activatedAt) {
+      const activatedAt = new Date(safeModeStatus.activatedAt).getTime();
+      const thirtyMinMs = 30 * 60 * 1000;
+      if (Date.now() - activatedAt >= thirtyMinMs) {
+        await deactivateSafeMode();
+        await agentLog('System Sentinel', 'Safe mode desativado automaticamente — condições normalizaram após 30min', { type: 'info' });
+        const recoveryAdmins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+        for (const admin of recoveryAdmins) {
+          await notificationsService.createAndEmit(admin.id, 'TASK_ASSIGNED', 'SAFE MODE DESATIVADO', 'Sistema normalizado. Publicações retomadas automaticamente.');
+        }
       }
     }
   }

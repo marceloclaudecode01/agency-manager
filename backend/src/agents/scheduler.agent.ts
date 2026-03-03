@@ -17,7 +17,7 @@ import { startContentGovernor } from './content-governor.agent';
 import { startGrowthDirector } from './growth-director.agent';
 import { startSystemSentinel } from './system-sentinel.agent';
 import { startPerformanceLearner } from './performance-learner.agent';
-import { isSafeModeActive, isAgentPaused } from './safe-mode';
+import { isSafeModeActive } from './safe-mode';
 import { seedBrandConfig } from './brand-brain.agent';
 import { enhanceWithViralMechanics } from './viral-mechanics.agent';
 import { createABVariant, startABTestingEngine } from './ab-testing-engine.agent';
@@ -66,7 +66,7 @@ export function startPostScheduler() {
     let pendingPosts: Awaited<ReturnType<typeof prisma.scheduledPost.findMany>> = [];
     try {
       // Phase 1: Safe mode check
-      if (await isSafeModeActive() || await isAgentPaused('Scheduler')) {
+      if (await isSafeModeActive()) {
         return;
       }
 
@@ -161,22 +161,54 @@ export function startPostScheduler() {
 
       if (isPermissionError) {
         console.error('[Scheduler] ⚠️ Token sem permissão pages_manage_posts. Configure um Page Access Token com as permissões corretas no Facebook Developer.');
-        await agentLog('Scheduler', '⚠️ Token sem permissão de publicação (pages_manage_posts). Posts marcados como FAILED. Atualize o token no Railway.', { type: 'error' });
-        // Mark all pending posts as FAILED to stop retrying
+        const failedPost = pendingPosts[0];
+        await agentLog('Scheduler', `⚠️ Token sem permissão de publicação. Post "${failedPost?.topic || failedPost?.id || 'unknown'}" marcado como FAILED. Atualize o token no Railway.`, { type: 'error' });
+        // Mark only THIS post as FAILED (not all APPROVED posts)
         try {
-          await prisma.scheduledPost.updateMany({
-            where: { status: 'APPROVED' },
-            data: { status: 'FAILED' },
+          if (failedPost) {
+            await prisma.scheduledPost.update({
+              where: { id: failedPost.id },
+              data: { status: 'FAILED' },
+            });
+          }
+        } catch {}
+        // Throttled admin alert: max 1x per hour
+        try {
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+          const recentAlert = await prisma.notification.findFirst({
+            where: { title: 'Erro de permissão Facebook', createdAt: { gte: oneHourAgo } },
           });
+          if (!recentAlert) {
+            const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+            for (const admin of admins) {
+              await notificationsService.createAndEmit(admin.id, 'TASK_ASSIGNED', 'Erro de permissão Facebook', 'Token sem permissão pages_manage_posts. Atualize o token no Railway.');
+            }
+          }
         } catch {}
         return;
       }
 
       console.error('[Scheduler] Erro ao publicar post:', err.message);
-      await agentLog('Scheduler', `❌ Erro ao publicar post: ${err.message}`, { type: 'error' });
-      try {
-        await prisma.scheduledPost.update({ where: { id: pendingPosts[0]?.id }, data: { status: 'FAILED' } });
-      } catch {}
+      // Retry logic: 3 attempts with 30min backoff
+      const currentPost = pendingPosts[0];
+      if (currentPost) {
+        const currentRetry = (currentPost as any).retryCount ?? 0;
+        if (currentRetry < 3) {
+          const nextAttempt = new Date(Date.now() + 30 * 60 * 1000); // +30min
+          await agentLog('Scheduler', `⚠️ Erro ao publicar post (tentativa ${currentRetry + 1}/3): ${err.message}. Reagendando para ${nextAttempt.toTimeString().slice(0, 5)}`, { type: 'info' });
+          try {
+            await prisma.scheduledPost.update({
+              where: { id: currentPost.id },
+              data: { retryCount: currentRetry + 1, scheduledFor: nextAttempt },
+            });
+          } catch {}
+        } else {
+          await agentLog('Scheduler', `❌ Post falhou após 3 tentativas: ${err.message}`, { type: 'error' });
+          try {
+            await prisma.scheduledPost.update({ where: { id: currentPost.id }, data: { status: 'FAILED' } });
+          } catch {}
+        }
+      }
     }
     }); // trackAgentExecution
   });
