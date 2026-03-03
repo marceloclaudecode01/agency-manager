@@ -34,9 +34,9 @@ import { startShortVideoEngine } from './short-video-engine.agent';
 
 const socialService = new SocialService();
 
-// Limite de segurança: máx 5 posts por dia, mínimo 2h de intervalo
-const MAX_POSTS_PER_DAY = 5;
-const MIN_INTERVAL_HOURS = 2;
+// Limits increased for video-first strategy: 10 posts/day, 1h interval
+const MAX_POSTS_PER_DAY = 10;
+const MIN_INTERVAL_HOURS = 1;
 
 async function getPostsPublishedToday(): Promise<number> {
   const today = new Date();
@@ -65,12 +65,10 @@ export function startPostScheduler() {
     await trackAgentExecution('post-scheduler', async () => {
     let pendingPosts: Awaited<ReturnType<typeof prisma.scheduledPost.findMany>> = [];
     try {
-      // Phase 1: Safe mode check
-      if (await isSafeModeActive()) {
-        return;
-      }
-
       const now = new Date();
+
+      // Check safe mode — but still allow video posts through
+      const safeMode = await isSafeModeActive();
 
       pendingPosts = await prisma.scheduledPost.findMany({
         where: {
@@ -87,22 +85,32 @@ export function startPostScheduler() {
 
       if (pendingPosts.length === 0) return;
 
+      const post = pendingPosts[0];
+      const isVideoPost = post?.contentType === 'video';
+
+      // Safe mode blocks non-video posts; videos always go through
+      if (safeMode && !isVideoPost) {
+        return;
+      }
+
       const postsToday = await getPostsPublishedToday();
-      if (postsToday >= MAX_POSTS_PER_DAY) {
+
+      // Videos bypass daily limit — they always publish
+      if (!isVideoPost && postsToday >= MAX_POSTS_PER_DAY) {
         await agentLog('Scheduler', `Limite diário atingido (${MAX_POSTS_PER_DAY} posts). Aguardando amanhã.`, { type: 'info' });
         return;
       }
 
       const lastPublished = await getLastPublishedAt();
+      // Videos use 30min interval, others use MIN_INTERVAL_HOURS
+      const effectiveInterval = isVideoPost ? 0.5 : MIN_INTERVAL_HOURS;
       if (lastPublished) {
         const hoursSinceLast = (now.getTime() - lastPublished.getTime()) / (1000 * 60 * 60);
-        if (hoursSinceLast < MIN_INTERVAL_HOURS) {
-          await agentLog('Scheduler', `Intervalo mínimo não atingido. Próximo post em ${(MIN_INTERVAL_HOURS - hoursSinceLast).toFixed(1)}h`, { type: 'info' });
+        if (hoursSinceLast < effectiveInterval) {
+          await agentLog('Scheduler', `Intervalo mínimo não atingido. Próximo post em ${(effectiveInterval - hoursSinceLast).toFixed(1)}h`, { type: 'info' });
           return;
         }
       }
-
-      const post = pendingPosts[0];
 
       // Skip natively scheduled posts (Meta handles them)
       if ((post as any).nativeScheduled) {
@@ -489,8 +497,8 @@ export function startAutonomousContentEngine() {
             ? generated.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ')
             : null;
 
-          // ~30% of posts are video (every 3rd post)
-          const isVideo = i % 3 === 2;
+          // 50% of posts are video (every other post) — video-first strategy
+          const isVideo = i % 2 === 1;
           const postContentType = isVideo ? 'video' : 'organic';
 
           const saved = await prisma.scheduledPost.create({

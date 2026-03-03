@@ -73,13 +73,17 @@ async function runSentinelCheck(): Promise<SentinelReport> {
   }
 
   // 6. Loop detection — higher thresholds, critical agents exempt
-  const CRITICAL_AGENTS = ['Content Governor', 'Scheduler', 'Autonomous Engine', 'System Sentinel', 'Comment Responder'];
+  // VIDEO_PROTECTED: These agents NEVER get paused — video pipeline must never stop
+  const VIDEO_PROTECTED_AGENTS = ['short-video-engine', 'Scheduler', 'Content Governor'];
+  const CRITICAL_AGENTS = ['Content Governor', 'Scheduler', 'Autonomous Engine', 'System Sentinel', 'Comment Responder', 'short-video-engine'];
   const agentCounts = await prisma.agentLog.groupBy({
     by: ['from'],
     where: { createdAt: { gte: thirtyMinAgo } },
     _count: { id: true },
   });
   for (const ac of agentCounts) {
+    // Never pause video-critical agents
+    if (VIDEO_PROTECTED_AGENTS.includes(ac.from)) continue;
     const isCritical = CRITICAL_AGENTS.includes(ac.from);
     const threshold = isCritical ? 500 : 200;
     if (ac._count.id > threshold) {

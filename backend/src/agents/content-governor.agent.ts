@@ -65,7 +65,43 @@ async function evaluatePost(
   post: any,
   ctx: GovernorContext
 ): Promise<GovernorDecision> {
-  // Rule 1: Daily limit
+  const isVideo = post.contentType === 'video';
+
+  // FAST-TRACK: Videos get priority approval — never block video pipeline
+  if (isVideo) {
+    // Only reject videos for extreme quality issues or true duplicates
+    let qualityScore = 8; // videos start with high baseline
+    try {
+      const recentVideos = await prisma.scheduledPost.findMany({
+        where: { status: 'PUBLISHED', contentType: 'video' },
+        orderBy: { publishedAt: 'desc' },
+        take: 5,
+        select: { topic: true },
+      });
+      const recentTopics = recentVideos.map((p) => p.topic).join(', ');
+      const prompt = `Avalie rapidamente este vídeo de 1-10. Só rejeite se for IDÊNTICO a um recente.
+Vídeo: "${post.message.substring(0, 200)}" | Tópico: "${post.topic}"
+Recentes: ${recentTopics || 'nenhum'}
+Retorne APENAS JSON: { "score": 8, "isDuplicate": false }`;
+      const raw = await askGemini(prompt);
+      const match = raw.match(/\{[\s\S]*?\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        qualityScore = Math.max(1, Math.min(10, parsed.score || 8));
+        if (parsed.isDuplicate && qualityScore < 3) {
+          return { decision: 'REJECT', reason: 'Vídeo duplicado exato', qualityScore };
+        }
+      }
+    } catch {}
+
+    return {
+      decision: 'APPROVE',
+      reason: `Video fast-track approved (qualidade: ${qualityScore}/10)`,
+      qualityScore,
+    };
+  }
+
+  // Rule 1: Daily limit (non-video posts only)
   if (ctx.approvedToday >= ctx.maxPerDay) {
     return {
       decision: 'QUEUE_FOR_NEXT_DAY',
@@ -186,10 +222,10 @@ Retorne APENAS JSON: { "score": 7, "isDuplicate": false, "reason": "motivo breve
 }
 
 export async function reviewPendingPosts(): Promise<void> {
-  // Safe mode check — do not approve anything
-  if (await isSafeModeActive()) {
-    await agentLog('Content Governor', 'Safe mode ativo — revisão suspensa', { type: 'info' });
-    return;
+  // Safe mode check — non-video posts suspended, videos still reviewed
+  const safeMode = await isSafeModeActive();
+  if (safeMode) {
+    await agentLog('Content Governor', 'Safe mode ativo — apenas vídeos serão revisados', { type: 'info' });
   }
 
   // 1. Load current strategy
@@ -218,13 +254,13 @@ export async function reviewPendingPosts(): Promise<void> {
   const contentMix = (strategy?.contentMix as any) ?? { organic: 60, product: 40 };
   const bestHours = (strategy?.bestPostingHours as any) ?? ['10:00', '14:00', '18:00'];
 
-  // Phase 2: Anti-spam — weekly limit (max 30 posts/week)
+  // Weekly limit — 100 posts/week (increased for video-first strategy)
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const weeklyApproved = await prisma.scheduledPost.count({
     where: { governorDecision: 'APPROVE', governorReviewedAt: { gte: weekAgo } },
   });
-  if (weeklyApproved >= 50) {
-    await agentLog('Content Governor', `Limite semanal atingido (50 posts/semana). Revisão suspensa.`, { type: 'info' });
+  if (weeklyApproved >= 100) {
+    await agentLog('Content Governor', `Limite semanal atingido (100 posts/semana). Revisão suspensa.`, { type: 'info' });
     return;
   }
 
@@ -247,8 +283,13 @@ export async function reviewPendingPosts(): Promise<void> {
   } catch {}
 
   // 2. Fetch pending posts not yet reviewed
+  const pendingWhere: any = { status: 'PENDING', governorDecision: null };
+  // In safe mode, only review video posts
+  if (safeMode) {
+    pendingWhere.contentType = 'video';
+  }
   const pending = await prisma.scheduledPost.findMany({
-    where: { status: 'PENDING', governorDecision: null },
+    where: pendingWhere,
     orderBy: { scheduledFor: 'asc' },
   });
 
