@@ -18,7 +18,7 @@ import {
   Shield, ShieldAlert, ShieldCheck, Activity, Zap, Clock, Brain, MessageSquare,
   BarChart3, TrendingUp, ShoppingCart, Link, Eye, AlertTriangle, CheckCircle,
   XCircle, Pause, Play, RefreshCw, Radio, ArrowRight, ChevronDown, ChevronUp,
-  Cpu, Flame, Target, Bot, Radar, Layers, Settings, FileText,
+  Cpu, Flame, Target, Bot, Radar, Layers, Settings, FileText, Sparkles, HeartPulse,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
@@ -440,6 +440,123 @@ function AlertsPanel({ systemStatus, totalErrors, engineStatus }: { systemStatus
 }
 
 // ═══════════════════════════════════════════════════════════════
+// STRATEGIC STATE PANEL (Orion Brain)
+// ═══════════════════════════════════════════════════════════════
+function StrategicPanel({ state, onEvaluate, onEvolve }: {
+  state: any;
+  onEvaluate: () => Promise<any>;
+  onEvolve: () => Promise<any>;
+}) {
+  const [evalLoading, setEvalLoading] = useState(false);
+  const [evolveLoading, setEvolveLoading] = useState(false);
+
+  if (!state) return null;
+
+  const healthColor = state.healthScore >= 70 ? 'text-emerald-400' : state.healthScore >= 40 ? 'text-yellow-400' : 'text-red-400';
+  const healthBg = state.healthScore >= 70 ? 'bg-emerald-500/10' : state.healthScore >= 40 ? 'bg-yellow-500/10' : 'bg-red-500/10';
+  const healthBorder = state.healthScore >= 70 ? 'border-emerald-500/20' : state.healthScore >= 40 ? 'border-yellow-500/20' : 'border-red-500/20';
+  const healthGlow = state.healthScore >= 70 ? 'shadow-[0_0_20px_rgba(52,211,153,0.1)]' : state.healthScore >= 40 ? 'shadow-[0_0_20px_rgba(250,204,21,0.1)]' : 'shadow-[0_0_20px_rgba(248,113,113,0.1)]';
+
+  const confidenceConfig: Record<string, { label: string; color: string }> = {
+    LOW: { label: 'Baixa', color: 'text-yellow-400' },
+    MEDIUM: { label: 'Média', color: 'text-blue-400' },
+    HIGH: { label: 'Alta', color: 'text-emerald-400' },
+  };
+  const conf = confidenceConfig[state.confidenceLevel] || confidenceConfig.LOW;
+
+  const classItems = [
+    { key: 'HIGH_PERFORMER', label: 'High Performer', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { key: 'STABLE', label: 'Stable', color: 'text-blue-400', bg: 'bg-blue-500/10' },
+    { key: 'LOW_PERFORMER', label: 'Low Performer', color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
+    { key: 'CRITICAL', label: 'Critical', color: 'text-red-400', bg: 'bg-red-500/10' },
+  ];
+
+  const handleEvaluate = async () => {
+    setEvalLoading(true);
+    try { await onEvaluate(); } finally { setEvalLoading(false); }
+  };
+
+  const handleEvolve = async () => {
+    setEvolveLoading(true);
+    try { await onEvolve(); } finally { setEvolveLoading(false); }
+  };
+
+  return (
+    <div className={`rounded-xl border ${healthBorder} ${healthBg} backdrop-blur-sm ${healthGlow} p-4`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Brain className="w-4 h-4 text-primary-300" />
+          <h2 className="text-sm font-heading font-semibold text-text-primary">Orion Strategic</h2>
+          <Badge variant={state.status === 'STRATEGIC_CYCLE_ACTIVE' ? 'success' : 'warning'} className="text-xs">
+            {state.status === 'STRATEGIC_CYCLE_ACTIVE' ? 'ACTIVE' : 'AWAITING'}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleEvaluate}
+            disabled={evalLoading}
+            className="p-1.5 rounded-lg bg-surface-hover/80 hover:bg-primary/10 text-text-secondary hover:text-primary-300 transition-colors"
+            title="Avaliar sistema"
+          >
+            <HeartPulse className={`w-3.5 h-3.5 ${evalLoading ? 'animate-pulse' : ''}`} />
+          </button>
+          <button
+            onClick={handleEvolve}
+            disabled={evolveLoading}
+            className="p-1.5 rounded-lg bg-surface-hover/80 hover:bg-primary/10 text-text-secondary hover:text-primary-300 transition-colors"
+            title="Evoluir sistema"
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${evolveLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Health Score */}
+      <div className="flex items-center gap-4 mb-4">
+        <div className="text-center">
+          <p className={`text-3xl font-heading font-bold ${healthColor}`}>{state.healthScore ?? '—'}%</p>
+          <p className="text-xs text-text-secondary">Health Score</p>
+        </div>
+        <div className="flex-1 space-y-1.5">
+          <div className="w-full bg-surface-hover/60 rounded-full h-2.5">
+            <div
+              className={`h-2.5 rounded-full transition-all duration-500 ${
+                state.healthScore >= 70 ? 'bg-emerald-400' : state.healthScore >= 40 ? 'bg-yellow-400' : 'bg-red-400'
+              }`}
+              style={{ width: `${state.healthScore ?? 0}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-text-secondary">Confiança: <span className={conf.color}>{conf.label}</span></span>
+            <span className="text-text-secondary">{state.totalAgents} agentes</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Classifications */}
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        {classItems.map((c) => (
+          <div key={c.key} className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg ${c.bg}`}>
+            <span className={`text-xs ${c.color}`}>{c.label}</span>
+            <span className={`text-sm font-bold font-heading ${c.color}`}>{state.classifications?.[c.key] ?? 0}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Last evolution */}
+      {state.lastEvolution && (
+        <div className="text-xs text-text-secondary border-t border-border/30 pt-2 mt-2">
+          Última avaliação: {new Date(state.lastEvolution).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+          {state.evolutionActions?.length > 0 && (
+            <span className="ml-2 text-primary-300">{state.evolutionActions.length} ações de evolução</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // MAIN COMMAND CENTER PAGE
 // ═══════════════════════════════════════════════════════════════
 export default function CommandCenterPage() {
@@ -449,6 +566,7 @@ export default function CommandCenterPage() {
     totalErrors, runningAgents, totalAgents, globalStatus,
     scheduledPosts, brandConfig, campaigns, tokenStatus, performance, strategy,
     saveBrand, saveStrategy,
+    strategicState, runStrategicEvaluate, runStrategicEvolve,
   } = useCommandCenter();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -585,6 +703,7 @@ export default function CommandCenterPage() {
                 </div>
                 <TodayTimeline posts={engineStatus?.todayPosts || []} />
               </div>
+              <StrategicPanel state={strategicState} onEvaluate={runStrategicEvaluate} onEvolve={runStrategicEvolve} />
               <AlertsPanel systemStatus={systemStatus} totalErrors={totalErrors} engineStatus={engineStatus} />
               <TokenHealth tokenStatus={tokenStatus} />
             </div>

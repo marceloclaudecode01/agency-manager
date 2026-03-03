@@ -63,10 +63,11 @@ export function useCommandCenter() {
   const [tokenStatus, setTokenStatus] = useState<any>(null);
   const [performance, setPerformance] = useState<any>(null);
   const [strategy, setStrategy] = useState<any>(null);
+  const [strategicState, setStrategicState] = useState<any>(null);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [statusRes, engineRes, logsRes, metricsRes, scheduledRes, brandRes, campaignsRes, tokenRes, perfRes, strategyRes] = await Promise.allSettled([
+      const [statusRes, engineRes, logsRes, metricsRes, scheduledRes, brandRes, campaignsRes, tokenRes, perfRes, strategyRes, strategicRes] = await Promise.allSettled([
         api.get('/agents/status'),
         api.get('/agents/engine/status'),
         api.get('/agents/logs?limit=200'),
@@ -77,6 +78,7 @@ export function useCommandCenter() {
         api.get('/agents/token/status'),
         api.get('/agents/performance'),
         api.get('/agents/strategy'),
+        api.get('/agents/orion/strategic-state'),
       ]);
 
       if (statusRes.status === 'fulfilled') setSystemStatus(statusRes.value.data.data);
@@ -93,6 +95,7 @@ export function useCommandCenter() {
       if (tokenRes.status === 'fulfilled') setTokenStatus(tokenRes.value.data.data || null);
       if (perfRes.status === 'fulfilled') setPerformance(perfRes.value.data.data || null);
       if (strategyRes.status === 'fulfilled') setStrategy(strategyRes.value.data.data || null);
+      if (strategicRes.status === 'fulfilled') setStrategicState(strategicRes.value.data.data || null);
 
       setError(null);
     } catch (err: any) {
@@ -151,6 +154,18 @@ export function useCommandCenter() {
     await fetchAll();
   }, [fetchAll]);
 
+  const runStrategicEvaluate = useCallback(async () => {
+    const res = await api.post('/agents/orion/evaluate');
+    await fetchAll();
+    return res.data.data;
+  }, [fetchAll]);
+
+  const runStrategicEvolve = useCallback(async () => {
+    const res = await api.post('/agents/orion/evolve');
+    await fetchAll();
+    return res.data.data;
+  }, [fetchAll]);
+
   // Derived data
   const totalErrors = systemStatus?.errorCounts.reduce((sum, e) => sum + e._count.id, 0) || 0;
   const runningAgents = systemStatus?.agents.filter(a => a.status === 'running').length || 0;
@@ -186,5 +201,8 @@ export function useCommandCenter() {
     strategy,
     saveBrand,
     saveStrategy,
+    strategicState,
+    runStrategicEvaluate,
+    runStrategicEvolve,
   };
 }
