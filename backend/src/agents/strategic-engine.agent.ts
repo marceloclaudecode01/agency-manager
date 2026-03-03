@@ -59,8 +59,8 @@ export async function evaluateSystem(): Promise<{
 
     totalExecutions += totalExecs;
 
-    // Patch: always classify — minimumExecutionsRequired=1, neverAbortOnLowData
-    const classification = classify(successRate, impactScore);
+    // Agents with 0 executions = no data, default to STABLE (not penalized)
+    const classification = totalExecs === 0 ? 'STABLE' : classify(successRate, impactScore);
     classCount[classification]++;
 
     // Upsert performance record with classification
