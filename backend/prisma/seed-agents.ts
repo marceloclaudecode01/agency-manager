@@ -64,6 +64,14 @@ async function main() {
       },
     });
   }
+  // Remove orphaned agents not in current AGENTS list
+  const validNames = AGENTS.map(a => a.name);
+  const deleted = await prisma.agent.deleteMany({
+    where: { name: { notIn: validNames } },
+  });
+  if (deleted.count > 0) {
+    console.log(`${deleted.count} orphaned agents removed.`);
+  }
   console.log(`${AGENTS.length} agents seeded.`);
 }
 
