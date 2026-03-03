@@ -139,32 +139,101 @@ Regras:
 
 export async function getOrionResponse(userMessage: string, history: ChatMessage[]): Promise<{ response: string; commandResult?: CommandResult }> {
   // Try to execute a command first
-  const commandResult = await executeCommand(userMessage);
+  let commandResult: CommandResult | null = null;
+  try {
+    commandResult = await executeCommand(userMessage);
+  } catch (cmdErr: any) {
+    console.error('[AI Chat] Command execution error:', cmdErr.message);
+  }
 
+  // Gather context (never fails — all queries use Promise.allSettled)
   const [ctx, agentCount] = await Promise.all([gatherAgencyContext(), getAgentCount()]);
-  const systemPrompt = buildSystemPrompt(ctx, agentCount);
 
-  const conversationContext = history
-    .slice(-10)
-    .map((msg) => `${msg.role === 'user' ? 'Usuário' : 'Orion'}: ${msg.content}`)
-    .join('\n');
+  // If command was executed and we can't reach LLM, return command result directly
+  let response: string;
+  try {
+    const systemPrompt = buildSystemPrompt(ctx, agentCount);
 
-  const commandContext = commandResult
-    ? `\n\n[COMANDO EXECUTADO]: ${commandResult.command} → ${commandResult.success ? 'SUCESSO' : 'FALHA'}: ${commandResult.message}${commandResult.data ? `\nDados: ${JSON.stringify(commandResult.data)}` : ''}\nNarre o resultado ao usuário de forma natural.`
-    : '';
+    const conversationContext = history
+      .slice(-10)
+      .map((msg) => `${msg.role === 'user' ? 'Usuário' : 'Orion'}: ${msg.content}`)
+      .join('\n');
 
-  const prompt = `${systemPrompt}
+    const commandContext = commandResult
+      ? `\n\n[COMANDO EXECUTADO]: ${commandResult.command} → ${commandResult.success ? 'SUCESSO' : 'FALHA'}: ${commandResult.message}${commandResult.data ? `\nDados: ${JSON.stringify(commandResult.data)}` : ''}\nNarre o resultado ao usuário de forma natural.`
+      : '';
+
+    const prompt = `${systemPrompt}
 ${COMMAND_LIST}
 ${conversationContext ? `\nHistórico recente:\n${conversationContext}\n` : ''}
 Usuário: ${userMessage}${commandContext}
 
 Orion:`;
 
-  const response = await askGemini(prompt);
+    response = await askGemini(prompt);
+    if (!response) throw new Error('Empty response');
+  } catch (llmErr: any) {
+    console.error('[AI Chat] LLM error:', llmErr.message);
+
+    // Fallback: respond with real data even without LLM
+    if (commandResult) {
+      response = commandResult.success
+        ? `✅ Comando executado: ${commandResult.message}`
+        : `❌ Falha no comando: ${commandResult.message}`;
+    } else {
+      // Build a data-driven fallback response
+      response = buildFallbackResponse(userMessage, ctx, agentCount);
+    }
+  }
+
   return {
-    response: response || 'Desculpe, não consegui processar sua mensagem. Tente novamente.',
+    response,
     commandResult: commandResult || undefined,
   };
+}
+
+function buildFallbackResponse(question: string, ctx: any, agentCount: number): string {
+  const q = question.toLowerCase();
+  const totalLeads = (ctx.leadsByStage as any[]).reduce((s: number, g: any) => s + (g._count || 0), 0);
+
+  // Try to answer common questions with real data
+  if (q.includes('status') || q.includes('como está') || q.includes('geral')) {
+    return `📊 **Status da Agência (dados reais)**\n\n` +
+      `• Agentes ativos: ${agentCount}\n` +
+      `• Posts publicados hoje: ${ctx.postsPublishedToday}\n` +
+      `• Posts pendentes: ${ctx.postsPending}\n` +
+      `• Leads: ${totalLeads}\n` +
+      `• Safe Mode: ${ctx.safeMode}\n` +
+      `• Ações dos agentes (24h): ${ctx.agentActions24h}\n\n` +
+      `⚠️ Estou com dificuldade de me conectar à IA. Mostrando dados brutos.`;
+  }
+
+  if (q.includes('lead') || q.includes('funil') || q.includes('venda')) {
+    return `📈 **Leads & Funil**\n\n` +
+      `• Total de leads: ${totalLeads}\n` +
+      `• Funis ativos: ${ctx.activeFunnels}\n` +
+      `• Revenue total: R$ ${ctx.totalRevenue}\n\n` +
+      `⚠️ Resposta com dados reais (IA temporariamente indisponível).`;
+  }
+
+  if (q.includes('post') || q.includes('conteúdo') || q.includes('publicação')) {
+    return `📝 **Posts & Conteúdo**\n\n` +
+      `• Publicados hoje: ${ctx.postsPublishedToday}\n` +
+      `• Pendentes: ${ctx.postsPending}\n` +
+      `• Aprovados pelo Governor: ${ctx.postsGovernorApproved}\n\n` +
+      `⚠️ Resposta com dados reais (IA temporariamente indisponível).`;
+  }
+
+  // Generic fallback with all data
+  return `📊 **Dados da Agência em Tempo Real**\n\n` +
+    `• ${agentCount} agentes ativos\n` +
+    `• ${ctx.postsPublishedToday} posts hoje | ${ctx.postsPending} pendentes\n` +
+    `• ${totalLeads} leads | ${ctx.activeFunnels} funis\n` +
+    `• ${ctx.activeAdCampaigns} campanhas ads (R$ ${ctx.totalAdBudget})\n` +
+    `• Safe Mode: ${ctx.safeMode}\n\n` +
+    `⚠️ A IA está temporariamente indisponível. Mostrando dados reais do banco.\n` +
+    `Possíveis causas: limite de API atingido ou chave GROQ_API_KEY não configurada.\n` +
+    `Tente novamente em alguns segundos.`;
 }
 
 export async function getAgentInventory() {

@@ -19,7 +19,11 @@ export async function sendMessage(req: AuthRequest, res: Response) {
     }, 'Resposta gerada com sucesso');
   } catch (error: any) {
     console.error('[AI Chat] Error:', error.message);
-    return ApiResponse.error(res, 'Erro ao gerar resposta do Orion');
+    // Return a user-friendly response instead of 500
+    return ApiResponse.success(res, {
+      response: `⚠️ Erro temporário: ${error.message?.includes('GROQ_API_KEY') ? 'Chave de API não configurada. Configure GROQ_API_KEY nas variáveis de ambiente do Railway.' : 'Não consegui processar sua mensagem. Tente novamente em alguns segundos.'}`,
+      commandExecuted: null,
+    }, 'Fallback response');
   }
 }
 
