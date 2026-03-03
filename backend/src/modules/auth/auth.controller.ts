@@ -60,8 +60,10 @@ export class AuthController {
     if (refreshToken) {
       authService.invalidateRefreshToken(refreshToken);
     }
-    res.clearCookie('token', { ...ACCESS_COOKIE_OPTIONS });
-    res.clearCookie('refresh_token', { ...REFRESH_COOKIE_OPTIONS });
+    const { maxAge: _a, ...accessClear } = ACCESS_COOKIE_OPTIONS;
+    const { maxAge: _r, ...refreshClear } = REFRESH_COOKIE_OPTIONS;
+    res.clearCookie('token', accessClear);
+    res.clearCookie('refresh_token', refreshClear);
     return ApiResponse.success(res, null, 'Logged out successfully');
   }
 
