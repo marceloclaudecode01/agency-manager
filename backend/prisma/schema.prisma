@@ -626,6 +626,7 @@ model AgentPerformance {
 model StrategicReport {
   id              String   @id @default(cuid())
   healthScore     Float    @default(0) // 0-100
+  confidenceLevel String   @default("LOW") // LOW | MEDIUM | HIGH
   totalAgents     Int      @default(0)
   classifications Json     // { HIGH_PERFORMER: n, STABLE: n, LOW_PERFORMER: n, CRITICAL: n }
   agentDetails    Json     // array of { name, classification, successRate, autonomyLevel }

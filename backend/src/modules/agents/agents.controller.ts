@@ -793,9 +793,11 @@ Retorne APENAS JSON válido:
         totalAgents,
         classifications,
         healthScore: lastReport?.healthScore ?? null,
+        confidenceLevel: lastReport?.confidenceLevel ?? null,
         lastEvolution: lastReport?.createdAt ?? null,
         evolutionActions: lastReport?.evolutionActions ?? null,
         nextScheduled: { strategicEngine: '0 */6 * * *', evolutionEngine: '0 */12 * * *' },
+        status: lastReport ? 'STRATEGIC_CYCLE_ACTIVE' : 'AWAITING_FIRST_EVALUATION',
       }, 'Strategic state');
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);
