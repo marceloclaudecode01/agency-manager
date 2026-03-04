@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { SocialService } from './social.service';
 import { ApiResponse } from '../../utils/api-response';
 import { AuthRequest } from '../../types';
+import prisma from '../../config/database';
 
 const socialService = new SocialService();
 
@@ -88,6 +89,70 @@ export class SocialController {
       return ApiResponse.success(res, data);
     } catch (error: any) {
       return ApiResponse.error(res, error.message || 'Failed to get comments', error.statusCode || 500);
+    }
+  }
+
+  // Multi-page: list clients with Facebook pages configured
+  async getPageClients(req: Request, res: Response) {
+    try {
+      const clients = await prisma.client.findMany({
+        where: { facebookPageId: { not: null }, isActive: true },
+        select: { id: true, name: true, facebookPageId: true, facebookPageName: true, niche: true, company: true },
+        orderBy: { name: 'asc' },
+      });
+      return ApiResponse.success(res, clients);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message || 'Failed to fetch page clients', 500);
+    }
+  }
+
+  // Multi-page: get page info for a specific client
+  async getClientPageInfo(req: Request, res: Response) {
+    try {
+      const clientId = req.params['clientId'] as string;
+      const client = await prisma.client.findUnique({
+        where: { id: clientId },
+        select: { facebookPageId: true, facebookAccessToken: true, name: true },
+      });
+      if (!client?.facebookPageId || !client?.facebookAccessToken) {
+        return ApiResponse.error(res, 'Client has no Facebook page configured', 404);
+      }
+      const clientService = new SocialService({
+        pageId: client.facebookPageId,
+        accessToken: client.facebookAccessToken,
+      });
+      const data = await clientService.getPageInfo();
+      return ApiResponse.success(res, data);
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message || 'Failed to get client page info', error.statusCode || 500);
+    }
+  }
+
+  // Multi-page: publish post to a specific client's page
+  async publishClientPost(req: Request, res: Response) {
+    try {
+      const clientId = req.params['clientId'] as string;
+      const client = await prisma.client.findUnique({
+        where: { id: clientId },
+        select: { facebookPageId: true, facebookAccessToken: true, name: true },
+      });
+      if (!client?.facebookPageId || !client?.facebookAccessToken) {
+        return ApiResponse.error(res, 'Client has no Facebook page configured', 404);
+      }
+      const clientService = new SocialService({
+        pageId: client.facebookPageId,
+        accessToken: client.facebookAccessToken,
+      });
+      const { message, imageUrl, mediaUrl, mediaType, linkUrl, scheduledTime } = req.body;
+      const finalMediaUrl = mediaUrl || imageUrl || null;
+
+      const data = finalMediaUrl
+        ? await clientService.publishMediaPost(message, finalMediaUrl, { mediaType, linkUrl, scheduledTime })
+        : await clientService.publishPost(message, { linkUrl, scheduledTime });
+
+      return ApiResponse.created(res, data, scheduledTime ? 'Post scheduled successfully' : 'Post published successfully');
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message || 'Failed to publish post to client page', error.statusCode || 500);
     }
   }
 }

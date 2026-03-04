@@ -7,6 +7,11 @@ export const createClientSchema = z.object({
   company: z.string().optional().nullable(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'LEAD']).optional(),
   notes: z.string().optional().nullable(),
+  facebookPageId: z.string().optional().nullable(),
+  facebookAccessToken: z.string().optional().nullable(),
+  facebookPageName: z.string().optional().nullable(),
+  niche: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
 });
 
 export const updateClientSchema = createClientSchema.partial();

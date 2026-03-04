@@ -115,7 +115,17 @@ export default function SocialPage() {
   // Token status
   const [tokenStatus, setTokenStatus] = useState<any>(null);
 
-  useEffect(() => { loadSocial(); }, []);
+  // Multi-page: client selector
+  const [pageClients, setPageClients] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>('default');
+
+  useEffect(() => {
+    api.get('/social/clients').then(res => {
+      setPageClients(res.data.data || []);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => { loadSocial(); }, [selectedClientId]);
   useEffect(() => {
     if (activeTab === 'agents') { loadAgents(); loadTokenStatus(); }
     if (activeTab === 'performance' && !performanceData) { loadPerformance(); }
@@ -144,17 +154,27 @@ export default function SocialPage() {
   const loadSocial = async () => {
     setLoading(true);
     try {
-      const connRes = await api.get('/social/connection');
-      if (!connRes.data.data.connected) { setConnected(false); return; }
-      setConnected(true);
-      const [infoRes, insightsRes, postsRes] = await Promise.all([
-        api.get('/social/page'),
-        api.get('/social/insights?period=month'),
-        api.get('/social/posts?limit=6'),
-      ]);
-      setPageInfo(infoRes.data.data);
-      setInsights(insightsRes.data.data);
-      setPosts(postsRes.data.data || []);
+      if (selectedClientId !== 'default') {
+        // Multi-page: load specific client's page
+        const infoRes = await api.get(`/social/clients/${selectedClientId}/page`);
+        setConnected(true);
+        setPageInfo(infoRes.data.data);
+        setInsights(null); // Insights not available per-client yet
+        setPosts([]);
+      } else {
+        // Default page (env vars)
+        const connRes = await api.get('/social/connection');
+        if (!connRes.data.data.connected) { setConnected(false); return; }
+        setConnected(true);
+        const [infoRes, insightsRes, postsRes] = await Promise.all([
+          api.get('/social/page'),
+          api.get('/social/insights?period=month'),
+          api.get('/social/posts?limit=6'),
+        ]);
+        setPageInfo(infoRes.data.data);
+        setInsights(insightsRes.data.data);
+        setPosts(postsRes.data.data || []);
+      }
     } catch {
       toast('Erro ao carregar dados do Facebook', 'error');
     } finally {
@@ -526,6 +546,26 @@ export default function SocialPage() {
 
   return (
     <div className="space-y-6">
+      {/* Client Page Selector (multi-page) */}
+      {pageClients.length > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-surface rounded-xl border border-border">
+          <Facebook size={18} className="text-blue-500" />
+          <span className="text-sm font-medium text-text-secondary">Página:</span>
+          <select
+            value={selectedClientId}
+            onChange={(e) => setSelectedClientId(e.target.value)}
+            className="bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          >
+            <option value="default">Página Principal (env)</option>
+            {pageClients.map((c: any) => (
+              <option key={c.id} value={c.id}>
+                {c.facebookPageName || c.name} {c.niche ? `(${c.niche})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Platform Selector */}
       <div className="flex gap-3 flex-wrap">
         {PLATFORMS.map((p) => {

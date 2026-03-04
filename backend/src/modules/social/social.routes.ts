@@ -33,4 +33,13 @@ router.delete('/posts/:postId', requireRole('ADMIN'), (req, res) => controller.d
 // Comentários de um post
 router.get('/posts/:postId/comments', (req, res) => controller.getPostComments(req, res));
 
+// Multi-page: list clients with Facebook pages
+router.get('/clients', (req, res) => controller.getPageClients(req, res));
+
+// Multi-page: get specific client page info
+router.get('/clients/:clientId/page', (req, res) => controller.getClientPageInfo(req as any, res));
+
+// Multi-page: publish post to specific client's page
+router.post('/clients/:clientId/posts', requireRole('ADMIN', 'MANAGER'), validate(publishPostSchema), (req, res) => controller.publishClientPost(req as any, res));
+
 export default router;
