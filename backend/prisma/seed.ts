@@ -16,7 +16,7 @@ async function main() {
   }
 
   // Admin user
-  const adminPassword = await bcrypt.hash(seedAdminPw, 10);
+  const adminPassword = await bcrypt.hash(seedAdminPw, 12);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@agency.com' },
     update: {},
@@ -29,7 +29,7 @@ async function main() {
   });
 
   // Manager user
-  const managerPassword = await bcrypt.hash(seedManagerPw, 10);
+  const managerPassword = await bcrypt.hash(seedManagerPw, 12);
   const manager = await prisma.user.upsert({
     where: { email: 'manager@agency.com' },
     update: {},
@@ -42,7 +42,7 @@ async function main() {
   });
 
   // Member user
-  const memberPassword = await bcrypt.hash(seedMemberPw, 10);
+  const memberPassword = await bcrypt.hash(seedMemberPw, 12);
   const member = await prisma.user.upsert({
     where: { email: 'member@agency.com' },
     update: {},

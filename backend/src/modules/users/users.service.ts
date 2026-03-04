@@ -42,7 +42,7 @@ export class UsersService {
       throw { statusCode: 403, message: 'Only admins can create admin users' };
     }
 
-    const hashedPassword = await bcrypt.hash(data.password, 10);
+    const hashedPassword = await bcrypt.hash(data.password, 12);
 
     return prisma.user.create({
       data: {
@@ -91,6 +91,7 @@ export class UsersService {
     if (user.role === 'ADMIN' && requesterRole !== 'ADMIN') {
       throw { statusCode: 403, message: 'Only admins can delete other admins' };
     }
-    return prisma.user.delete({ where: { id } });
+    await prisma.user.delete({ where: { id } });
+    return { success: true };
   }
 }

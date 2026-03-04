@@ -48,8 +48,10 @@ export class AuthController {
       res.cookie('refresh_token', result.refreshToken, REFRESH_COOKIE_OPTIONS);
       return ApiResponse.success(res, { user: result.user }, 'Login successful');
     } catch (error: unknown) {
-      if (error instanceof Object && 'statusCode' in error && (error as any).statusCode === 401) {
-        return ApiResponse.unauthorized(res, error instanceof Error ? error.message : (error as any).message);
+      if (error instanceof Object && 'statusCode' in error) {
+        const status = (error as any).statusCode;
+        if (status === 401) return ApiResponse.unauthorized(res, (error as any).message);
+        if (status === 429) return ApiResponse.error(res, (error as any).message, 429);
       }
       return ApiResponse.error(res, 'Failed to login');
     }
@@ -74,12 +76,16 @@ export class AuthController {
     }
 
     try {
-      const newAccessToken = await authService.refreshAccessToken(refreshToken);
-      res.cookie('token', newAccessToken, ACCESS_COOKIE_OPTIONS);
+      const result = await authService.refreshAccessToken(refreshToken);
+      // Token rotation: set new access + refresh tokens
+      res.cookie('token', result.accessToken, ACCESS_COOKIE_OPTIONS);
+      res.cookie('refresh_token', result.refreshToken, REFRESH_COOKIE_OPTIONS);
       return ApiResponse.success(res, null, 'Token refreshed successfully');
     } catch (error: unknown) {
-      if (error instanceof Object && 'statusCode' in error && (error as any).statusCode === 401) {
-        return ApiResponse.unauthorized(res, error instanceof Error ? error.message : (error as any).message);
+      if (error instanceof Object && 'statusCode' in error) {
+        const status = (error as any).statusCode;
+        if (status === 401) return ApiResponse.unauthorized(res, (error as any).message);
+        if (status === 429) return ApiResponse.error(res, (error as any).message, 429);
       }
       return ApiResponse.error(res, 'Failed to refresh token');
     }

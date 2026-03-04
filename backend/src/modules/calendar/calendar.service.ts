@@ -51,9 +51,12 @@ export class CalendarService {
     });
   }
 
-  async update(id: string, data: any) {
+  async update(id: string, data: any, userId: string, userRole: string) {
     const event = await prisma.calendarEvent.findUnique({ where: { id } });
     if (!event) throw { statusCode: 404, message: 'Event not found' };
+    if (event.userId !== userId && !['ADMIN', 'MANAGER'].includes(userRole)) {
+      throw { statusCode: 403, message: 'You can only edit your own events' };
+    }
 
     const processedData = { ...data };
     if (data.date) processedData.date = new Date(data.date);
@@ -69,9 +72,12 @@ export class CalendarService {
     });
   }
 
-  async delete(id: string) {
+  async delete(id: string, userId: string, userRole: string) {
     const event = await prisma.calendarEvent.findUnique({ where: { id } });
     if (!event) throw { statusCode: 404, message: 'Event not found' };
+    if (event.userId !== userId && !['ADMIN', 'MANAGER'].includes(userRole)) {
+      throw { statusCode: 403, message: 'You can only delete your own events' };
+    }
     return prisma.calendarEvent.delete({ where: { id } });
   }
 }

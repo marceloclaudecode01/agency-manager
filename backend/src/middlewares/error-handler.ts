@@ -1,7 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 
 export function errorHandler(err: any, _req: Request, res: Response, _next: NextFunction) {
-  console.error('Error:', err);
+  if (process.env.NODE_ENV === 'production') {
+    console.error('Error:', err.message || err);
+  } else {
+    console.error('Error:', err);
+  }
 
   if (err.code === 'P2002') {
     return res.status(409).json({

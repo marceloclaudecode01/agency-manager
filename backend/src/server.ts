@@ -112,9 +112,17 @@ export const io = new Server(httpServer, {
   },
 });
 
-// Socket.io auth middleware
+// Socket.io auth middleware — reads from cookie (primary) or handshake.auth (fallback)
 io.use((socket, next) => {
-  const token = socket.handshake.auth.token;
+  // Parse cookies from handshake headers
+  const cookieHeader = socket.handshake.headers.cookie || '';
+  const cookies: Record<string, string> = {};
+  cookieHeader.split(';').forEach(c => {
+    const [key, ...val] = c.trim().split('=');
+    if (key) cookies[key] = val.join('=');
+  });
+
+  const token = cookies['token'] || socket.handshake.auth?.token;
   if (!token) return next(new Error('Unauthorized'));
   try {
     const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as any;

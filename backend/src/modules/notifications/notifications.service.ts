@@ -10,6 +10,10 @@ class NotificationsService {
   }
 
   async markAsRead(id: string, userId: string) {
+    const notif = await prisma.notification.findUnique({ where: { id } });
+    if (!notif || notif.userId !== userId) {
+      throw { statusCode: 404, message: 'Notification not found' };
+    }
     return prisma.notification.update({
       where: { id },
       data: { read: true },
