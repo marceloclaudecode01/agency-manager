@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import prisma from '../config/database';
 import { SocialService, PageCredentials } from '../modules/social/social.service';
-import { generateCommentReply, CommentClientContext } from './comment-responder.agent';
+import { generateCommentReply, CommentClientContext, sortByPriority } from './comment-responder.agent';
 import { analyzeMetrics } from './metrics-analyzer.agent';
 import { generateImageForPost } from './image-generator.agent';
 import { notificationsService } from '../modules/notifications/notifications.service';
@@ -27,6 +27,9 @@ import { startNicheLearningAgent } from './niche-learning.agent';
 import { startStrategicEngine } from './strategic-engine.agent';
 import { startEvolutionEngine } from './evolution-engine.agent';
 import { startShortVideoEngine } from './short-video-engine.agent';
+import { startGrowthAnalyst } from './growth-analyst.agent';
+import { generateCarouselFromStructure, shouldGenerateCarousel } from './carousel-generator.agent';
+import { optimizeForPlatform } from './platform-optimizer.agent';
 
 // Default social service (env vars) — used for backward compat
 const socialService = new SocialService();
@@ -74,9 +77,48 @@ async function getLastPublishedAt(): Promise<Date | null> {
   return last?.publishedAt || null;
 }
 
-// Roda a cada 15 minutos: verifica posts agendados para publicar
+// Check if current time is within ideal posting window (±30min of bestPostingHours)
+async function isInIdealPostingWindow(): Promise<{ inWindow: boolean; nextWindowMinutes: number }> {
+  try {
+    const growthConfig = await prisma.systemConfig.findUnique({ where: { key: 'growth_insights' } });
+    if (!growthConfig?.value) return { inWindow: true, nextWindowMinutes: 0 }; // No data = always publish
+
+    const gi = growthConfig.value as any;
+    const bestHours = gi.bestPostingHours as string[] | undefined;
+    if (!bestHours || bestHours.length === 0) return { inWindow: true, nextWindowMinutes: 0 };
+
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const windowSize = 30; // ±30 minutes
+
+    for (const timeStr of bestHours) {
+      const [h, m] = timeStr.split(':').map(Number);
+      if (isNaN(h)) continue;
+      const targetMinutes = h * 60 + (m || 0);
+      if (Math.abs(nowMinutes - targetMinutes) <= windowSize) {
+        return { inWindow: true, nextWindowMinutes: 0 };
+      }
+    }
+
+    // Find next window
+    const sorted = bestHours.map(t => { const [h, m] = t.split(':').map(Number); return h * 60 + (m || 0); }).sort((a, b) => a - b);
+    let nextWindow = 0;
+    for (const target of sorted) {
+      if (target - windowSize > nowMinutes) {
+        nextWindow = target - windowSize - nowMinutes;
+        break;
+      }
+    }
+
+    return { inWindow: false, nextWindowMinutes: nextWindow };
+  } catch {
+    return { inWindow: true, nextWindowMinutes: 0 }; // On error, allow publishing
+  }
+}
+
+// Roda a cada 5 minutos: verifica posts agendados para publicar
 export function startPostScheduler() {
-  cron.schedule('*/15 * * * *', async () => {
+  cron.schedule('*/5 * * * *', async () => {
     await trackAgentExecution('post-scheduler', async () => {
     let pendingPosts: Awaited<ReturnType<typeof prisma.scheduledPost.findMany>> = [];
     try {
@@ -136,6 +178,19 @@ export function startPostScheduler() {
           // Silent — only console log, avoid DB spam every 5min
           console.log(`[Scheduler] Intervalo mínimo: próximo post em ${(effectiveInterval - hoursSinceLast).toFixed(1)}h`);
           return;
+        }
+      }
+
+      // Ideal posting window check — only delay if post is not overdue by >1h
+      if (!isVideoPost) {
+        const postAge = now.getTime() - post.scheduledFor.getTime();
+        const oneHourMs = 60 * 60 * 1000;
+        if (postAge < oneHourMs) { // Post is not overdue by >1h
+          const windowCheck = await isInIdealPostingWindow();
+          if (!windowCheck.inWindow && windowCheck.nextWindowMinutes > 0) {
+            console.log(`[Scheduler] Aguardando janela ideal (próxima em ${windowCheck.nextWindowMinutes}min)`);
+            return;
+          }
         }
       }
 
@@ -230,7 +285,7 @@ export function startPostScheduler() {
     }); // trackAgentExecution
   });
 
-  console.log('[Scheduler] Post scheduler iniciado (verificação a cada 15 minutos)');
+  console.log('[Scheduler] Post scheduler iniciado (verificação a cada 5 minutos + janelas ideais)');
 }
 
 // Palavras-chave que indicam interesse em comprar
@@ -290,7 +345,10 @@ async function processCommentsForPage(
       (c) => c.fbPostId === post.id || (post.message && c.generatedCopy && post.message.includes(c.generatedCopy.substring(0, 50)))
     );
 
-    for (const comment of comments) {
+    // Sort by priority: BUY_INTENT → DOUBT → COMMON → CRITICISM
+    const sortedComments = sortByPriority(comments);
+
+    for (const comment of sortedComments) {
       const alreadyReplied = await prisma.commentLog.findFirst({ where: { commentId: comment.id } });
       if (alreadyReplied) continue;
 
@@ -440,6 +498,9 @@ export function startMetricsAnalyzer() {
           recommendations: report.recommendations,
           bestPostingTimes: report.bestPostingTimes,
           growthScore: report.growthScore,
+          engagementScore: report.engagementScore || null,
+          commercialScore: report.commercialScore || null,
+          riskScore: report.riskScore || null,
           rawData: { pageInfo, insights },
         },
       });
@@ -535,18 +596,40 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
       try {
         await agentLog('Autonomous Engine', `${label} Aplicando Viral Mechanics em "${topic}"...`, { type: 'communication', to: 'Viral Mechanics' });
         const enhanced = await enhanceWithViralMechanics(generated.message, topic, focusType);
-        if (enhanced.viralScore > 5) {
-          generated.message = enhanced.enhancedMessage;
-          viralScore = enhanced.viralScore;
-          viralEnhancements = {
-            techniques: enhanced.appliedTechniques,
-            hookType: enhanced.hookType,
-            emotionalTrigger: enhanced.emotionalTrigger,
-          };
-          await agentLog('Viral Mechanics', `${label} Post enhanced: score ${enhanced.viralScore}/10, hook: ${enhanced.hookType}`, { type: 'result', to: 'Autonomous Engine' });
-        }
+        // Always apply viral mechanics — all 5 layers are mandatory
+        generated.message = enhanced.enhancedMessage;
+        viralScore = enhanced.viralScore;
+        viralEnhancements = {
+          techniques: enhanced.appliedTechniques,
+          hookType: enhanced.hookType,
+          emotionalTrigger: enhanced.emotionalTrigger,
+        };
+        await agentLog('Viral Mechanics', `${label} Post enhanced: score ${enhanced.viralScore}/10, hook: ${enhanced.hookType}`, { type: 'result', to: 'Autonomous Engine' });
       } catch (viralErr: any) {
         await agentLog('Viral Mechanics', `${label} ⚠️ Enhancement falhou: ${viralErr.message}`, { type: 'error' });
+      }
+
+      // Platform Optimizer: adjust post for Facebook rules
+      try {
+        const optimized = optimizeForPlatform(generated.message, generated.hashtags || [], 'facebook');
+        generated.message = optimized.message;
+        generated.hashtags = optimized.hashtags;
+        if (optimized.adjustments.length > 0 && optimized.adjustments[0] !== 'Nenhum ajuste necessário') {
+          await agentLog('Platform Optimizer', `${label} Ajustes: ${optimized.adjustments.join(', ')}`, { type: 'info' });
+        }
+      } catch (optErr: any) {
+        await agentLog('Platform Optimizer', `${label} ⚠️ Falha: ${optErr.message}`, { type: 'error' });
+      }
+
+      // Carousel Generator: auto-generate carousel for autoridade/educativo posts
+      let carouselData: any = null;
+      if (generated.structure && shouldGenerateCarousel(generated.contentCategory, generated.structure)) {
+        try {
+          carouselData = generateCarouselFromStructure(generated.structure, topic);
+          await agentLog('Carousel Generator', `${label} Carrossel gerado: ${carouselData.slideCount} slides para "${topic}"`, { type: 'result' });
+        } catch (carErr: any) {
+          await agentLog('Carousel Generator', `${label} ⚠️ Falha: ${carErr.message}`, { type: 'error' });
+        }
       }
 
       // Generate image for every post
@@ -584,6 +667,7 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
           scheduledFor,
           viralScore,
           viralEnhancements,
+          ...(carouselData ? { carouselData } : {}),
           ...(clientCtx ? { clientId: clientCtx.clientId } : {}),
         },
       });
@@ -609,6 +693,8 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
               topic: generated.topic || topic,
               contentType: postContentType,
               scheduledFor,
+              viralScore,
+              message: generated.message,
             });
           }
         } catch (abErr: any) {
@@ -625,7 +711,7 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
 
 // Motor autônomo: roda todo dia às 07:00 e agenda posts do dia PARA CADA CLIENT ATIVO
 export function startAutonomousContentEngine() {
-  cron.schedule('0 7 * * *', async () => {
+  cron.schedule('5 7 * * *', async () => {
     await trackAgentExecution('content-engine', async () => {
     await agentLog('Autonomous Engine', '🚀 Iniciando ciclo autônomo MULTI-PAGE de conteúdo do dia...', { type: 'action' });
     try {
@@ -692,7 +778,7 @@ export function startAutonomousContentEngine() {
     }); // trackAgentExecution
   });
 
-  console.log('[Engine] Motor autônomo MULTI-PAGE iniciado (roda todo dia às 07:00)');
+  console.log('[Engine] Motor autônomo MULTI-PAGE iniciado (roda todo dia às 07:05)');
 }
 
 // Roda toda segunda-feira às 6h: analisa tendências e notifica admins
@@ -795,6 +881,7 @@ const AGENT_FUNCTION_MAP: Record<string, () => void> = {
   'strategic-engine': startStrategicEngine,
   'evolution-engine': startEvolutionEngine,
   'short-video-engine': startShortVideoEngine,
+  'growth-analyst': startGrowthAnalyst,
 };
 
 export async function updateLastRun(agentName: string): Promise<void> {

@@ -12,6 +12,9 @@ export interface MetricsReport {
   recommendations: string[];
   bestPostingTimes: string[];
   growthScore: number;
+  engagementScore: number;  // 1-10: qualidade das interações
+  commercialScore: number;  // 1-10: potencial de conversão/monetização
+  riskScore: number;        // 1-10: nível de risco reputacional (1=baixo, 10=alto)
 }
 
 export async function analyzeMetrics(metrics: {
@@ -41,10 +44,16 @@ Gere uma análise e retorne APENAS um JSON válido neste formato:
   "highlights": ["ponto positivo 1", "ponto positivo 2"],
   "recommendations": ["ação recomendada 1", "ação recomendada 2", "ação recomendada 3"],
   "bestPostingTimes": ["19:00", "21:00"],
-  "growthScore": 7
+  "growthScore": 7,
+  "engagementScore": 6,
+  "commercialScore": 5,
+  "riskScore": 2
 }
 
-growthScore: nota de 1 a 10 para o desempenho geral.
+growthScore: nota de 1 a 10 para o crescimento geral (seguidores, alcance).
+engagementScore: nota de 1 a 10 para qualidade das interações (comentários, compartilhamentos, salvamentos).
+commercialScore: nota de 1 a 10 para potencial de conversão/monetização (cliques em links, intenção de compra nos comentários).
+riskScore: nota de 1 a 10 para risco reputacional (1=baixo risco, 10=alto risco — comentários negativos, crises, queda brusca).
 `;
 
   const raw = await askGemini(prompt);

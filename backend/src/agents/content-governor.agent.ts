@@ -57,6 +57,25 @@ async function evaluatePost(
 ): Promise<GovernorDecision> {
   const isVideo = post.contentType === 'video';
 
+  // Check if commercial posts are suspended (Reputation Monitor DANGER mode)
+  try {
+    const suspendConfig = await prisma.systemConfig.findUnique({ where: { key: 'suspend_commercial_posts' } });
+    if (suspendConfig && (suspendConfig.value as any)?.enabled) {
+      // Detect commercial/sales posts by content type or keywords
+      const lowerMsg = (post.message || '').toLowerCase();
+      const lowerTopic = (post.topic || '').toLowerCase();
+      const isCommercial = post.contentType === 'product' ||
+        ['venda', 'oferta', 'promoção', 'promocao', 'desconto', 'compre', 'cadastre', 'link na bio'].some(kw => lowerMsg.includes(kw) || lowerTopic.includes(kw));
+      if (isCommercial) {
+        return {
+          decision: 'REJECT',
+          reason: 'Posts comerciais suspensos — Reputação em modo DANGER',
+          qualityScore: 0,
+        };
+      }
+    }
+  } catch {}
+
   // FAST-TRACK: Videos ALWAYS get approved — video is king for growth
   if (isVideo) {
     let qualityScore = 8;

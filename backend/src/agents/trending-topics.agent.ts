@@ -8,6 +8,9 @@ export interface TrendingTopic {
   contentAngle: string;
   hashtags: string[];
   postIdea: string;
+  viralScore: number;       // 0-100: potencial viral
+  commercialScore: number;  // 0-100: potencial comercial
+  formatoRecomendado: string; // ex: "carrossel", "video_curto", "texto_longo", "lista", "enquete"
 }
 
 export interface TrendingReport {
@@ -55,7 +58,10 @@ Retorne APENAS um JSON válido neste formato exato:
       "buyingIntent": "explicação de como este tema leva à compra (1 frase)",
       "contentAngle": "ângulo criativo para abordar o tema (1 frase)",
       "hashtags": ["hashtag1", "hashtag2", "hashtag3"],
-      "postIdea": "ideia de post pronto — texto completo, envolvente, com chamada para ação (máx 250 chars)"
+      "postIdea": "ideia de post pronto — texto completo, envolvente, com chamada para ação (máx 250 chars)",
+      "viralScore": 85,
+      "commercialScore": 70,
+      "formatoRecomendado": "carrossel"
     }
   ],
   "weeklyOpportunity": "sugestão de oportunidade de conteúdo para aproveitar essa semana (1-2 frases)"
@@ -65,6 +71,9 @@ Regras:
 - urgency: "alta" = tendência acontecendo AGORA, "média" = crescendo, "baixa" = oportunidade futura
 - buyingIntent: foco em como o conteúdo cria necessidade ou desejo de compra
 - postIdea: texto pronto para publicar, tom brasileiro, SEM emojis — apenas texto puro ASCII
+- viralScore: 0-100, quanto maior mais viral (considere: polêmica, identificação, compartilhável, comentável)
+- commercialScore: 0-100, quanto maior mais potencial de monetização (considere: intenção de compra, produto associável, CTA natural)
+- formatoRecomendado: "carrossel" | "video_curto" | "texto_longo" | "lista" | "enquete" | "historia" — formato que melhor explora o tema
 - Varie as categorias: não repita a mesma categoria mais de 1 vez
 - Pense em produtos/serviços que as pessoas compram por influência de conteúdo
 `;

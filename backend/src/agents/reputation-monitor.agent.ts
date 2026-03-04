@@ -13,6 +13,19 @@ import { notificationsService } from '../modules/notifications/notifications.ser
 
 const socialService = new SocialService();
 
+// Sensitive words that indicate serious reputation threat
+const SENSITIVE_WORDS = [
+  'golpe', 'fraude', 'procon', 'processo', 'justiça', 'advogado', 'tribunal',
+  'enganação', 'piramide', 'pirâmide', 'scam', 'roubo', 'crime', 'policia',
+  'polícia', 'denuncia', 'denúncia', 'fake', 'mentira', 'calote', 'reclamação',
+  'consumidor', 'anatel', 'reclame aqui', 'reclameaqui',
+];
+
+function containsSensitiveWords(text: string): boolean {
+  const lower = text.toLowerCase();
+  return SENSITIVE_WORDS.some((word) => lower.includes(word));
+}
+
 interface ReputationSnapshot {
   negativeComments: number;
   totalComments: number;
@@ -44,6 +57,10 @@ export async function checkReputation(): Promise<ReputationSnapshot> {
   ).length;
   const crisisCount = recentComments.filter((c) => c.sentiment === 'CRISIS').length;
   const totalComments = recentComments.length;
+
+  // Check for sensitive words in recent comments (zero LLM)
+  const sensitiveCount = recentComments.filter((c) => c.reply && containsSensitiveWords(c.reply)).length
+    + recentComments.filter((c) => containsSensitiveWords(c.commentId || '')).length;
 
   // 2. Analyze engagement trend (7-day window)
   const recentPerf = await prisma.contentPerformance.findMany({
@@ -79,9 +96,9 @@ export async function checkReputation(): Promise<ReputationSnapshot> {
 
   const negativePct = totalComments > 0 ? (negativeComments / totalComments) * 100 : 0;
 
-  if (crisisCount >= 2 || engagementTrend === 'CRITICAL') {
+  if (crisisCount >= 2 || engagementTrend === 'CRITICAL' || sensitiveCount >= 3) {
     overallHealth = 'DANGER';
-  } else if (negativePct > 30 || engagementTrend === 'DOWN' || rejectedToday > 5) {
+  } else if (negativePct > 30 || engagementTrend === 'DOWN' || rejectedToday > 5 || sensitiveCount >= 1) {
     overallHealth = 'WARNING';
   }
 
@@ -99,6 +116,9 @@ export async function checkReputation(): Promise<ReputationSnapshot> {
   }
   if (crisisCount > 0) {
     recommendations.push(`${crisisCount} comentário(s) de CRISE detectados — verificar manualmente`);
+  }
+  if (sensitiveCount > 0) {
+    recommendations.push(`${sensitiveCount} menção(ões) de palavras sensíveis (golpe, fraude, etc) — monitorar de perto`);
   }
 
   // 5. Save events if concerning
@@ -127,7 +147,14 @@ export async function checkReputation(): Promise<ReputationSnapshot> {
           create: { key: 'reputation_throttle', value: { enabled: true, reducedMaxPerDay: 2, reason: 'Reputation DANGER mode', activatedAt: new Date().toISOString() } },
         });
 
-        await agentLog('Reputation Monitor', '🚨 DANGER: Frequência reduzida para 2 posts/dia automaticamente', { type: 'action' });
+        // Suspend commercial posts during reputation crisis
+        await prisma.systemConfig.upsert({
+          where: { key: 'suspend_commercial_posts' },
+          update: { value: { enabled: true, reason: 'Reputation DANGER — commercial posts suspended', activatedAt: new Date().toISOString() } },
+          create: { key: 'suspend_commercial_posts', value: { enabled: true, reason: 'Reputation DANGER — commercial posts suspended', activatedAt: new Date().toISOString() } },
+        });
+
+        await agentLog('Reputation Monitor', '🚨 DANGER: Frequência reduzida + posts comerciais SUSPENSOS', { type: 'action' });
 
         // Notify admins
         const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
@@ -147,6 +174,15 @@ export async function checkReputation(): Promise<ReputationSnapshot> {
           data: { value: { enabled: false, clearedAt: new Date().toISOString() } },
         });
         await agentLog('Reputation Monitor', '✅ Reputação normalizada — throttle removido', { type: 'result' });
+      }
+      // Clear commercial posts suspension
+      const suspend = await prisma.systemConfig.findUnique({ where: { key: 'suspend_commercial_posts' } });
+      if (suspend && (suspend.value as any)?.enabled) {
+        await prisma.systemConfig.update({
+          where: { key: 'suspend_commercial_posts' },
+          data: { value: { enabled: false, clearedAt: new Date().toISOString() } },
+        });
+        await agentLog('Reputation Monitor', '✅ Posts comerciais liberados — suspensão removida', { type: 'result' });
       }
     } catch {}
   }

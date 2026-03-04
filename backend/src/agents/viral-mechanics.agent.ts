@@ -49,6 +49,13 @@ const VIRAL_TECHNIQUES = {
     'CAPS_SELETIVO',          // UMA palavra em caps para ênfase
     'FORMATO_INESPERADO',     // Começar com o final da história
   ],
+  commentTriggers: [
+    'PERGUNTA_ABERTA',        // "O que voce acha?" "Qual sua opiniao?"
+    'DEBATE_POLARIZADO',      // "Concorda ou discorda? Comenta ai"
+    'COMPLETAR_FRASE',        // "Completa: Eu nunca mais vou..."
+    'EXPERIENCIA_PESSOAL',    // "Conta nos comentarios sua experiencia com..."
+    'VOTACAO_INFORMAL',       // "A ou B? Vota nos comentarios"
+  ],
 };
 
 export async function enhanceWithViralMechanics(
@@ -71,19 +78,22 @@ POST ORIGINAL:
 TEMA: ${topic}
 CATEGORIA: ${contentCategory}
 
-TÉCNICAS DISPONÍVEIS (aplique as que fizerem sentido):
+TÉCNICAS OBRIGATÓRIAS (aplique TODAS as 5 camadas — não pule nenhuma):
 
-HOOKS (escolha 1):
+CAMADA 1 — HOOK (escolha 1, OBRIGATÓRIO):
 ${VIRAL_TECHNIQUES.hooks.map(h => `- ${h}`).join('\n')}
 
-GATILHOS EMOCIONAIS (escolha 1-2):
+CAMADA 2 — GATILHO EMOCIONAL (escolha 1-2, OBRIGATÓRIO):
 ${VIRAL_TECHNIQUES.emotionalTriggers.map(e => `- ${e}`).join('\n')}
 
-MOTIVADORES DE COMPARTILHAMENTO (escolha 1-2):
+CAMADA 3 — MOTIVADOR DE COMPARTILHAMENTO (escolha 1-2, OBRIGATÓRIO):
 ${VIRAL_TECHNIQUES.shareMotivators.map(s => `- ${s}`).join('\n')}
 
-PATTERN INTERRUPTS (escolha 1):
+CAMADA 4 — PATTERN INTERRUPT (escolha 1, OBRIGATÓRIO):
 ${VIRAL_TECHNIQUES.patternInterrupts.map(p => `- ${p}`).join('\n')}
+
+CAMADA 5 — TRIGGER DE COMENTÁRIO (escolha 1, OBRIGATÓRIO):
+${VIRAL_TECHNIQUES.commentTriggers.map(c => `- ${c}`).join('\n')}
 
 REGRAS:
 1. Mantenha a ESSÊNCIA e informação do post original
@@ -99,9 +109,10 @@ Retorne APENAS JSON:
 {
   "enhancedMessage": "texto melhorado aqui",
   "viralScore": 8,
-  "appliedTechniques": ["HOOK_TIPO", "GATILHO_TIPO", "SHARE_TIPO"],
+  "appliedTechniques": ["HOOK_TIPO", "GATILHO_TIPO", "SHARE_TIPO", "PATTERN_TIPO", "COMMENT_TIPO"],
   "hookType": "PERGUNTA_CHOCANTE",
-  "emotionalTrigger": "CURIOSIDADE"
+  "emotionalTrigger": "CURIOSIDADE",
+  "commentTrigger": "PERGUNTA_ABERTA"
 }`;
 
   try {

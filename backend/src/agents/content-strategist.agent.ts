@@ -18,11 +18,11 @@ export interface ClientContext {
   notes?: string;
 }
 
-// Distribuição ideal: 40% educativo, 30% engajamento, 20% autoridade, 10% bastidores
+// Distribuição ideal: autoridade 40%, viral 30%, comunidade 20%, venda 10%
 const CONTENT_MIX_WEIGHTS = [
-  { type: 'educativo', weight: 40 },
+  { type: 'autoridade', weight: 40 },
   { type: 'engajamento', weight: 30 },
-  { type: 'autoridade', weight: 20 },
+  { type: 'educativo', weight: 20 },
   { type: 'bastidores', weight: 10 },
 ];
 
@@ -62,9 +62,30 @@ export async function buildDailyStrategy(clientCtx?: ClientContext): Promise<Dai
     orderBy: { generatedAt: 'desc' },
   });
 
-  const trendingContext = trendingCache
-    ? `Tendências em alta esta semana: ${(trendingCache.trends as any[]).map((t: any) => t.topic).join(', ')}. Use como inspiração para temas relevantes e virais.`
-    : '';
+  // Prioritize trends with viralScore > 70
+  let trendingContext = '';
+  if (trendingCache) {
+    const allTrends = trendingCache.trends as any[];
+    const highViralTrends = allTrends.filter((t: any) => (t.viralScore || 0) > 70);
+    const trendList = highViralTrends.length > 0 ? highViralTrends : allTrends;
+    trendingContext = `Tendências em alta esta semana (priorizadas por potencial viral): ${trendList.map((t: any) => `${t.topic} (viral:${t.viralScore || '?'}, comercial:${t.commercialScore || '?'}, formato:${t.formatoRecomendado || '?'})`).join('; ')}. PRIORIZE as tendências com maior viralScore.`;
+  }
+
+  // Read growth insights from Growth Analyst (bestPostingHours, bestHookTypes, bestCTAs)
+  let growthContext = '';
+  try {
+    const growthConfig = await prisma.systemConfig.findUnique({ where: { key: 'growth_insights' } });
+    if (growthConfig?.value) {
+      const gi = growthConfig.value as any;
+      growthContext = `
+INSIGHTS DO GROWTH ANALYST (ultimos 7 dias):
+- Melhores horarios: ${(gi.bestPostingHours || []).join(', ')}
+- Melhores tipos de hook: ${(gi.bestHookTypes || []).join(', ')}
+- Melhores CTAs: ${(gi.bestCTAs || []).join(', ')}
+- Tipo que mais performa: ${gi.bestPerformingType || 'N/A'}
+USE esses insights para otimizar a estrategia de hoje.`;
+    }
+  } catch {}
 
   let brandCtx = '';
   try { brandCtx = await getBrandContext(); } catch {}
@@ -118,12 +139,13 @@ TEMAS JÁ PUBLICADOS RECENTEMENTE (últimos 50 posts — é PROIBIDO repetir qua
 ${recentTopics || 'nenhum ainda'}
 
 ${trendingContext}
+${growthContext}
 
 DISTRIBUIÇÃO DE CONTEÚDO (seguir rigorosamente):
-- 40% educativo (dicas, tutoriais, checklists, "como fazer")
-- 30% engajamento (perguntas, debates, enquetes, opiniões)
-- 20% autoridade (dados, análises, tendências, estudos de caso)
-- 10% bastidores (humanização, processo, aprendizados, histórias)
+- 40% autoridade (dados, análises, tendências, estudos de caso, posicionamento como referência)
+- 30% engajamento/viral (perguntas provocativas, debates, enquetes, conteúdo compartilhável)
+- 20% educativo/comunidade (dicas, tutoriais, checklists, "como fazer")
+- 10% bastidores/venda (humanização, processo, oferta sutil, CTA direto)
 
 Com base nesses dados, crie a estratégia de conteúdo para HOJE.
 

@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import prisma from '../config/database';
 import { agentLog } from './agent-logger';
-import { generatePostFromStrategy } from './content-creator.agent';
+import { askGemini } from './gemini';
 import { generateImageForPost } from './image-generator.agent';
 import { isSafeModeActive, isAgentPaused } from './safe-mode';
 
@@ -12,56 +12,57 @@ import { isSafeModeActive, isAgentPaused } from './safe-mode';
  * - Escalates winners for future strategy learning
  */
 
-// Create variant B for a post (called by Autonomous Engine or manually)
+// Create variant B for a post — HOOK-ONLY testing (saves LLM tokens)
+// Only tests posts with viralScore >= 7
 export async function createABVariant(originalPost: {
   id: string;
   topic: string;
   contentType: string | null;
   scheduledFor: Date;
+  viralScore?: number | null;
+  message?: string;
 }): Promise<string | null> {
   try {
-    // Check if aggressive mode is on for more variants
-    let isAggressive = false;
-    try {
-      const config = await prisma.systemConfig.findUnique({ where: { key: 'aggressive_growth_mode' } });
-      isAggressive = config?.value === true || (config?.value as any)?.enabled === true;
-    } catch {}
+    // Threshold: only A/B test high-potential posts (viralScore >= 7)
+    if (originalPost.viralScore != null && originalPost.viralScore < 7) {
+      await agentLog('A/B Testing', `Skip: viralScore ${originalPost.viralScore} < 7 para "${originalPost.topic}"`, { type: 'info' });
+      return null;
+    }
 
-    // Generate variant B with different angle
-    const recentPosts = await prisma.scheduledPost.findMany({
-      where: { status: 'PUBLISHED' },
-      orderBy: { publishedAt: 'desc' },
-      take: 10,
-      select: { topic: true },
-    });
-    const recentTopics = recentPosts.map((p) => p.topic).filter(Boolean) as string[];
+    // Get original post message if not provided
+    let originalMessage = originalPost.message;
+    if (!originalMessage) {
+      const post = await prisma.scheduledPost.findUnique({ where: { id: originalPost.id }, select: { message: true, hashtags: true } });
+      originalMessage = post?.message || '';
+    }
 
-    const variant = await generatePostFromStrategy(
-      originalPost.topic + ' (ÂNGULO DIFERENTE — use abordagem oposta: se o original é educativo, seja provocativo; se é lista, seja história)',
-      originalPost.contentType || 'educativo',
-      recentTopics
-    );
+    // Hook-only: generate alternative hook (1 short LLM call instead of full post)
+    const hookPrompt = `Crie um HOOK alternativo (abertura) para este post. Apenas as 2 primeiras linhas, completamente diferente do original.
+Post original: "${originalMessage.substring(0, 300)}"
+Tema: "${originalPost.topic}"
 
-    // Generate image for variant
-    let imageUrl: string | null = null;
-    try {
-      const img = await generateImageForPost(originalPost.topic, originalPost.contentType || 'educativo');
-      imageUrl = img.url || null;
-    } catch {}
+Retorne APENAS o texto do hook alternativo (máx 100 caracteres), sem aspas, sem explicação.`;
+
+    const alternativeHook = await askGemini(hookPrompt);
+    const cleanHook = alternativeHook.trim().replace(/^["']|["']$/g, '');
+
+    // Replace hook (first line) of original message
+    const lines = originalMessage.split('\n');
+    lines[0] = cleanHook;
+    const variantMessage = lines.join('\n');
 
     // Schedule variant 5 min after original
     const variantTime = new Date(originalPost.scheduledFor.getTime() + 5 * 60 * 1000);
 
-    const hashtagsStr = variant.hashtags
-      ? variant.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ')
-      : null;
+    // Reuse same image (hook-only test, not full post)
+    const originalPostData = await prisma.scheduledPost.findUnique({ where: { id: originalPost.id }, select: { hashtags: true, imageUrl: true } });
 
     const saved = await prisma.scheduledPost.create({
       data: {
         topic: originalPost.topic,
-        message: variant.message,
-        hashtags: hashtagsStr,
-        imageUrl,
+        message: variantMessage,
+        hashtags: originalPostData?.hashtags || null,
+        imageUrl: originalPostData?.imageUrl || null,
         status: 'PENDING',
         source: 'ab-testing-engine',
         contentType: originalPost.contentType,

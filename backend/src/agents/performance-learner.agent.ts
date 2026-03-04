@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import prisma from '../config/database';
 import { agentLog } from './agent-logger';
 import { SocialService } from '../modules/social/social.service';
+import { replicateContent, ReplicaFormat } from './content-replicator.agent';
 
 const socialService = new SocialService();
 
@@ -34,6 +35,7 @@ export async function learnFromPerformance(): Promise<{ analyzed: number; saved:
   }
 
   let saved = 0;
+  const scores: number[] = [];
 
   for (const post of toAnalyze) {
     try {
@@ -42,8 +44,6 @@ export async function learnFromPerformance(): Promise<{ analyzed: number; saved:
       try {
         const fbComments = await socialService.getPostComments(post.metaPostId!);
         comments = fbComments.length;
-        // Likes and shares from post insights if available
-        // For now use comments as primary metric
       } catch {
         // API may fail for some posts
       }
@@ -64,8 +64,32 @@ export async function learnFromPerformance(): Promise<{ analyzed: number; saved:
         },
       });
       saved++;
+      scores.push(engagementScore);
     } catch (err: any) {
       await agentLog('Performance Learner', `Erro ao analisar post ${post.id}: ${err.message}`, { type: 'error' });
+    }
+  }
+
+  // Auto-replication: trigger for posts with engagement > avg+40%
+  if (scores.length > 2) {
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const threshold = avg * 1.4;
+
+    for (let i = 0; i < toAnalyze.length; i++) {
+      if (scores[i] !== undefined && scores[i] > threshold && scores[i] > 0) {
+        try {
+          const alreadyReplicated = await prisma.contentReplica.findFirst({
+            where: { originalPostId: toAnalyze[i].id },
+          });
+          if (!alreadyReplicated) {
+            await agentLog('Performance Learner', `Post "${toAnalyze[i].topic}" com score ${scores[i]} (avg: ${avg.toFixed(1)}, threshold: ${threshold.toFixed(1)}) — disparando auto-replicação`, { type: 'action' });
+            const formats: ReplicaFormat[] = ['carousel', 'story', 'thread'];
+            await replicateContent(toAnalyze[i].id, formats);
+          }
+        } catch (repErr: any) {
+          await agentLog('Performance Learner', `Erro ao auto-replicar post ${toAnalyze[i].id}: ${repErr.message}`, { type: 'error' });
+        }
+      }
     }
   }
 

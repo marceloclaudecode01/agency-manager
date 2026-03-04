@@ -259,6 +259,7 @@ model ScheduledPost {
   abTestId            String?
   viralScore          Int?
   viralEnhancements   Json?
+  carouselData        Json?
   clientId        String?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
@@ -288,6 +289,9 @@ model MetricsReport {
   recommendations   Json
   bestPostingTimes  Json
   growthScore       Int
+  engagementScore   Int?
+  commercialScore   Int?
+  riskScore         Int?
   rawData           Json
   createdAt         DateTime @default(now())
 

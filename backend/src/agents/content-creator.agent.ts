@@ -29,12 +29,21 @@ GATILHOS DE ENGAJAMENTO (usar sempre):
 - Pedir opinião / experiência pessoal
 `;
 
+export interface PostStructure {
+  hook: string;       // Abertura que prende atenção em 3s
+  contexto: string;   // Situação/problema que gera identificação
+  valor: string;      // Entrega de valor real (dica, insight, dado)
+  micro_prova: string; // Prova social, dado, exemplo, resultado
+  cta: string;        // Chamada para ação que gera interação
+}
+
 export interface GeneratedPost {
   message: string;
   hashtags: string[];
   suggestedTime: string;
   topic: string;
   contentCategory: string;
+  structure?: PostStructure;
 }
 
 export async function generatePost(topic: string, extraContext?: string): Promise<GeneratedPost> {
@@ -127,17 +136,33 @@ Temas recentes (últimos 50 posts — PROIBIDO repetir): ${recentStr}
 PROIBIDO: Falar sobre filmes, séries, streaming, TV, streamers.
 O post DEVE estar alinhado a um dos 4 pilares temáticos definidos nas brand guidelines.
 
+ESTRUTURA OBRIGATÓRIA DO POST (5 passos — TODOS obrigatórios):
+1. HOOK: Abertura que prende atenção em 3 segundos (pergunta chocante, número impactante, contrarian)
+2. CONTEXTO: Situação ou problema que gera identificação imediata no leitor
+3. VALOR: Entrega de valor real — dica prática, insight, dado concreto
+4. MICRO_PROVA: Prova social, dado estatístico, exemplo real ou resultado concreto
+5. CTA: Chamada para ação que gera interação (pergunta aberta, marca alguém, salva)
+
+O "message" DEVE conter os 5 blocos em sequência, separados por quebras de linha.
+
 Retorne APENAS um JSON válido neste formato exato:
 {
-  "message": "texto do post aqui (sem hashtags, máx 500 caracteres, use \\n para quebras de linha)",
+  "message": "texto do post aqui (sem hashtags, máx 600 caracteres, use \\n para quebras de linha)",
   "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"],
   "suggestedTime": "HH:MM",
   "topic": "${topic}",
-  "contentCategory": "${focusType}"
+  "contentCategory": "${focusType}",
+  "structure": {
+    "hook": "frase de abertura isolada",
+    "contexto": "contexto/problema",
+    "valor": "dica/insight/dado",
+    "micro_prova": "prova social/exemplo/resultado",
+    "cta": "chamada para ação"
+  }
 }
 
 Regras:
-- A mensagem DEVE ser envolvente, original e viral
+- A mensagem DEVE seguir os 5 passos da estrutura acima — TODOS obrigatórios
 - Use formatacao com quebras de linha para facilitar leitura
 - SEMPRE inclua CTA que estimule interacao (pergunta, marca alguem, salva)
 - As hashtags devem ser populares em portugues
