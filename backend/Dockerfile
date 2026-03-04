@@ -15,4 +15,4 @@ RUN npm run build
 
 EXPOSE 3333
 
-CMD ["sh", "-c", "npx prisma db push --skip-generate && npx tsx prisma/seed-federal-telecom.ts; node --max-old-space-size=768 dist/boot.js"]
+CMD ["node", "--max-old-space-size=768", "dist/boot.js"]
