@@ -97,7 +97,10 @@ export async function askGemini(prompt: string): Promise<string> {
 
     try {
       const result = await provider.fn(prompt);
-      if (result) return result;
+      if (result) {
+        if (provider.name !== 'Gemini') console.log(`[LLM] ✓ ${provider.name} responded successfully (fallback)`);
+        return result;
+      }
     } catch (err: any) {
       const errMsg = err?.message || String(err);
       errors.push(`${provider.name}: ${errMsg.substring(0, 100)}`);
