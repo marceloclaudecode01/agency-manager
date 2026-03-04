@@ -1,9 +1,12 @@
 /**
- * Video Generator Agent — Orchestrates text-to-video generation via ComfyDeploy
+ * Video Generator Agent — Orchestrates text-to-video generation
+ *
+ * Dual provider: Comfy Cloud (primary) → ComfyDeploy (fallback)
+ * CogVideoX-5B workflow runs on cloud GPU, no local setup needed
  *
  * 3 entry points:
  * - queueVideoForPost(postId) — called after saving post in pipeline
- * - processCompletedVideo(runId, outputs) — called by webhook or polling
+ * - processCompletedVideo(jobId, provider) — called by webhook or polling
  * - pollPendingVideos() — cron every 2 min, checks PENDING_VIDEO posts
  */
 
@@ -12,7 +15,13 @@ import prisma from '../config/database';
 import { askGemini } from './gemini';
 import { agentLog } from './agent-logger';
 import { trackAgentExecution } from './agent-performance-tracker';
-import { isConfigured, queueVideoGeneration, getRunStatus } from '../services/comfydeploy.service';
+import {
+  isConfigured,
+  getActiveProvider,
+  queueVideoGeneration,
+  getRunStatus,
+  getVideoOutputUrl,
+} from '../services/comfydeploy.service';
 import { uploadVideoFromUrl } from '../config/cloudinary';
 
 const VIDEO_TIMEOUT_MINUTES = 15;
@@ -65,21 +74,24 @@ Post context: "${post.message.substring(0, 200)}"`;
       return;
     }
 
-    // Queue on ComfyDeploy
+    // Queue on video provider (Comfy Cloud → ComfyDeploy fallback)
     try {
       const result = await queueVideoGeneration({
         prompt: visualPrompt,
         negative_prompt: 'blurry, low quality, text overlay, watermark, distorted, ugly, static camera, flat lighting, overexposed, underexposed, stock footage, generic, boring composition, centered subject, snapshot, amateur, grainy, noisy, cartoon, anime, illustration, painting, drawing',
       });
 
+      // Store job_id and provider in comfyRunId (format: "provider:job_id")
+      const trackingId = `${result.provider}:${result.job_id}`;
+
       await prisma.scheduledPost.update({
         where: { id: postId },
-        data: { comfyRunId: result.run_id },
+        data: { comfyRunId: trackingId },
       });
 
-      await agentLog('VideoGenerator', `Video queued for "${topicText}" (run: ${result.run_id})`, { type: 'action' });
+      await agentLog('VideoGenerator', `Video queued via ${result.provider} for "${topicText}" (job: ${result.job_id})`, { type: 'action' });
     } catch (queueErr: any) {
-      await agentLog('VideoGenerator', `ComfyDeploy queue failed: ${queueErr.message}. Falling back to image.`, { type: 'error' });
+      await agentLog('VideoGenerator', `Video queue failed: ${queueErr.message}. Falling back to image.`, { type: 'error' });
       await fallbackToImage(postId);
     }
   } catch (err: any) {
@@ -88,49 +100,37 @@ Post context: "${post.message.substring(0, 200)}"`;
   }
 }
 
+/** Parse "provider:jobId" from comfyRunId */
+function parseTrackingId(comfyRunId: string): { provider: string; jobId: string } {
+  const colonIdx = comfyRunId.indexOf(':');
+  if (colonIdx > 0) {
+    return { provider: comfyRunId.substring(0, colonIdx), jobId: comfyRunId.substring(colonIdx + 1) };
+  }
+  // Legacy format (no provider prefix) — assume comfydeploy
+  return { provider: 'comfydeploy', jobId: comfyRunId };
+}
+
 /**
- * Process completed video from webhook or polling
+ * Process completed video — download, upload to Cloudinary, update post
  */
-export async function processCompletedVideo(runId: string, outputs: any): Promise<void> {
+export async function processCompletedVideo(comfyRunId: string, outputs?: any): Promise<void> {
   try {
     const post = await prisma.scheduledPost.findFirst({
-      where: { comfyRunId: runId },
+      where: { comfyRunId },
     });
 
     if (!post) {
-      console.error(`[VideoGenerator] No post found for run ${runId}`);
+      console.error(`[VideoGenerator] No post found for tracking ID ${comfyRunId}`);
       return;
     }
 
-    // Extract video URL from ComfyDeploy outputs
-    let videoSourceUrl: string | null = null;
+    const { provider, jobId } = parseTrackingId(comfyRunId);
 
-    if (Array.isArray(outputs)) {
-      for (const output of outputs) {
-        const images = output?.data?.images || output?.images;
-        if (Array.isArray(images)) {
-          for (const img of images) {
-            if (img.url && (img.type === 'video' || img.url.includes('.mp4') || img.url.includes('video'))) {
-              videoSourceUrl = img.url;
-              break;
-            }
-            // Fallback: take first URL if no video type
-            if (img.url && !videoSourceUrl) {
-              videoSourceUrl = img.url;
-            }
-          }
-        }
-        // Direct URL in output
-        if (!videoSourceUrl && output?.url) {
-          videoSourceUrl = output.url;
-        }
-      }
-    } else if (outputs?.url) {
-      videoSourceUrl = outputs.url;
-    }
+    // Get video URL from provider
+    const videoSourceUrl = await getVideoOutputUrl(jobId, provider, outputs);
 
     if (!videoSourceUrl) {
-      await agentLog('VideoGenerator', `No video URL in outputs for run ${runId}. Falling back to image.`, { type: 'error' });
+      await agentLog('VideoGenerator', `No video URL from ${provider} for job ${jobId}. Falling back to image.`, { type: 'error' });
       await fallbackToImage(post.id);
       return;
     }
@@ -140,9 +140,9 @@ export async function processCompletedVideo(runId: string, outputs: any): Promis
     try {
       const uploaded = await uploadVideoFromUrl(videoSourceUrl, 'agency-videos');
       finalVideoUrl = uploaded.url;
-      await agentLog('VideoGenerator', `Video uploaded to Cloudinary: ${finalVideoUrl}`, { type: 'result' });
+      await agentLog('VideoGenerator', `Video uploaded to Cloudinary (${provider}): ${finalVideoUrl}`, { type: 'result' });
     } catch (uploadErr: any) {
-      await agentLog('VideoGenerator', `Cloudinary upload failed: ${uploadErr.message}. Using ComfyDeploy URL directly.`, { type: 'error' });
+      await agentLog('VideoGenerator', `Cloudinary upload failed: ${uploadErr.message}. Using source URL.`, { type: 'error' });
       finalVideoUrl = videoSourceUrl;
     }
 
@@ -155,7 +155,7 @@ export async function processCompletedVideo(runId: string, outputs: any): Promis
       },
     });
 
-    await agentLog('VideoGenerator', `Video ready for "${post.topic}". Moving to governor review.`, { type: 'result' });
+    await agentLog('VideoGenerator', `Video ready for "${post.topic}" via ${provider}. Moving to governor review.`, { type: 'result' });
   } catch (err: any) {
     console.error(`[VideoGenerator] processCompletedVideo error: ${err.message}`);
   }
@@ -185,16 +185,18 @@ export async function pollPendingVideos(): Promise<void> {
           continue;
         }
 
-        // Check ComfyDeploy status
-        const status = await getRunStatus(post.comfyRunId!);
+        const { provider, jobId } = parseTrackingId(post.comfyRunId!);
 
-        if (status.status === 'success') {
-          await processCompletedVideo(post.comfyRunId!, status.outputs || []);
+        // Poll status from the correct provider
+        const status = await getRunStatus(jobId);
+
+        if (status.status === 'completed') {
+          await processCompletedVideo(post.comfyRunId!, status.outputs);
         } else if (status.status === 'failed') {
-          await agentLog('VideoGenerator', `ComfyDeploy run failed for "${post.topic}". Falling back to image.`, { type: 'error' });
+          await agentLog('VideoGenerator', `${provider} job failed for "${post.topic}". Falling back to image.`, { type: 'error' });
           await fallbackToImage(post.id);
         }
-        // 'queued' or 'running' — skip, wait for next poll
+        // 'pending' or 'running' — skip, wait for next poll
       } catch (pollErr: any) {
         console.error(`[VideoGenerator] Poll error for post ${post.id}: ${pollErr.message}`);
       }
@@ -224,11 +226,12 @@ async function fallbackToImage(postId: string): Promise<void> {
  * Registered in AGENT_FUNCTION_MAP as 'video-processor'
  */
 export function startVideoProcessor(): void {
+  const provider = getActiveProvider();
   cron.schedule('*/2 * * * *', async () => {
     await trackAgentExecution('video-processor', async () => {
       await pollPendingVideos();
     });
   });
 
-  console.log('[VideoProcessor] Video processor started (polling every 2 minutes)');
+  console.log(`[VideoProcessor] Video processor started (polling every 2 minutes, provider: ${provider || 'none'})`);
 }
