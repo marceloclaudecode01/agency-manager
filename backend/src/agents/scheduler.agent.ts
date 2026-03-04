@@ -5,7 +5,7 @@ import { generateCommentReply } from './comment-responder.agent';
 import { analyzeMetrics } from './metrics-analyzer.agent';
 import { generateImageForPost } from './image-generator.agent';
 import { notificationsService } from '../modules/notifications/notifications.service';
-import { buildDailyStrategy } from './content-strategist.agent';
+import { buildDailyStrategy, ClientContext } from './content-strategist.agent';
 import { generatePostFromStrategy } from './content-creator.agent';
 import { analyzeTrendingTopics } from './trending-topics.agent';
 import { orchestrateProductPosts } from './product-orchestrator.agent';
@@ -435,138 +435,194 @@ function startDueDateNotifier() {
   console.log('[DueDate] Verificador de prazos iniciado (roda todo dia às 08:00)');
 }
 
-// Motor autônomo: roda todo dia às 07:00 e agenda posts do dia
+// Generate posts for a single client (or default page if no client)
+async function generatePostsForClient(clientCtx?: { clientId: string; clientName: string; niche: string; facebookPageName?: string }): Promise<string[]> {
+  const label = clientCtx ? `[${clientCtx.clientName}]` : '[Default]';
+
+  await agentLog('Autonomous Engine', `${label} Solicitando estratégia diária ao Content Strategist...`, { type: 'communication', to: 'Content Strategist' });
+  const strategy = await buildDailyStrategy(clientCtx);
+
+  await agentLog('Content Strategist', `${label} Estratégia pronta: ${strategy.postsToCreate} posts — ${strategy.reasoning}`, { type: 'result', to: 'Autonomous Engine', payload: { postsToCreate: strategy.postsToCreate, topics: strategy.topics } });
+
+  // Get recent topics for THIS client (anti-duplication per client)
+  const recentWhere: any = { status: 'PUBLISHED' };
+  if (clientCtx) recentWhere.clientId = clientCtx.clientId;
+  const recentPosts = await prisma.scheduledPost.findMany({
+    where: recentWhere,
+    orderBy: { publishedAt: 'desc' },
+    take: 30,
+    select: { topic: true },
+  });
+  const recentTopics = recentPosts.map((p) => p.topic).filter(Boolean) as string[];
+
+  const today = new Date();
+  const scheduledIds: string[] = [];
+
+  for (let i = 0; i < strategy.postsToCreate; i++) {
+    try {
+      const topic = strategy.topics[i];
+      const focusType = strategy.focusType[i] || 'entretenimento';
+      const timeStr = strategy.scheduledTimes[i] || '18:00';
+
+      await agentLog('Autonomous Engine', `${label} Solicitando post sobre "${topic}" ao Content Creator...`, { type: 'communication', to: 'Content Creator' });
+      const generated = await generatePostFromStrategy(topic, focusType, recentTopics, clientCtx?.niche);
+      await agentLog('Content Creator', `${label} Post criado: "${generated.message.substring(0, 60)}..."`, { type: 'result', to: 'Autonomous Engine' });
+
+      // Viral Mechanics Lab: enhance post before scheduling
+      let viralScore: number | null = null;
+      let viralEnhancements: any = null;
+      try {
+        await agentLog('Autonomous Engine', `${label} Aplicando Viral Mechanics em "${topic}"...`, { type: 'communication', to: 'Viral Mechanics' });
+        const enhanced = await enhanceWithViralMechanics(generated.message, topic, focusType);
+        if (enhanced.viralScore > 5) {
+          generated.message = enhanced.enhancedMessage;
+          viralScore = enhanced.viralScore;
+          viralEnhancements = {
+            techniques: enhanced.appliedTechniques,
+            hookType: enhanced.hookType,
+            emotionalTrigger: enhanced.emotionalTrigger,
+          };
+          await agentLog('Viral Mechanics', `${label} Post enhanced: score ${enhanced.viralScore}/10, hook: ${enhanced.hookType}`, { type: 'result', to: 'Autonomous Engine' });
+        }
+      } catch (viralErr: any) {
+        await agentLog('Viral Mechanics', `${label} ⚠️ Enhancement falhou: ${viralErr.message}`, { type: 'error' });
+      }
+
+      // Generate image for every post
+      let imageUrl: string | null = null;
+      try {
+        await agentLog('Autonomous Engine', `${label} Gerando imagem para "${topic}"...`, { type: 'communication', to: 'Image Generator' });
+        const image = await generateImageForPost(topic, focusType);
+        imageUrl = image.url || null;
+        await agentLog('Image Generator', `${label} Imagem gerada para "${topic}"`, { type: 'result', to: 'Autonomous Engine' });
+      } catch (imgErr: any) {
+        await agentLog('Image Generator', `${label} ⚠️ Falha ao gerar imagem: ${imgErr.message}. Post será publicado sem imagem.`, { type: 'error' });
+      }
+
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const scheduledFor = new Date(today);
+      scheduledFor.setHours(hours, minutes, 0, 0);
+
+      const hashtagsStr = generated.hashtags
+        ? generated.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ')
+        : null;
+
+      // 50% of posts are video (every other post) — video-first strategy
+      const isVideo = i % 2 === 1;
+      const postContentType = isVideo ? 'video' : 'organic';
+
+      const saved = await prisma.scheduledPost.create({
+        data: {
+          topic: generated.topic || topic,
+          message: generated.message,
+          hashtags: hashtagsStr,
+          imageUrl,
+          status: 'PENDING',
+          source: 'autonomous-engine',
+          contentType: postContentType,
+          scheduledFor,
+          viralScore,
+          viralEnhancements,
+          ...(clientCtx ? { clientId: clientCtx.clientId } : {}),
+        },
+      });
+
+      scheduledIds.push(saved.id);
+      recentTopics.push(topic);
+      await agentLog('Autonomous Engine', `${label} 📅 Post ${i + 1}/${strategy.postsToCreate} agendado: "${topic}" para as ${timeStr}`, { type: 'action', to: 'Scheduler' });
+
+      // A/B Testing: create variant B for non-video posts
+      if (postContentType !== 'video') {
+        try {
+          let abEnabled = false;
+          try {
+            const aggConfig = await prisma.systemConfig.findUnique({ where: { key: 'aggressive_growth_mode' } });
+            const isAggressive = aggConfig?.value === true || (aggConfig?.value as any)?.enabled === true;
+            abEnabled = isAggressive || Math.random() < 0.5;
+          } catch { abEnabled = Math.random() < 0.5; }
+
+          if (abEnabled) {
+            await agentLog('Autonomous Engine', `${label} Criando variante A/B para "${topic}"...`, { type: 'communication', to: 'A/B Testing' });
+            await createABVariant({
+              id: saved.id,
+              topic: generated.topic || topic,
+              contentType: postContentType,
+              scheduledFor,
+            });
+          }
+        } catch (abErr: any) {
+          await agentLog('A/B Testing', `${label} ⚠️ Falha ao criar variante: ${abErr.message}`, { type: 'error' });
+        }
+      }
+    } catch (err: any) {
+      await agentLog('Autonomous Engine', `${label} ❌ Erro ao gerar post ${i + 1}: ${err.message}`, { type: 'error' });
+    }
+  }
+
+  return scheduledIds;
+}
+
+// Motor autônomo: roda todo dia às 07:00 e agenda posts do dia PARA CADA CLIENT ATIVO
 export function startAutonomousContentEngine() {
   cron.schedule('0 7 * * *', async () => {
     await trackAgentExecution('content-engine', async () => {
-    await agentLog('Autonomous Engine', '🚀 Iniciando ciclo autônomo de conteúdo do dia...', { type: 'action' });
+    await agentLog('Autonomous Engine', '🚀 Iniciando ciclo autônomo MULTI-PAGE de conteúdo do dia...', { type: 'action' });
     try {
-      await agentLog('Autonomous Engine', 'Solicitando estratégia diária ao Content Strategist...', { type: 'communication', to: 'Content Strategist' });
-      const strategy = await buildDailyStrategy();
-
-      await agentLog('Content Strategist', `Estratégia pronta: ${strategy.postsToCreate} posts — ${strategy.reasoning}`, { type: 'result', to: 'Autonomous Engine', payload: { postsToCreate: strategy.postsToCreate, topics: strategy.topics } });
-
-      const recentPosts = await prisma.scheduledPost.findMany({
-        where: { status: 'PUBLISHED' },
-        orderBy: { publishedAt: 'desc' },
-        take: 30,
-        select: { topic: true },
+      // Load ALL active clients (with or without Facebook page config)
+      // Clients WITH facebookPageId/Token → publish to their page
+      // Clients WITHOUT (like Newplay) → publish via env var default page
+      const activeClients = await prisma.client.findMany({
+        where: { isActive: true, status: 'ACTIVE' },
+        select: { id: true, name: true, niche: true, facebookPageName: true, facebookPageId: true, facebookAccessToken: true },
       });
-      const recentTopics = recentPosts.map((p) => p.topic).filter(Boolean) as string[];
 
-      const today = new Date();
-      const scheduledIds: string[] = [];
+      let totalScheduled = 0;
+      const clientSummaries: string[] = [];
 
-      for (let i = 0; i < strategy.postsToCreate; i++) {
-        try {
-          const topic = strategy.topics[i];
-          const focusType = strategy.focusType[i] || 'entretenimento';
-          const timeStr = strategy.scheduledTimes[i] || '18:00';
-
-          await agentLog('Autonomous Engine', `Solicitando post sobre "${topic}" ao Content Creator...`, { type: 'communication', to: 'Content Creator' });
-          const generated = await generatePostFromStrategy(topic, focusType, recentTopics);
-          await agentLog('Content Creator', `Post criado: "${generated.message.substring(0, 60)}..."`, { type: 'result', to: 'Autonomous Engine' });
-
-          // Viral Mechanics Lab: enhance post before scheduling
-          let viralScore: number | null = null;
-          let viralEnhancements: any = null;
+      if (activeClients.length === 0) {
+        // No clients at all — run for default page (backward compat)
+        await agentLog('Autonomous Engine', 'Nenhum client ativo — rodando para página padrão (env vars)', { type: 'info' });
+        const ids = await generatePostsForClient();
+        totalScheduled = ids.length;
+        clientSummaries.push(`Default: ${ids.length} posts`);
+      } else {
+        // Generate content for EACH active client
+        for (const client of activeClients) {
           try {
-            await agentLog('Autonomous Engine', `Aplicando Viral Mechanics em "${topic}"...`, { type: 'communication', to: 'Viral Mechanics' });
-            const enhanced = await enhanceWithViralMechanics(generated.message, topic, focusType);
-            if (enhanced.viralScore > 5) {
-              generated.message = enhanced.enhancedMessage;
-              viralScore = enhanced.viralScore;
-              viralEnhancements = {
-                techniques: enhanced.appliedTechniques,
-                hookType: enhanced.hookType,
-                emotionalTrigger: enhanced.emotionalTrigger,
-              };
-              await agentLog('Viral Mechanics', `Post enhanced: score ${enhanced.viralScore}/10, hook: ${enhanced.hookType}`, { type: 'result', to: 'Autonomous Engine' });
+            // Skip clients without any page config AND without env var fallback possible
+            const hasOwnPage = client.facebookPageId && client.facebookAccessToken;
+            const hasEnvFallback = process.env.FACEBOOK_PAGE_ID && process.env.FACEBOOK_ACCESS_TOKEN;
+            if (!hasOwnPage && !hasEnvFallback) {
+              await agentLog('Autonomous Engine', `⚠️ ${client.name}: sem page config e sem env vars. Pulando.`, { type: 'info' });
+              continue;
             }
-          } catch (viralErr: any) {
-            await agentLog('Viral Mechanics', `⚠️ Enhancement falhou: ${viralErr.message}`, { type: 'error' });
+
+            await agentLog('Autonomous Engine', `--- Gerando conteúdo para ${client.name} (nicho: ${client.niche || 'geral'}) ---`, { type: 'action' });
+            const ids = await generatePostsForClient({
+              clientId: client.id,
+              clientName: client.name,
+              niche: client.niche || 'geral',
+              facebookPageName: client.facebookPageName || undefined,
+            });
+            totalScheduled += ids.length;
+            clientSummaries.push(`${client.name}: ${ids.length} posts`);
+          } catch (clientErr: any) {
+            await agentLog('Autonomous Engine', `❌ Erro ao gerar conteúdo para ${client.name}: ${clientErr.message}`, { type: 'error' });
+            clientSummaries.push(`${client.name}: ERRO`);
           }
-
-          // Generate image for every post
-          let imageUrl: string | null = null;
-          try {
-            await agentLog('Autonomous Engine', `Gerando imagem para "${topic}"...`, { type: 'communication', to: 'Image Generator' });
-            const image = await generateImageForPost(topic, focusType);
-            imageUrl = image.url || null;
-            await agentLog('Image Generator', `Imagem gerada para "${topic}"`, { type: 'result', to: 'Autonomous Engine' });
-          } catch (imgErr: any) {
-            await agentLog('Image Generator', `⚠️ Falha ao gerar imagem: ${imgErr.message}. Post será publicado sem imagem.`, { type: 'error' });
-          }
-
-          const [hours, minutes] = timeStr.split(':').map(Number);
-          const scheduledFor = new Date(today);
-          scheduledFor.setHours(hours, minutes, 0, 0);
-
-          const hashtagsStr = generated.hashtags
-            ? generated.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ')
-            : null;
-
-          // 50% of posts are video (every other post) — video-first strategy
-          const isVideo = i % 2 === 1;
-          const postContentType = isVideo ? 'video' : 'organic';
-
-          const saved = await prisma.scheduledPost.create({
-            data: {
-              topic: generated.topic || topic,
-              message: generated.message,
-              hashtags: hashtagsStr,
-              imageUrl,
-              status: 'PENDING',
-              source: 'autonomous-engine',
-              contentType: postContentType,
-              scheduledFor,
-              viralScore,
-              viralEnhancements,
-            },
-          });
-
-          scheduledIds.push(saved.id);
-          recentTopics.push(topic);
-          await agentLog('Autonomous Engine', `📅 Post ${i + 1}/${strategy.postsToCreate} agendado: "${topic}" para as ${timeStr}`, { type: 'action', to: 'Scheduler' });
-
-          // A/B Testing: create variant B for non-video posts
-          if (postContentType !== 'video') {
-            try {
-              // Check if A/B testing is enabled (aggressive mode = always, normal = 50% of posts)
-              let abEnabled = false;
-              try {
-                const aggConfig = await prisma.systemConfig.findUnique({ where: { key: 'aggressive_growth_mode' } });
-                const isAggressive = aggConfig?.value === true || (aggConfig?.value as any)?.enabled === true;
-                abEnabled = isAggressive || Math.random() < 0.5;
-              } catch { abEnabled = Math.random() < 0.5; }
-
-              if (abEnabled) {
-                await agentLog('Autonomous Engine', `Criando variante A/B para "${topic}"...`, { type: 'communication', to: 'A/B Testing' });
-                await createABVariant({
-                  id: saved.id,
-                  topic: generated.topic || topic,
-                  contentType: postContentType,
-                  scheduledFor,
-                });
-              }
-            } catch (abErr: any) {
-              await agentLog('A/B Testing', `⚠️ Falha ao criar variante: ${abErr.message}`, { type: 'error' });
-            }
-          }
-        } catch (err: any) {
-          await agentLog('Autonomous Engine', `❌ Erro ao gerar post ${i + 1}: ${err.message}`, { type: 'error' });
         }
       }
 
-      if (scheduledIds.length > 0) {
+      // Notify admins
+      if (totalScheduled > 0) {
         const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
-        const topicsList = strategy.topics.slice(0, scheduledIds.length).join(', ');
+        const summary = clientSummaries.join(' | ');
         for (const admin of admins) {
-          await notificationsService.createAndEmit(admin.id, 'TASK_ASSIGNED', 'Motor autônomo ativo', `${scheduledIds.length} post(s) agendados para hoje: ${topicsList}`);
+          await notificationsService.createAndEmit(admin.id, 'TASK_ASSIGNED', 'Motor autônomo multi-page ativo', `${totalScheduled} posts agendados hoje: ${summary}`);
         }
       }
 
-      await agentLog('Autonomous Engine', `✅ Ciclo concluído. ${scheduledIds.length}/${strategy.postsToCreate} posts agendados para hoje.`, { type: 'result' });
+      await agentLog('Autonomous Engine', `✅ Ciclo multi-page concluído. ${totalScheduled} posts totais agendados. ${clientSummaries.join(' | ')}`, { type: 'result' });
     } catch (err: any) {
       console.error('[Engine] Erro no ciclo autônomo:', err.message);
       await agentLog('Autonomous Engine', `❌ Erro no ciclo autônomo: ${err.message}`, { type: 'error' });
@@ -574,7 +630,7 @@ export function startAutonomousContentEngine() {
     }); // trackAgentExecution
   });
 
-  console.log('[Engine] Motor autônomo iniciado (roda todo dia às 07:00)');
+  console.log('[Engine] Motor autônomo MULTI-PAGE iniciado (roda todo dia às 07:00)');
 }
 
 // Roda toda segunda-feira às 6h: analisa tendências e notifica admins

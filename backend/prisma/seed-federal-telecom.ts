@@ -15,7 +15,7 @@ async function main() {
       where: { id: existing.id },
       data: {
         facebookPageName: 'Federal Associados',
-        niche: 'telecom',
+        niche: 'telecom - planos de internet fibra optica e internet movel da Federal Associados e Federal Telecom (mesmo grupo). Venda de planos residenciais e empresariais, velocidades de 100Mbps a 1Gbps, cobertura regional, atendimento ao cliente, suporte tecnico, instalacao rapida. Foco em custo-beneficio, velocidade real entregue, estabilidade da conexao, suporte humanizado. Linguagem acessivel para publico geral que busca internet de qualidade.',
         isActive: true,
         status: 'ACTIVE',
       },
@@ -28,14 +28,14 @@ async function main() {
     data: {
       name: 'Federal Associados / Federal Telecom',
       company: 'Federal Telecom',
-      niche: 'telecom',
+      niche: 'telecom - planos de internet fibra optica e internet movel da Federal Associados e Federal Telecom (mesmo grupo). Venda de planos residenciais e empresariais, velocidades de 100Mbps a 1Gbps, cobertura regional, atendimento ao cliente, suporte tecnico, instalacao rapida. Foco em custo-beneficio, velocidade real entregue, estabilidade da conexao, suporte humanizado. Linguagem acessivel para publico geral que busca internet de qualidade.',
       status: 'ACTIVE',
       isActive: true,
       facebookPageName: 'Federal Associados',
       // IMPORTANT: Set these via Railway env vars or manual update:
       // facebookPageId: 'YOUR_PAGE_ID_HERE',
       // facebookAccessToken: 'YOUR_PAGE_TOKEN_HERE',
-      notes: 'Vendas de planos de internet móvel - Federal Associados e Federal Telecom. Configure facebookPageId e facebookAccessToken após criar o app no Facebook Dev.',
+      notes: 'Vendas de planos de internet - Federal Associados e Federal Telecom (mesmo grupo). Conteudo deve focar em: planos de internet, beneficios da fibra optica, velocidade, estabilidade, custo-beneficio, comparativos, dicas de uso, suporte ao cliente.',
     },
   });
 

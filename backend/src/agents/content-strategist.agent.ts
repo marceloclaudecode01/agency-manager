@@ -10,6 +10,13 @@ export interface DailyStrategy {
   reasoning: string;
 }
 
+export interface ClientContext {
+  clientId: string;
+  clientName: string;
+  niche: string;
+  facebookPageName?: string;
+}
+
 // Distribuição ideal: 40% educativo, 30% engajamento, 20% autoridade, 10% bastidores
 const CONTENT_MIX_WEIGHTS = [
   { type: 'educativo', weight: 40 },
@@ -31,13 +38,19 @@ function pickFocusTypes(count: number): string[] {
   return types;
 }
 
-export async function buildDailyStrategy(): Promise<DailyStrategy> {
+export async function buildDailyStrategy(clientCtx?: ClientContext): Promise<DailyStrategy> {
   const lastReport = await prisma.metricsReport.findFirst({
     orderBy: { createdAt: 'desc' },
   });
 
+  // Filter recent posts by client if multi-page
+  const recentWhere: any = { status: 'PUBLISHED' };
+  if (clientCtx) {
+    recentWhere.clientId = clientCtx.clientId;
+  }
+
   const recentPosts = await prisma.scheduledPost.findMany({
-    where: { status: 'PUBLISHED' },
+    where: recentWhere,
     orderBy: { publishedAt: 'desc' },
     take: 50,
     select: { topic: true, message: true, contentType: true },
@@ -55,6 +68,16 @@ export async function buildDailyStrategy(): Promise<DailyStrategy> {
   let brandCtx = '';
   try { brandCtx = await getBrandContext(); } catch {}
 
+  // Build niche-specific context for multi-page clients
+  const nicheContext = clientCtx ? `
+CLIENTE: ${clientCtx.clientName}${clientCtx.facebookPageName ? ` (Página: ${clientCtx.facebookPageName})` : ''}
+NICHO DO CLIENTE: ${clientCtx.niche}
+IMPORTANTE: Todo o conteúdo DEVE ser 100% focado no nicho "${clientCtx.niche}".
+Gere conteúdo como se você fosse o MELHOR estrategista de conteúdo do mundo para o setor de ${clientCtx.niche}.
+Use terminologia, dores, desejos e linguagem específica deste nicho.
+O conteúdo deve posicionar esta página como AUTORIDADE ABSOLUTA no nicho de ${clientCtx.niche}.
+` : '';
+
   const recentTopics = recentPosts.map((p) => p.topic).filter(Boolean).join(', ');
   const metricsContext = lastReport
     ? `Último relatório de métricas (score ${lastReport.growthScore}/10):
@@ -68,10 +91,12 @@ export async function buildDailyStrategy(): Promise<DailyStrategy> {
   const dateStr = today.toLocaleDateString('pt-BR');
 
   const prompt = `
-Você é um estrategista de conteúdo focado em CRESCIMENTO ACELERADO de página no Facebook.
+Você é um estrategista de conteúdo de NÍVEL MUNDIAL focado em CRESCIMENTO EXPLOSIVO de página no Facebook.
+Você opera como os melhores estrategistas das empresas bilionárias — cada post é uma arma de crescimento.
 
-OBJETIVO: Crescer seguidores, alcance e engajamento de forma orgânica e consistente.
+OBJETIVO: Crescer seguidores, alcance e engajamento de forma AGRESSIVA e consistente. Cada post deve ser uma BOMBA de valor.
 
+${nicheContext}
 ${brandCtx}
 
 REGRAS ABSOLUTAS:

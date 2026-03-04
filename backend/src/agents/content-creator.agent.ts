@@ -77,7 +77,8 @@ Regras:
 export async function generatePostFromStrategy(
   topic: string,
   focusType: string,
-  recentTopics: string[]
+  recentTopics: string[],
+  nicheOverride?: string
 ): Promise<GeneratedPost> {
   const focusInstructions: Record<string, string> = {
     educativo: 'Ensine algo prático e aplicável. Dica, tutorial, checklist ou "como fazer". O leitor deve sair sabendo algo novo.',
@@ -94,9 +95,17 @@ export async function generatePostFromStrategy(
   let brandCtx = '';
   try { brandCtx = await getBrandContext(); } catch {}
 
+  const nicheCtx = nicheOverride ? `
+NICHO ESPECÍFICO: ${nicheOverride}
+IMPORTANTE: Todo o conteúdo DEVE ser 100% focado no nicho "${nicheOverride}".
+Escreva como o MELHOR copywriter do mundo para o setor de ${nicheOverride}.
+Use terminologia, dores, desejos e linguagem específica deste nicho.
+` : '';
+
   const prompt = `
 ${PAGE_CONTEXT}
 ${brandCtx}
+${nicheCtx}
 
 INSTRUÇÃO DE FORMATO: Varie SEMPRE o formato. Alterne entre:
 - Lista numerada

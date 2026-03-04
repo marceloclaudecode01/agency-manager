@@ -7,47 +7,36 @@ import { getBrandContext } from './brand-brain.agent';
 import { checkCompliance } from './policy-compliance.agent';
 import { checkPatternVariation } from './pattern-variation.agent';
 
+/**
+ * Content Governor v2 — GROWTH ACCELERATOR
+ *
+ * Philosophy: The Governor exists to MAXIMIZE quality output, NOT to limit volume.
+ * More high-quality posts = more growth. The only reasons to reject are:
+ * 1. Duplicate/repetitive content (hurts page algorithm)
+ * 2. Extremely low quality (score < 3, damages brand)
+ * 3. Policy violations (gets page banned)
+ *
+ * Everything else gets APPROVED. We are building billion-dollar level content machines.
+ * Each client is independent — their content does not compete with each other.
+ */
+
 interface GovernorDecision {
-  decision: 'APPROVE' | 'REJECT' | 'RESCHEDULE' | 'QUEUE_FOR_NEXT_DAY';
+  decision: 'APPROVE' | 'REJECT' | 'RESCHEDULE';
   reason: string;
   qualityScore: number;
   newScheduledFor?: Date;
 }
 
-interface GovernorContext {
-  maxPerDay: number;
-  approvedToday: number;
-  contentMix: { organic: number; product: number };
-  organicToday: number;
-  productToday: number;
-  approvedTimes: Date[];
-  bestHours: string[];
-}
-
-function getStartOfDay(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function getEndOfDay(): Date {
-  const d = new Date();
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
 function findNextAvailableSlot(scheduledFor: Date, approvedTimes: Date[]): Date | null {
-  const minIntervalMs = 2 * 60 * 60 * 1000; // 2 hours
+  const minIntervalMs = 1 * 60 * 60 * 1000; // 1 hour minimum (was 2h — too conservative)
   const sorted = [...approvedTimes].sort((a, b) => a.getTime() - b.getTime());
 
-  // Check if current time has conflict
   const hasConflict = sorted.some(
     (t) => Math.abs(t.getTime() - scheduledFor.getTime()) < minIntervalMs
   );
 
   if (!hasConflict) return null; // no reschedule needed
 
-  // Find next available slot after the last approved post
   let candidate = new Date(scheduledFor);
   for (const t of sorted) {
     if (Math.abs(candidate.getTime() - t.getTime()) < minIntervalMs) {
@@ -55,40 +44,42 @@ function findNextAvailableSlot(scheduledFor: Date, approvedTimes: Date[]): Date 
     }
   }
 
-  // Don't schedule past 22:00
-  if (candidate.getHours() >= 22) return null;
+  // Don't schedule past 23:00 (extended from 22:00 — more posting windows)
+  if (candidate.getHours() >= 23) return null;
 
   return candidate;
 }
 
 async function evaluatePost(
   post: any,
-  ctx: GovernorContext
+  approvedTimes: Date[],
+  clientId: string | null
 ): Promise<GovernorDecision> {
   const isVideo = post.contentType === 'video';
 
-  // FAST-TRACK: Videos get priority approval — never block video pipeline
+  // FAST-TRACK: Videos ALWAYS get approved — video is king for growth
   if (isVideo) {
-    // Only reject videos for extreme quality issues or true duplicates
-    let qualityScore = 8; // videos start with high baseline
+    let qualityScore = 8;
     try {
+      const recentWhere: any = { status: 'PUBLISHED', contentType: 'video' };
+      if (clientId) recentWhere.clientId = clientId;
       const recentVideos = await prisma.scheduledPost.findMany({
-        where: { status: 'PUBLISHED', contentType: 'video' },
+        where: recentWhere,
         orderBy: { publishedAt: 'desc' },
         take: 5,
         select: { topic: true },
       });
       const recentTopics = recentVideos.map((p) => p.topic).join(', ');
-      const prompt = `Avalie rapidamente este vídeo de 1-10. Só rejeite se for IDÊNTICO a um recente.
+      const prompt = `Avalie rapidamente este vídeo de 1-10. Só rejeite se for CÓPIA EXATA de um recente.
 Vídeo: "${post.message.substring(0, 200)}" | Tópico: "${post.topic}"
 Recentes: ${recentTopics || 'nenhum'}
-Retorne APENAS JSON: { "score": 8, "isDuplicate": false }`;
+Retorne APENAS JSON: { "score": 8, "isExactDuplicate": false }`;
       const raw = await askGemini(prompt);
       const match = raw.match(/\{[\s\S]*?\}/);
       if (match) {
         const parsed = JSON.parse(match[0]);
         qualityScore = Math.max(1, Math.min(10, parsed.score || 8));
-        if (parsed.isDuplicate && qualityScore < 3) {
+        if (parsed.isExactDuplicate && qualityScore < 3) {
           return { decision: 'REJECT', reason: 'Vídeo duplicado exato', qualityScore };
         }
       }
@@ -101,48 +92,39 @@ Retorne APENAS JSON: { "score": 8, "isDuplicate": false }`;
     };
   }
 
-  // Rule 1: Daily limit (non-video posts only)
-  if (ctx.approvedToday >= ctx.maxPerDay) {
-    return {
-      decision: 'QUEUE_FOR_NEXT_DAY',
-      reason: `Limite diário atingido (${ctx.maxPerDay} posts/dia)`,
-      qualityScore: 0,
-    };
-  }
-
-  // Rule 2: Content mix balance
-  const totalAfter = ctx.approvedToday + 1;
-  const type = post.contentType || 'organic';
-  const currentCount = type === 'product' ? ctx.productToday : ctx.organicToday;
-  const targetPct = type === 'product' ? ctx.contentMix.product : ctx.contentMix.organic;
-  const projectedPct = ((currentCount + 1) / totalAfter) * 100;
-
-  if (projectedPct > targetPct + 20) {
-    return {
-      decision: 'QUEUE_FOR_NEXT_DAY',
-      reason: `Mix desbalanceado: ${type} ficaria ${projectedPct.toFixed(0)}% (alvo: ${targetPct}%)`,
-      qualityScore: 0,
-    };
-  }
-
-  // Rule 3: Minimum 2h interval
-  const newSlot = findNextAvailableSlot(post.scheduledFor, ctx.approvedTimes);
-  if (newSlot === null && ctx.approvedTimes.some(
-    (t) => Math.abs(t.getTime() - post.scheduledFor.getTime()) < 2 * 60 * 60 * 1000
+  // RESCHEDULE CHECK: 1h minimum interval (per client)
+  const newSlot = findNextAvailableSlot(post.scheduledFor, approvedTimes);
+  if (newSlot === null && approvedTimes.some(
+    (t) => Math.abs(t.getTime() - post.scheduledFor.getTime()) < 1 * 60 * 60 * 1000
   )) {
-    // Conflict and no available slot today
+    // Try to find a slot today — if not possible, reschedule +2h
+    const fallbackSlot = new Date(post.scheduledFor.getTime() + 2 * 60 * 60 * 1000);
+    if (fallbackSlot.getHours() < 23) {
+      return {
+        decision: 'RESCHEDULE',
+        reason: `Reagendado para ${fallbackSlot.toTimeString().slice(0, 5)} (intervalo 1h)`,
+        qualityScore: 7,
+        newScheduledFor: fallbackSlot,
+      };
+    }
+    // Schedule for tomorrow same time
+    const tomorrow = new Date(post.scheduledFor);
+    tomorrow.setDate(tomorrow.getDate() + 1);
     return {
-      decision: 'QUEUE_FOR_NEXT_DAY',
-      reason: 'Sem slot disponível com intervalo mínimo de 2h hoje',
-      qualityScore: 0,
+      decision: 'RESCHEDULE',
+      reason: `Reagendado para amanhã ${tomorrow.toTimeString().slice(0, 5)} (sem slot hoje)`,
+      qualityScore: 7,
+      newScheduledFor: tomorrow,
     };
   }
 
-  // Rule 4: LLM quality check + duplicate detection (expanded to 50 posts for anti-repetition)
-  let qualityScore = 7; // default if LLM fails
+  // QUALITY + DUPLICATE CHECK via LLM (the only real filter)
+  let qualityScore = 7;
   try {
+    const recentWhere: any = { status: 'PUBLISHED' };
+    if (clientId) recentWhere.clientId = clientId;
     const recentPosts = await prisma.scheduledPost.findMany({
-      where: { status: 'PUBLISHED' },
+      where: recentWhere,
       orderBy: { publishedAt: 'desc' },
       take: 50,
       select: { topic: true, message: true },
@@ -151,13 +133,15 @@ Retorne APENAS JSON: { "score": 8, "isDuplicate": false }`;
     const recentTopics = recentPosts.map((p) => p.topic).join(', ');
     const brandContext = await getBrandContext();
 
-    const prompt = `Avalie este post para redes sociais de 1 a 10 (qualidade, originalidade, engajamento) e verifique duplicatas com RIGOR.
+    const prompt = `Avalie este post para redes sociais de 1 a 10 (qualidade, originalidade, potencial de engajamento).
 ${brandContext}
 Post: "${post.message.substring(0, 300)}"
 Tópico: "${post.topic}"
 Tópicos recentes publicados (últimos 50): ${recentTopics || 'nenhum'}
 
-REGRA DE DUPLICATA RIGOROSA: Marque isDuplicate=true se o tópico for SEMANTICAMENTE SIMILAR a qualquer um dos 50 recentes — não apenas se for idêntico. Exemplos: "5 dicas de produtividade" e "como ser mais produtivo" são duplicatas. "IA no marketing" e "inteligência artificial para negócios" são duplicatas.
+REGRA: Marque isDuplicate=true APENAS se o tópico for QUASE IDÊNTICO a um dos 50 recentes.
+Variações do mesmo tema geral com ângulos DIFERENTES são PERMITIDAS e devem ser aprovadas.
+Nosso objetivo é CRESCIMENTO MÁXIMO — aprove conteúdo bom com generosidade.
 Retorne APENAS JSON: { "score": 7, "isDuplicate": false, "reason": "motivo breve" }`;
 
     const raw = await askGemini(prompt);
@@ -166,7 +150,8 @@ Retorne APENAS JSON: { "score": 7, "isDuplicate": false, "reason": "motivo breve
       const parsed = JSON.parse(match[0]);
       qualityScore = Math.max(1, Math.min(10, parsed.score || 7));
 
-      if (parsed.isDuplicate) {
+      // Only reject TRUE duplicates with low quality
+      if (parsed.isDuplicate && qualityScore < 4) {
         return {
           decision: 'REJECT',
           reason: `Conteúdo duplicado: ${parsed.reason}`,
@@ -174,19 +159,20 @@ Retorne APENAS JSON: { "score": 7, "isDuplicate": false, "reason": "motivo breve
         };
       }
 
+      // Only reject EXTREMELY low quality
       if (qualityScore < 3) {
         return {
           decision: 'REJECT',
-          reason: `Qualidade baixa (${qualityScore}/10): ${parsed.reason}`,
+          reason: `Qualidade muito baixa (${qualityScore}/10): ${parsed.reason}`,
           qualityScore,
         };
       }
     }
   } catch (err: any) {
-    console.log(`[Governor] LLM check falhou, usando score padrão: ${err.message}`);
+    console.log(`[Governor] LLM check falhou, aprovando com score padrão: ${err.message}`);
   }
 
-  // Rule 5: Policy compliance check
+  // COMPLIANCE CHECK — only block HIGH risk (platform ban risk)
   try {
     const compliance = await checkCompliance(post.message, post.platform || 'facebook');
     if (!compliance.compliant && compliance.riskLevel === 'HIGH') {
@@ -198,19 +184,19 @@ Retorne APENAS JSON: { "score": 7, "isDuplicate": false, "reason": "motivo breve
     }
   } catch {}
 
-  // Rule 6: Pattern variation check
+  // PATTERN VARIATION — just adjust score, never reject
   try {
     const variation = await checkPatternVariation(post.message);
-    if (!variation.varied && variation.similarityScore >= 70) {
-      qualityScore = Math.max(1, qualityScore - 2);
+    if (!variation.varied && variation.similarityScore >= 80) {
+      qualityScore = Math.max(1, qualityScore - 1);
     }
   } catch {}
 
-  // All checks passed → APPROVE (with possible reschedule)
+  // ALL CHECKS PASSED → APPROVE (with possible time adjustment)
   if (newSlot) {
     return {
       decision: 'APPROVE',
-      reason: `Aprovado e reagendado de ${post.scheduledFor.toTimeString().slice(0, 5)} para ${newSlot.toTimeString().slice(0, 5)} (intervalo 2h)`,
+      reason: `Aprovado e reagendado de ${post.scheduledFor.toTimeString().slice(0, 5)} para ${newSlot.toTimeString().slice(0, 5)} (intervalo 1h)`,
       qualityScore,
       newScheduledFor: newSlot,
     };
@@ -218,75 +204,29 @@ Retorne APENAS JSON: { "score": 7, "isDuplicate": false, "reason": "motivo breve
 
   return {
     decision: 'APPROVE',
-    reason: `Aprovado (qualidade: ${qualityScore}/10)`,
+    reason: `Aprovado (qualidade: ${qualityScore}/10) — crescimento máximo`,
     qualityScore,
   };
 }
 
 export async function reviewPendingPosts(): Promise<void> {
-  // Safe mode check — non-video posts suspended, videos still reviewed
   const safeMode = await isSafeModeActive();
   if (safeMode) {
     await agentLog('Content Governor', 'Safe mode ativo — apenas vídeos serão revisados', { type: 'info' });
   }
 
-  // 1. Load current strategy
-  const strategy = await prisma.weeklyStrategy.findFirst({
-    orderBy: { createdAt: 'desc' },
-  });
-
-  let maxPerDay = strategy?.maxPostsPerDay ?? 5;
-
-  // Reputation throttle: reduce max if reputation is in danger
-  try {
-    const throttle = await prisma.systemConfig.findUnique({ where: { key: 'reputation_throttle' } });
-    if (throttle && (throttle.value as any)?.enabled) {
-      maxPerDay = Math.min(maxPerDay, (throttle.value as any)?.reducedMaxPerDay ?? 2);
-      await agentLog('Content Governor', `Reputation throttle ativo: limite reduzido para ${maxPerDay}/dia`, { type: 'info' });
-    }
-  } catch {}
-
-  // Aggressive growth mode: increase max
-  try {
-    const aggConfig = await prisma.systemConfig.findUnique({ where: { key: 'aggressive_growth_mode' } });
-    if (aggConfig && ((aggConfig.value as any)?.enabled === true || aggConfig.value === true)) {
-      maxPerDay = Math.max(maxPerDay, 8); // aggressive = up to 8/day
-    }
-  } catch {}
-  const contentMix = (strategy?.contentMix as any) ?? { organic: 60, product: 40 };
-  const bestHours = (strategy?.bestPostingHours as any) ?? ['10:00', '14:00', '18:00'];
-
-  // Weekly limit — 100 posts/week (increased for video-first strategy)
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const weeklyApproved = await prisma.scheduledPost.count({
-    where: { governorDecision: 'APPROVE', governorReviewedAt: { gte: weekAgo } },
-  });
-  if (weeklyApproved >= 100) {
-    await agentLog('Content Governor', `Limite semanal atingido (100 posts/semana). Revisão suspensa.`, { type: 'info' });
-    return;
-  }
-
-  // Anti-spam — cooldown 15min only if 3+ FAILED in last 15min
+  // Anti-spam — cooldown only if 5+ FAILED in last 15min (was 3 — too aggressive)
   const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
   const recentFailedCount = await prisma.scheduledPost.count({
     where: { status: 'FAILED', updatedAt: { gte: fifteenMinAgo } },
   });
-  if (recentFailedCount >= 3) {
+  if (recentFailedCount >= 5) {
     await agentLog('Content Governor', `Cooldown ativo (${recentFailedCount} posts FAILED nos últimos 15min). Revisão adiada.`, { type: 'info' });
     return;
   }
 
-  // Phase 8: Load active campaigns
-  let activeCampaigns: any[] = [];
-  try {
-    activeCampaigns = await prisma.contentCampaign.findMany({
-      where: { status: 'ACTIVE', startDate: { lte: new Date() }, endDate: { gte: new Date() } },
-    });
-  } catch {}
-
-  // 2. Fetch pending posts not yet reviewed
+  // Fetch ALL pending posts not yet reviewed
   const pendingWhere: any = { status: 'PENDING', governorDecision: null };
-  // In safe mode, only review video posts
   if (safeMode) {
     pendingWhere.contentType = 'video';
   }
@@ -297,93 +237,101 @@ export async function reviewPendingPosts(): Promise<void> {
 
   if (pending.length === 0) return;
 
-  // 3. Count today's already approved posts
-  const today = getStartOfDay();
-  const todayEnd = getEndOfDay();
+  // Group posts by clientId for independent processing
+  const postsByClient = new Map<string, typeof pending>();
+  for (const post of pending) {
+    const key = post.clientId || '__default__';
+    if (!postsByClient.has(key)) postsByClient.set(key, []);
+    postsByClient.get(key)!.push(post);
+  }
 
-  const todayApproved = await prisma.scheduledPost.findMany({
-    where: {
+  await agentLog('Content Governor', `Revisando ${pending.length} posts pendentes para ${postsByClient.size} client(s)`, {
+    type: 'action',
+    payload: { pending: pending.length, clients: postsByClient.size },
+  });
+
+  let totalApproved = 0;
+  let totalRejected = 0;
+
+  // Process each client independently
+  for (const [clientKey, clientPosts] of postsByClient) {
+    const clientId = clientKey === '__default__' ? null : clientKey;
+    const clientLabel = clientId ? `(client: ${clientId})` : '(default)';
+
+    // Get today's already approved times for THIS client (for interval check)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const todayApprovedWhere: any = {
       scheduledFor: { gte: today, lte: todayEnd },
       OR: [
         { governorDecision: 'APPROVE' },
         { status: 'PUBLISHED' },
       ],
-    },
-    select: { scheduledFor: true, contentType: true },
-  });
-
-  let approvedToday = todayApproved.length;
-  let organicToday = todayApproved.filter((p) => p.contentType !== 'product').length;
-  let productToday = todayApproved.filter((p) => p.contentType === 'product').length;
-  let approvedTimes = todayApproved.map((p) => p.scheduledFor);
-
-  await agentLog('Content Governor', `Revisando ${pending.length} posts pendentes (${approvedToday}/${maxPerDay} aprovados hoje)`, {
-    type: 'action',
-    payload: { pending: pending.length, approvedToday, maxPerDay },
-  });
-
-  // 4. Review each pending post
-  for (const post of pending) {
-    const decision = await evaluatePost(post, {
-      maxPerDay,
-      approvedToday,
-      contentMix,
-      organicToday,
-      productToday,
-      approvedTimes,
-      bestHours,
-    });
-
-    const newStatus = decision.decision === 'APPROVE' ? 'APPROVED' :
-                      decision.decision === 'QUEUE_FOR_NEXT_DAY' ? 'PENDING' : 'REJECTED';
-
-    const updateData: any = {
-      governorDecision: decision.decision,
-      governorReason: decision.reason,
-      governorReviewedAt: new Date(),
-      qualityScore: decision.qualityScore,
     };
+    if (clientId) todayApprovedWhere.clientId = clientId;
 
-    if (decision.decision === 'APPROVE') {
-      updateData.status = 'APPROVED';
-      // Phase 2: Anti-spam humanization — ±15min random offset
-      const baseTime = decision.newScheduledFor || post.scheduledFor;
-      const offsetMs = (Math.random() * 30 - 15) * 60 * 1000; // -15 to +15 min
-      const humanizedTime = new Date(baseTime.getTime() + offsetMs);
-      updateData.scheduledFor = humanizedTime;
-      approvedToday++;
-      approvedTimes.push(humanizedTime);
-      if (post.contentType === 'product') productToday++;
-      else organicToday++;
-    } else if (decision.decision === 'REJECT') {
-      updateData.status = 'REJECTED';
-    } else if (decision.decision === 'QUEUE_FOR_NEXT_DAY') {
-      // Move to tomorrow at same time
-      const tomorrow = new Date(post.scheduledFor);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      updateData.scheduledFor = tomorrow;
-      updateData.governorDecision = null; // will be re-reviewed tomorrow
-    }
-
-    await prisma.scheduledPost.update({
-      where: { id: post.id },
-      data: updateData,
+    const todayApproved = await prisma.scheduledPost.findMany({
+      where: todayApprovedWhere,
+      select: { scheduledFor: true },
     });
 
-    await agentLog('Content Governor', `${decision.decision}: "${post.topic}" — ${decision.reason}`, {
-      type: 'result',
-      payload: {
-        postId: post.id,
-        decision: decision.decision,
+    let approvedTimes = todayApproved.map((p) => p.scheduledFor);
+
+    // Review each post for this client
+    for (const post of clientPosts) {
+      const decision = await evaluatePost(post, approvedTimes, clientId);
+
+      const updateData: any = {
+        governorDecision: decision.decision,
+        governorReason: decision.reason,
+        governorReviewedAt: new Date(),
         qualityScore: decision.qualityScore,
-        source: post.source,
-        contentType: post.contentType,
-      },
-    });
+      };
+
+      if (decision.decision === 'APPROVE') {
+        updateData.status = 'APPROVED';
+        // Anti-spam humanization — ±10min random offset
+        const baseTime = decision.newScheduledFor || post.scheduledFor;
+        const offsetMs = (Math.random() * 20 - 10) * 60 * 1000; // -10 to +10 min
+        const humanizedTime = new Date(baseTime.getTime() + offsetMs);
+        updateData.scheduledFor = humanizedTime;
+        approvedTimes.push(humanizedTime);
+        totalApproved++;
+      } else if (decision.decision === 'REJECT') {
+        updateData.status = 'REJECTED';
+        totalRejected++;
+      } else if (decision.decision === 'RESCHEDULE') {
+        updateData.status = 'APPROVED';
+        updateData.scheduledFor = decision.newScheduledFor;
+        if (decision.newScheduledFor) approvedTimes.push(decision.newScheduledFor);
+        totalApproved++;
+      }
+
+      await prisma.scheduledPost.update({
+        where: { id: post.id },
+        data: updateData,
+      });
+
+      await agentLog('Content Governor', `${decision.decision} ${clientLabel}: "${post.topic}" — ${decision.reason}`, {
+        type: 'result',
+        payload: {
+          postId: post.id,
+          decision: decision.decision,
+          qualityScore: decision.qualityScore,
+          source: post.source,
+          contentType: post.contentType,
+          clientId,
+        },
+      });
+    }
   }
 
-  await agentLog('Content Governor', `Revisão concluída: ${pending.length} posts processados`, {
+  await agentLog('Content Governor', `Revisão concluída: ${totalApproved} aprovados, ${totalRejected} rejeitados de ${pending.length} pendentes`, {
     type: 'info',
+    payload: { totalApproved, totalRejected, total: pending.length },
   });
 }
 
@@ -396,5 +344,5 @@ export function startContentGovernor() {
       await agentLog('Content Governor', `Erro: ${err.message}`, { type: 'error' });
     }
   });
-  console.log('[Governor] Content Governor iniciado (a cada 10 minutos)');
+  console.log('[Governor] Content Governor v2 (Growth Accelerator) iniciado (a cada 10 minutos)');
 }
