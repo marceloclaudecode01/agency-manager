@@ -42,32 +42,60 @@ async function askGroqProvider(prompt: string): Promise<string> {
 }
 
 // ─── Provider 3: OpenRouter (free models, OpenAI-compatible) ───
+// Multiple free models — tries each until one responds (they share rate limits upstream)
+const OPENROUTER_MODELS = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+  'google/gemma-3-27b-it:free',
+  'nousresearch/hermes-3-llama-3.1-405b:free',
+  'google/gemma-3-4b-it:free',
+];
+
 async function askOpenRouterProvider(prompt: string): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not set');
 
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://agency-manager-production.up.railway.app',
-    },
-    body: JSON.stringify({
-      model: 'meta-llama/llama-3.3-70b-instruct:free',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 2048,
-    }),
-  });
+  for (const model of OPENROUTER_MODELS) {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://agency-manager-production.up.railway.app',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.7,
+          max_tokens: 2048,
+        }),
+      });
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`OpenRouter ${res.status}: ${errText.substring(0, 200)}`);
+      if (res.status === 429) {
+        console.log(`[LLM] OpenRouter ${model} rate limited — trying next model...`);
+        continue;
+      }
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        console.log(`[LLM] OpenRouter ${model} error ${res.status} — trying next model...`);
+        continue;
+      }
+
+      const data: any = await res.json();
+      const content = data.choices?.[0]?.message?.content || '';
+      if (content) {
+        console.log(`[LLM] ✓ OpenRouter ${model} responded`);
+        return content;
+      }
+    } catch (err: any) {
+      console.log(`[LLM] OpenRouter ${model} failed: ${(err?.message || '').substring(0, 80)} — trying next model...`);
+      continue;
+    }
   }
 
-  const data: any = await res.json();
-  return data.choices?.[0]?.message?.content || '';
+  throw new Error('OpenRouter: all free models rate limited');
 }
 
 // ─── Providers config (order = priority) ───
