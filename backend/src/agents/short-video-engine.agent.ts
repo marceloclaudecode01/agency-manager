@@ -3,6 +3,7 @@ import prisma from '../config/database';
 import { askGemini } from './gemini';
 import { agentLog } from './agent-logger';
 import { generateImageForPost } from './image-generator.agent';
+import { getBrandContext } from './brand-brain.agent';
 
 const DAILY_LIMIT = 8;
 const SOURCE = 'short-video-engine';
@@ -82,10 +83,29 @@ function getScheduledTime(): Date {
 async function generateImagePost(): Promise<void> {
   const framework = pickFramework();
 
+  // Lookback: últimos 50 posts para anti-repetição
+  const recentPosts = await prisma.scheduledPost.findMany({
+    where: { status: { in: ['PUBLISHED', 'APPROVED', 'PENDING'] } },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    select: { topic: true },
+  });
+  const recentTopics = recentPosts.map((p) => p.topic).filter(Boolean).join(', ');
+
+  let brandCtx = '';
+  try { brandCtx = await getBrandContext(); } catch {}
+
   const prompt = `Voce e o diretor criativo de uma agencia top.
 Crie um post de IMAGEM para Facebook/Instagram que PARE O SCROLL.
 
 ${framework.prompt}
+
+${brandCtx}
+
+ANTI-REPETICAO (CRITICO): O tema DEVE ser COMPLETAMENTE DIFERENTE de todos os posts recentes listados abaixo. NAO repita tema, angulo, abordagem ou variacao semelhante. Se o tema for parecido com qualquer um dos listados, escolha outro completamente novo.
+Temas recentes (ultimos 50 posts — PROIBIDO repetir): ${recentTopics || 'nenhum'}
+
+O post DEVE estar alinhado a um dos 4 pilares tematicos definidos nas brand guidelines acima.
 
 REGRAS:
 - Texto curto e impactante (max 280 chars para a legenda principal)
@@ -96,15 +116,17 @@ REGRAS:
 - PROIBIDO: corporativismo, cliches, tom de vendedor, emojis, caracteres especiais unicode
 - NAO inclua indicacoes de video como [colchetes] ou roteiro — e uma IMAGEM estatica
 - Use apenas caracteres ASCII basicos (letras, numeros, pontuacao normal)
+- PROIBIDO: temas motivacionais genericos como "Desperte", "Desbloqueie seu potencial", "Siga em frente". Seja ESPECIFICO.
 
 Responda APENAS JSON:
 {
-  "topic": "titulo curto (max 50 chars)",
+  "topic": "titulo curto e ESPECIFICO (max 50 chars)",
   "caption": "legenda completa do post (max 280 chars, SEM emojis)",
   "hook": "primeira linha que para o scroll",
   "cta": "call to action final",
   "hashtags": "#hash1 #hash2 #hash3 #hash4 #hash5",
-  "category": "educativo"
+  "category": "educativo",
+  "pilar": "qual dos 4 pilares tematicos este post aborda"
 }`;
 
   const response = await askGemini(prompt);
