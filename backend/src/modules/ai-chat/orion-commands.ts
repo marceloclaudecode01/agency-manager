@@ -2,6 +2,12 @@ import { pauseAgent, resumeAgent, activateSafeMode, deactivateSafeMode, getSafeM
 import { runSentinel } from '../../agents/system-sentinel.agent';
 import { agentLog } from '../../agents/agent-logger';
 import prisma from '../../config/database';
+import { generatePostFromStrategy } from '../../agents/content-creator.agent';
+import { buildDailyStrategy } from '../../agents/content-strategist.agent';
+import { enhanceWithViralMechanics } from '../../agents/viral-mechanics.agent';
+import { optimizeForPlatform } from '../../agents/platform-optimizer.agent';
+import { generateImageForPost } from '../../agents/image-generator.agent';
+import { SocialService } from '../social/social.service';
 
 export interface CommandResult {
   command: string;
@@ -216,6 +222,401 @@ const COMMANDS: CommandDef[] = [
       }
     },
   },
+  // ─── PUBLISH NOW — Generate + publish immediately ───
+  {
+    name: 'publish_now',
+    requiredRole: 'ADMIN',
+    patterns: [
+      /(?:publicar?|postar?|publish)\s+(?:agora|now|ja|já|imediato|imediatamente)/i,
+      /(?:criar?|create|gerar?|generate)\s+(?:e\s+)?(?:publicar?|postar?)\s+(?:agora|now|ja|já)/i,
+      /(?:manda|faz|faca|faça)\s+(?:um\s+)?(?:post|publicacao|publicação)\s+(?:agora|now|ja|já)/i,
+    ],
+    execute: async (match) => {
+      try {
+        await agentLog('Orion', 'Comando: publicar agora — acionando pipeline completo', { type: 'action' });
+
+        // Get a client (prefer first active with page config)
+        const client = await prisma.client.findFirst({
+          where: { isActive: true, status: 'ACTIVE', facebookPageId: { not: null }, facebookAccessToken: { not: null } },
+          select: { id: true, name: true, niche: true, notes: true, facebookPageId: true, facebookAccessToken: true },
+        });
+
+        // Build strategy for 1 post
+        const strategy = await buildDailyStrategy(client ? {
+          clientId: client.id, clientName: client.name, niche: client.niche || 'geral', notes: client.notes || undefined,
+        } : undefined);
+
+        const topic = strategy.topics[0];
+        const focusType = strategy.focusType[0] || 'educativo';
+
+        // Get recent topics for anti-duplication
+        const recentPosts = await prisma.scheduledPost.findMany({
+          where: { status: 'PUBLISHED', ...(client ? { clientId: client.id } : {}) },
+          orderBy: { publishedAt: 'desc' }, take: 30, select: { topic: true },
+        });
+        const recentTopics = recentPosts.map(p => p.topic).filter(Boolean) as string[];
+
+        // Generate post
+        let generated = await generatePostFromStrategy(topic, focusType, recentTopics, client?.niche || undefined, client?.notes || undefined);
+
+        // Viral Mechanics
+        try {
+          const enhanced = await enhanceWithViralMechanics(generated.message, topic, focusType);
+          generated.message = enhanced.enhancedMessage;
+        } catch {}
+
+        // Platform Optimizer
+        try {
+          const optimized = optimizeForPlatform(generated.message, generated.hashtags || [], 'facebook');
+          generated.message = optimized.message;
+          generated.hashtags = optimized.hashtags;
+        } catch {}
+
+        // Generate image
+        let imageUrl: string | null = null;
+        try {
+          const img = await generateImageForPost(topic, focusType);
+          imageUrl = img.url || null;
+        } catch {}
+
+        const hashtagsStr = generated.hashtags?.map((h: string) => `#${h.replace('#', '')}`).join(' ') || null;
+        const fullMessage = hashtagsStr ? `${generated.message}\n\n${hashtagsStr}` : generated.message;
+
+        // Build SocialService for this client
+        let socialService: SocialService;
+        if (client?.facebookPageId && client?.facebookAccessToken) {
+          socialService = new SocialService({ pageId: client.facebookPageId, accessToken: client.facebookAccessToken });
+        } else {
+          socialService = new SocialService();
+        }
+
+        // Publish directly
+        const publishResult = imageUrl
+          ? await socialService.publishMediaPost(fullMessage, imageUrl, { mediaType: 'image' })
+          : await socialService.publishPost(fullMessage);
+
+        // Save to DB as PUBLISHED
+        await prisma.scheduledPost.create({
+          data: {
+            topic: generated.topic || topic,
+            message: generated.message,
+            hashtags: hashtagsStr,
+            imageUrl,
+            status: 'PUBLISHED',
+            publishedAt: new Date(),
+            scheduledFor: new Date(),
+            source: 'orion-command',
+            contentType: 'organic',
+            governorDecision: 'APPROVE',
+            governorReason: 'Publicação direta via Orion',
+            metaPostId: publishResult?.id || null,
+            ...(client ? { clientId: client.id } : {}),
+          },
+        });
+
+        await agentLog('Orion', `Post publicado AGORA: "${topic}" (${client?.name || 'default'})`, { type: 'result' });
+        return {
+          command: 'publish_now',
+          success: true,
+          message: `Post publicado com sucesso AGORA!\n📝 Tema: "${topic}"\n📄 Tipo: ${focusType}\n📱 Página: ${client?.name || 'padrão'}\n🆔 FB ID: ${publishResult?.id || 'N/A'}`,
+          data: { topic, focusType, fbPostId: publishResult?.id, client: client?.name },
+        };
+      } catch (e: any) {
+        await agentLog('Orion', `Falha ao publicar agora: ${e.message}`, { type: 'error' });
+        return { command: 'publish_now', success: false, message: `Falha ao publicar: ${e.message}` };
+      }
+    },
+  },
+  // ─── SCHEDULE POST — Generate + schedule for specific time ───
+  {
+    name: 'schedule_post',
+    requiredRole: 'ADMIN',
+    patterns: [
+      /(?:publicar?|postar?|agendar?|schedule)\s+(?:para|at|as|às|pra)\s+(?:as\s+)?(\d{1,2})[h:]?(\d{2})?\b/i,
+      /(?:agenda|cria|gera)\s+(?:um\s+)?(?:post|publicacao|publicação)\s+(?:para|as|às|pra)\s+(?:as\s+)?(\d{1,2})[h:]?(\d{2})?\b/i,
+      /(?:manda|faz|faca|faça)\s+(?:um\s+)?(?:post|publicacao|publicação)\s+(?:para|as|às|pra)\s+(?:as\s+)?(\d{1,2})[h:]?(\d{2})?\b/i,
+    ],
+    execute: async (match) => {
+      try {
+        const hours = parseInt(match[1]);
+        const minutes = parseInt(match[2] || '0');
+        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+          return { command: 'schedule_post', success: false, message: 'Horário inválido. Use formato HH:MM (ex: 14:30).' };
+        }
+
+        await agentLog('Orion', `Comando: agendar post para ${hours}:${String(minutes).padStart(2, '0')}`, { type: 'action' });
+
+        const client = await prisma.client.findFirst({
+          where: { isActive: true, status: 'ACTIVE', facebookPageId: { not: null }, facebookAccessToken: { not: null } },
+          select: { id: true, name: true, niche: true, notes: true },
+        });
+
+        const strategy = await buildDailyStrategy(client ? {
+          clientId: client.id, clientName: client.name, niche: client.niche || 'geral', notes: client.notes || undefined,
+        } : undefined);
+
+        const topic = strategy.topics[0];
+        const focusType = strategy.focusType[0] || 'educativo';
+
+        const recentPosts = await prisma.scheduledPost.findMany({
+          where: { status: 'PUBLISHED', ...(client ? { clientId: client.id } : {}) },
+          orderBy: { publishedAt: 'desc' }, take: 30, select: { topic: true },
+        });
+        const recentTopics = recentPosts.map(p => p.topic).filter(Boolean) as string[];
+
+        let generated = await generatePostFromStrategy(topic, focusType, recentTopics, client?.niche || undefined, client?.notes || undefined);
+
+        try {
+          const enhanced = await enhanceWithViralMechanics(generated.message, topic, focusType);
+          generated.message = enhanced.enhancedMessage;
+        } catch {}
+
+        try {
+          const optimized = optimizeForPlatform(generated.message, generated.hashtags || [], 'facebook');
+          generated.message = optimized.message;
+          generated.hashtags = optimized.hashtags;
+        } catch {}
+
+        let imageUrl: string | null = null;
+        try {
+          const img = await generateImageForPost(topic, focusType);
+          imageUrl = img.url || null;
+        } catch {}
+
+        const hashtagsStr = generated.hashtags?.map((h: string) => `#${h.replace('#', '')}`).join(' ') || null;
+
+        const scheduledFor = new Date();
+        scheduledFor.setHours(hours, minutes, 0, 0);
+        // If time already passed today, schedule for tomorrow
+        if (scheduledFor.getTime() < Date.now()) {
+          scheduledFor.setDate(scheduledFor.getDate() + 1);
+        }
+
+        const saved = await prisma.scheduledPost.create({
+          data: {
+            topic: generated.topic || topic,
+            message: generated.message,
+            hashtags: hashtagsStr,
+            imageUrl,
+            status: 'APPROVED',
+            scheduledFor,
+            source: 'orion-command',
+            contentType: 'organic',
+            governorDecision: 'APPROVE',
+            governorReason: 'Agendado via Orion',
+            ...(client ? { clientId: client.id } : {}),
+          },
+        });
+
+        const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        const dateStr = scheduledFor.toLocaleDateString('pt-BR');
+        await agentLog('Orion', `Post agendado para ${timeStr} (${dateStr}): "${topic}"`, { type: 'result' });
+        return {
+          command: 'schedule_post',
+          success: true,
+          message: `Post agendado com sucesso!\n📝 Tema: "${topic}"\n📄 Tipo: ${focusType}\n⏰ Horário: ${timeStr} (${dateStr})\n📱 Página: ${client?.name || 'padrão'}\n🆔 ID: ${saved.id}`,
+          data: { topic, focusType, scheduledFor: scheduledFor.toISOString(), postId: saved.id },
+        };
+      } catch (e: any) {
+        await agentLog('Orion', `Falha ao agendar post: ${e.message}`, { type: 'error' });
+        return { command: 'schedule_post', success: false, message: `Falha ao agendar: ${e.message}` };
+      }
+    },
+  },
+  // ─── RESCHEDULE POST — Change schedule time of existing post ───
+  {
+    name: 'reschedule_post',
+    requiredRole: 'ADMIN',
+    patterns: [
+      /(?:alterar?|mudar?|trocar?|change|reschedule|reagendar?)\s+(?:o\s+)?(?:horario|horário|hora|time|schedule)\s+(?:do\s+)?(?:post\s+)?(?:#)?(\S+)\s+(?:para|to|pra)\s+(?:as\s+)?(\d{1,2})[h:]?(\d{2})?\b/i,
+      /(?:mover?|move)\s+(?:o\s+)?(?:post\s+)?(?:#)?(\S+)\s+(?:para|to|pra)\s+(?:as\s+)?(\d{1,2})[h:]?(\d{2})?\b/i,
+    ],
+    execute: async (match) => {
+      const postId = match[1];
+      const hours = parseInt(match[2]);
+      const minutes = parseInt(match[3] || '0');
+      if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        return { command: 'reschedule_post', success: false, message: 'Horário inválido. Use formato HH:MM.' };
+      }
+
+      try {
+        const post = await prisma.scheduledPost.findFirst({
+          where: {
+            OR: [
+              { id: postId },
+              { topic: { contains: postId, mode: 'insensitive' as any } },
+            ],
+            status: { in: ['PENDING', 'APPROVED'] },
+          },
+        });
+
+        if (!post) {
+          return { command: 'reschedule_post', success: false, message: `Post "${postId}" não encontrado ou já publicado.` };
+        }
+
+        const newTime = new Date(post.scheduledFor);
+        newTime.setHours(hours, minutes, 0, 0);
+        if (newTime.getTime() < Date.now()) {
+          newTime.setDate(newTime.getDate() + 1);
+        }
+
+        await prisma.scheduledPost.update({
+          where: { id: post.id },
+          data: { scheduledFor: newTime },
+        });
+
+        const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        await agentLog('Orion', `Post "${post.topic}" reagendado para ${timeStr}`, { type: 'action' });
+        return {
+          command: 'reschedule_post',
+          success: true,
+          message: `Post reagendado!\n📝 "${post.topic}"\n⏰ Novo horário: ${timeStr}\n🆔 ID: ${post.id}`,
+          data: { postId: post.id, topic: post.topic, newScheduledFor: newTime.toISOString() },
+        };
+      } catch (e: any) {
+        return { command: 'reschedule_post', success: false, message: `Falha ao reagendar: ${e.message}` };
+      }
+    },
+  },
+  // ─── PUBLISH FOR CLIENT — Generate + publish for specific client ───
+  {
+    name: 'publish_for_client',
+    requiredRole: 'ADMIN',
+    patterns: [
+      /(?:publicar?|postar?|publish)\s+(?:para|for|no|na|do|da)\s+(?:a?\s+)?(?:pagina|página|page|client[e]?)\s+(?:do?\s+|da?\s+)?(.+?)(?:\s+agora|\s+now|\s+ja|\s+já)?$/i,
+      /(?:publicar?|postar?)\s+(?:agora\s+)?(?:para|no|na)\s+(.+)/i,
+    ],
+    execute: async (match) => {
+      try {
+        const clientSearch = match[1].trim();
+        const client = await prisma.client.findFirst({
+          where: {
+            OR: [
+              { name: { contains: clientSearch, mode: 'insensitive' as any } },
+              { facebookPageName: { contains: clientSearch, mode: 'insensitive' as any } },
+            ],
+            isActive: true,
+          },
+          select: { id: true, name: true, niche: true, notes: true, facebookPageId: true, facebookAccessToken: true },
+        });
+
+        if (!client) {
+          return { command: 'publish_for_client', success: false, message: `Cliente "${clientSearch}" não encontrado. Clientes ativos estão no banco.` };
+        }
+        if (!client.facebookPageId || !client.facebookAccessToken) {
+          return { command: 'publish_for_client', success: false, message: `Cliente "${client.name}" não tem page config (pageId/token).` };
+        }
+
+        await agentLog('Orion', `Comando: publicar agora para ${client.name}`, { type: 'action' });
+
+        const strategy = await buildDailyStrategy({
+          clientId: client.id, clientName: client.name, niche: client.niche || 'geral', notes: client.notes || undefined,
+        });
+
+        const topic = strategy.topics[0];
+        const focusType = strategy.focusType[0] || 'educativo';
+
+        const recentPosts = await prisma.scheduledPost.findMany({
+          where: { status: 'PUBLISHED', clientId: client.id },
+          orderBy: { publishedAt: 'desc' }, take: 30, select: { topic: true },
+        });
+        const recentTopics = recentPosts.map(p => p.topic).filter(Boolean) as string[];
+
+        let generated = await generatePostFromStrategy(topic, focusType, recentTopics, client.niche || undefined, client.notes || undefined);
+
+        try {
+          const enhanced = await enhanceWithViralMechanics(generated.message, topic, focusType);
+          generated.message = enhanced.enhancedMessage;
+        } catch {}
+
+        try {
+          const optimized = optimizeForPlatform(generated.message, generated.hashtags || [], 'facebook');
+          generated.message = optimized.message;
+          generated.hashtags = optimized.hashtags;
+        } catch {}
+
+        let imageUrl: string | null = null;
+        try {
+          const img = await generateImageForPost(topic, focusType);
+          imageUrl = img.url || null;
+        } catch {}
+
+        const hashtagsStr = generated.hashtags?.map((h: string) => `#${h.replace('#', '')}`).join(' ') || null;
+        const fullMessage = hashtagsStr ? `${generated.message}\n\n${hashtagsStr}` : generated.message;
+
+        const socialService = new SocialService({ pageId: client.facebookPageId, accessToken: client.facebookAccessToken });
+        const publishResult = imageUrl
+          ? await socialService.publishMediaPost(fullMessage, imageUrl, { mediaType: 'image' })
+          : await socialService.publishPost(fullMessage);
+
+        await prisma.scheduledPost.create({
+          data: {
+            topic: generated.topic || topic,
+            message: generated.message,
+            hashtags: hashtagsStr,
+            imageUrl,
+            status: 'PUBLISHED',
+            publishedAt: new Date(),
+            scheduledFor: new Date(),
+            source: 'orion-command',
+            contentType: 'organic',
+            governorDecision: 'APPROVE',
+            governorReason: `Publicação direta via Orion para ${client.name}`,
+            metaPostId: publishResult?.id || null,
+            clientId: client.id,
+          },
+        });
+
+        await agentLog('Orion', `Post publicado AGORA para ${client.name}: "${topic}"`, { type: 'result' });
+        return {
+          command: 'publish_for_client',
+          success: true,
+          message: `Post publicado para ${client.name}!\n📝 Tema: "${topic}"\n📄 Tipo: ${focusType}\n🆔 FB ID: ${publishResult?.id || 'N/A'}`,
+          data: { topic, client: client.name, fbPostId: publishResult?.id },
+        };
+      } catch (e: any) {
+        await agentLog('Orion', `Falha ao publicar para cliente: ${e.message}`, { type: 'error' });
+        return { command: 'publish_for_client', success: false, message: `Falha: ${e.message}` };
+      }
+    },
+  },
+  // ─── LIST PENDING POSTS ───
+  {
+    name: 'list_pending',
+    requiredRole: 'MEMBER',
+    patterns: [
+      /(?:listar?|list|mostrar?|show|ver)\s+(?:os?\s+)?(?:posts?\s+)?(?:pendente|pending|agendado|scheduled|fila|queue)/i,
+      /(?:que|quais)\s+posts?\s+(?:estão|estao|tem|temos)\s+(?:pendente|agendado|na\s+fila)/i,
+    ],
+    execute: async () => {
+      try {
+        const posts = await prisma.scheduledPost.findMany({
+          where: { status: { in: ['PENDING', 'APPROVED'] } },
+          orderBy: { scheduledFor: 'asc' },
+          take: 10,
+          select: { id: true, topic: true, scheduledFor: true, status: true, contentType: true, clientId: true },
+        });
+
+        if (posts.length === 0) {
+          return { command: 'list_pending', success: true, message: 'Nenhum post pendente ou agendado no momento.' };
+        }
+
+        const lines = posts.map((p, i) => {
+          const time = p.scheduledFor.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+          return `${i + 1}. "${p.topic}" — ${time} [${p.status}] (ID: ${p.id.slice(-6)})`;
+        });
+
+        return {
+          command: 'list_pending',
+          success: true,
+          message: `📋 ${posts.length} posts na fila:\n${lines.join('\n')}`,
+          data: { posts },
+        };
+      } catch (e: any) {
+        return { command: 'list_pending', success: false, message: `Falha: ${e.message}` };
+      }
+    },
+  },
 ];
 
 export function matchCommand(userMessage: string): { def: CommandDef; match: RegExpMatchArray } | null {
@@ -255,4 +656,10 @@ COMANDOS DISPONÍVEIS (o usuário pode pedir em linguagem natural):
 - Sentinel: "rodar sentinel", "sentinel check"
 - Override post: "aprovar post #123", "rejeitar post #456"
 - Status sistema: "status do sistema", "system status"
-Quando um comando é executado, você receberá o resultado para narrar ao usuário.`;
+- PUBLICAR AGORA: "publicar agora", "postar agora", "faz um post agora"
+- AGENDAR POST: "publicar para as 14:30", "agendar para 18h", "postar às 20:00"
+- REAGENDAR: "alterar horário do post X para 15:00", "mover post X para 20h"
+- PUBLICAR POR CLIENTE: "publicar para Federal", "postar na página do Newplay agora"
+- VER FILA: "listar posts pendentes", "ver posts agendados", "mostrar fila"
+Quando um comando é executado, você receberá o resultado para narrar ao usuário.
+IMPORTANTE: Você tem AUTORIDADE TOTAL para acionar os agentes. Quando o usuário pede para publicar, agendar ou alterar horários, EXECUTE o comando — não apenas explique.`;
