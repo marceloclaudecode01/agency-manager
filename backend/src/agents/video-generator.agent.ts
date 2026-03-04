@@ -28,17 +28,37 @@ export async function queueVideoForPost(postId: string): Promise<void> {
       return;
     }
 
-    // Generate visual prompt via LLM
+    // Generate visual prompt via LLM — elite video director mindset
     const topicText = post.topic || post.message.substring(0, 100);
-    const promptForLLM = `You are a video prompt engineer. Convert this social media post topic into a cinematic visual prompt for AI video generation (text-to-video model). The prompt should describe a 5-second scene with camera movement, lighting, and mood. Output ONLY the visual prompt in English, max 200 words. No explanations.
+    const promptForLLM = `You are a world-class short-form video director who has generated 500M+ views across Reels, TikTok and YouTube Shorts. You think in HOOKS — the first frame must stop the scroll. You understand retention psychology: pattern interrupts, visual tension, cinematic movement, and emotional escalation.
+
+Your job: convert this social media topic into a PRECISE visual prompt for an AI text-to-video model (5 seconds, no text/UI overlays — pure cinematic footage).
+
+RULES FOR MAXIMUM RETENTION:
+1. HOOK FRAME (0-1s): Start with an unexpected, visually striking opening — extreme close-up, dramatic reveal, or pattern interrupt. NEVER start with a static wide shot.
+2. MOVEMENT (entire clip): Camera MUST move — slow dolly-in, orbit, crane up, tracking shot. Static = death. Smooth cinematic motion at all times.
+3. LIGHTING: Use dramatic, moody lighting — golden hour, neon contrast, rim lighting, volumetric rays. NEVER flat/overcast lighting.
+4. EMOTION: Every frame must evoke curiosity, aspiration, or awe. Think "I need to watch this again."
+5. CLARITY: One clear subject, one clear action, one clear mood. No clutter, no confusion.
+6. TEXTURE & DETAIL: Hyper-detailed textures — skin pores, water droplets, fabric threads, metal reflections. 8K photorealistic quality.
+
+BAD PROMPTS (generic, boring, won't retain):
+- "A person using a phone in an office" ← flat, static, zero hook
+- "Beautiful landscape with mountains" ← stock footage energy
+
+GOOD PROMPTS (specific, cinematic, scroll-stopping):
+- "Extreme macro shot of espresso crema swirling in slow motion, golden light refracting through steam, camera slowly pulling back to reveal a hand lifting the cup, shallow depth of field, anamorphic lens flare"
+- "Dramatic low-angle tracking shot following a businessman walking through rain-soaked neon streets at night, reflections shimmering on wet pavement, cinematic 2.39:1 aspect ratio, volumetric fog"
+
+Output ONLY the visual prompt in English. Max 150 words. No titles, no explanations, no quotation marks. Just the raw prompt.
 
 Topic: "${topicText}"
-Post message: "${post.message.substring(0, 300)}"`;
+Post context: "${post.message.substring(0, 200)}"`;
 
     let visualPrompt: string;
     try {
       visualPrompt = await askGemini(promptForLLM);
-      visualPrompt = visualPrompt.trim().substring(0, 500);
+      visualPrompt = visualPrompt.trim().replace(/^["']|["']$/g, '').substring(0, 500);
     } catch (llmErr: any) {
       await agentLog('VideoGenerator', `LLM prompt generation failed: ${llmErr.message}. Falling back to image.`, { type: 'error' });
       await fallbackToImage(postId);
@@ -49,7 +69,7 @@ Post message: "${post.message.substring(0, 300)}"`;
     try {
       const result = await queueVideoGeneration({
         prompt: visualPrompt,
-        negative_prompt: 'blurry, low quality, text, watermark, distorted, ugly',
+        negative_prompt: 'blurry, low quality, text overlay, watermark, distorted, ugly, static camera, flat lighting, overexposed, underexposed, stock footage, generic, boring composition, centered subject, snapshot, amateur, grainy, noisy, cartoon, anime, illustration, painting, drawing',
       });
 
       await prisma.scheduledPost.update({
