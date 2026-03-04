@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { AgentsController } from './agents.controller';
 import { authMiddleware, requireRole } from '../../middlewares/auth';
 import { validate } from '../../middlewares/validate';
@@ -14,11 +15,20 @@ import {
 const router = Router();
 const controller = new AgentsController();
 
+// Rate limit for LLM-consuming endpoints (prevents cost abuse)
+const llmLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 20, // 20 LLM calls per 15 min per IP
+  message: { success: false, message: 'Too many AI requests. Try again in a few minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 router.use(authMiddleware);
 
 // Geração de conteúdo com IA
-router.post('/generate-post', requireRole('ADMIN', 'MANAGER'), validate(generatePostSchema), (req, res) => controller.generatePost(req as any, res));
-router.post('/generate-weekly', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.generateWeeklyPlan(req as any, res));
+router.post('/generate-post', requireRole('ADMIN', 'MANAGER'), llmLimiter, validate(generatePostSchema), (req, res) => controller.generatePost(req as any, res));
+router.post('/generate-weekly', requireRole('ADMIN', 'MANAGER'), llmLimiter, (req, res) => controller.generateWeeklyPlan(req as any, res));
 
 // Posts agendados
 router.get('/scheduled', (req, res) => controller.getScheduledPosts(req as any, res));
@@ -43,7 +53,7 @@ router.get('/products/tiktok', requireRole('ADMIN', 'MANAGER'), (req, res) => co
 router.post('/products/run', requireRole('ADMIN', 'MANAGER'), validate(productOrchestratorSchema), (req, res) => controller.runProductOrchestrator(req as any, res));
 
 // Criar post a partir de link de produto
-router.post('/post-from-link', requireRole('ADMIN', 'MANAGER'), validate(postFromLinkSchema), (req, res) => controller.createPostFromLink(req as any, res));
+router.post('/post-from-link', requireRole('ADMIN', 'MANAGER'), llmLimiter, validate(postFromLinkSchema), (req, res) => controller.createPostFromLink(req as any, res));
 
 // Upload de mídia (imagem ou vídeo)
 router.post('/upload-media', requireRole('ADMIN', 'MANAGER'), upload.single('file'), (req, res) => controller.uploadMedia(req as any, res));
@@ -78,7 +88,7 @@ router.post('/campaigns', requireRole('ADMIN'), validate(createCampaignSchema), 
 router.patch('/campaigns/:id', requireRole('ADMIN'), validate(updateCampaignSchema), (req, res) => controller.updateCampaign(req as any, res));
 
 // Epic 2: Content Replicator & Multi-format
-router.post('/replicate', requireRole('ADMIN', 'MANAGER'), validate(replicatePostSchema), (req, res) => controller.replicatePost(req as any, res));
+router.post('/replicate', requireRole('ADMIN', 'MANAGER'), llmLimiter, validate(replicatePostSchema), (req, res) => controller.replicatePost(req as any, res));
 router.get('/replicas/stats', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getReplicaStatsEndpoint(req as any, res));
 router.get('/replicas/:postId', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getPostReplicas(req as any, res));
 // Epic 1: A/B Testing

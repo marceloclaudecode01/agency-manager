@@ -28,17 +28,14 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (!token) return;
-
     // Carregar notificações existentes
     api.get('/notifications').then(({ data }) => {
       setNotifications(data.data || []);
     }).catch(() => {});
 
-    // Conectar socket
+    // Conectar socket — uses httpOnly cookie for auth (withCredentials)
     const s = io(process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3333', {
-      auth: { token },
+      withCredentials: true,
     });
 
     s.on('notification', (notif: Notification) => {
