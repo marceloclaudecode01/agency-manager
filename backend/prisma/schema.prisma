@@ -111,19 +111,27 @@ model Notification {
 }
 
 model Client {
-  id        String       @id @default(cuid())
-  name      String
-  email     String?
-  phone     String?
-  company   String?
-  status    ClientStatus @default(LEAD)
-  notes     String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id                  String       @id @default(cuid())
+  name                String
+  email               String?
+  phone               String?
+  company             String?
+  status              ClientStatus @default(LEAD)
+  notes               String?
+  // Social media page config (multi-page support)
+  facebookPageId      String?
+  facebookAccessToken String?
+  facebookPageName    String?
+  niche               String?      // ex: "telecom", "tv_online", "ecommerce"
+  isActive            Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
-  campaigns Campaign[]
-  budgets   Budget[]
-  invoices  Invoice[]
+  campaigns      Campaign[]
+  budgets        Budget[]
+  invoices       Invoice[]
+  scheduledPosts ScheduledPost[]
+  strategies     WeeklyStrategy[]
 
   @@map("clients")
 }
@@ -251,9 +259,14 @@ model ScheduledPost {
   abTestId            String?
   viralScore          Int?
   viralEnhancements   Json?
+  clientId        String?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
+  client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([status, scheduledFor])
   @@map("scheduled_posts")
 }
 
@@ -317,8 +330,12 @@ model WeeklyStrategy {
   contentMix       Json
   bestPostingHours Json
   adjustmentReason String
+  clientId         String?
   createdAt        DateTime @default(now())
 
+  client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
   @@map("weekly_strategies")
 }
 
