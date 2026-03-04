@@ -47,7 +47,7 @@ export class AuthService {
 
     let decoded: { id: string };
     try {
-      decoded = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET as string) as { id: string };
+      decoded = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET as string, { algorithms: ['HS256'] }) as { id: string };
     } catch {
       throw { statusCode: 401, message: 'Invalid or expired refresh token' };
     }

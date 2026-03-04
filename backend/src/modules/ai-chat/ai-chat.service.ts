@@ -137,11 +137,11 @@ Regras:
 - Recomende ações baseadas nos dados disponíveis`;
 }
 
-export async function getOrionResponse(userMessage: string, history: ChatMessage[]): Promise<{ response: string; commandResult?: CommandResult }> {
-  // Try to execute a command first
+export async function getOrionResponse(userMessage: string, history: ChatMessage[], userRole?: string): Promise<{ response: string; commandResult?: CommandResult }> {
+  // Try to execute a command first (with role check)
   let commandResult: CommandResult | null = null;
   try {
-    commandResult = await executeCommand(userMessage);
+    commandResult = await executeCommand(userMessage, userRole);
   } catch (cmdErr: any) {
     console.error('[AI Chat] Command execution error:', cmdErr.message);
   }

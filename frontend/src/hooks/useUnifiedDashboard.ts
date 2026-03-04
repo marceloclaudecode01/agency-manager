@@ -16,15 +16,15 @@ export interface UnifiedData {
   tokenStatus: any;
   performance: any;
   strategy: any;
-  abTests: any[];
+  abTests: { running: number; completed: number; avgImprovement: number; recentTests: any[] };
   aggressiveMode: any;
-  reputation: any;
+  reputation: { current: any; history: any[] } | null;
   replicaStats: any;
   leads: { pipeline: any[]; total: number };
   strategicPlan: any;
   audience: any[];
-  compliance: { score: number; total: number; passed: number };
-  variation: { score: number; contentMix?: any[] };
+  compliance: { complianceRate: number; totalReviewed: number; rejected: number };
+  variation: { diversityScore: number; totalRecent: number; contentTypeMix?: any };
 }
 
 const INITIAL: UnifiedData = {
@@ -38,15 +38,15 @@ const INITIAL: UnifiedData = {
   tokenStatus: null,
   performance: null,
   strategy: null,
-  abTests: [],
+  abTests: { running: 0, completed: 0, avgImprovement: 0, recentTests: [] },
   aggressiveMode: null,
   reputation: null,
   replicaStats: null,
   leads: { pipeline: [], total: 0 },
   strategicPlan: null,
   audience: [],
-  compliance: { score: 100, total: 0, passed: 0 },
-  variation: { score: 100 },
+  compliance: { complianceRate: 100, totalReviewed: 0, rejected: 0 },
+  variation: { diversityScore: 100, totalRecent: 0 },
 };
 
 export function useUnifiedDashboard() {
@@ -68,16 +68,16 @@ export function useUnifiedDashboard() {
         api.get('/agents/campaigns'),         // 6
         api.get('/agents/token/status'),      // 7
         api.get('/agents/performance'),       // 8
-        api.get('/agents/strategy'),          // 9
-        api.get('/agents/ab-tests'),          // 10
-        api.get('/agents/aggressive-mode'),   // 11
-        api.get('/agents/reputation'),        // 12
-        api.get('/agents/replicas/stats'),    // 13
-        api.get('/agents/growth/leads/pipeline'),       // 14
-        api.get('/agents/growth/strategic-plan'),        // 15
-        api.get('/agents/growth/audience'),              // 16
-        api.get('/agents/growth/compliance/stats'),      // 17
-        api.get('/agents/growth/variation/stats'),       // 18
+        // 9: strategy removed (no GET route exists)
+        api.get('/agents/ab-tests'),          // 9
+        api.get('/agents/aggressive-mode'),   // 10
+        api.get('/agents/reputation'),        // 11
+        api.get('/agents/replicas/stats'),    // 12
+        api.get('/agents/growth/leads/pipeline'),       // 13
+        api.get('/agents/growth/strategic-plan'),        // 14
+        api.get('/agents/growth/audience'),              // 15
+        api.get('/agents/growth/compliance/stats'),      // 16
+        api.get('/agents/growth/variation/stats'),       // 17
       ]);
 
       const get = (i: number) => {
@@ -87,9 +87,33 @@ export function useUnifiedDashboard() {
 
       const logs = get(2) || [];
       logsRef.current = logs;
-      const leadsData = get(14);
-      const compData = get(17);
-      const varData = get(18);
+
+      // Leads: backend returns Record<string, any[]> keyed by stage, flatten to array
+      const leadsRaw = get(13);
+      let leadsArray: any[] = [];
+      let leadsTotal = 0;
+      if (leadsRaw && typeof leadsRaw === 'object' && !Array.isArray(leadsRaw)) {
+        leadsArray = Object.entries(leadsRaw).flatMap(([stage, items]) =>
+          (Array.isArray(items) ? items : []).map((item: any) => ({ ...item, stage: item.stage || stage }))
+        );
+        leadsTotal = leadsArray.length;
+      } else if (Array.isArray(leadsRaw)) {
+        leadsArray = leadsRaw;
+        leadsTotal = leadsRaw.length;
+      }
+
+      const compData = get(16);
+      const varData = get(17);
+
+      // AB Tests: backend returns { running, completed, avgImprovement, recentTests }
+      const abRaw = get(9);
+      const abTests = abRaw
+        ? { running: abRaw.running ?? 0, completed: abRaw.completed ?? 0, avgImprovement: abRaw.avgImprovement ?? 0, recentTests: abRaw.recentTests || [] }
+        : { running: 0, completed: 0, avgImprovement: 0, recentTests: [] };
+
+      // Audience: backend returns { insights, byCategory, total }
+      const audienceRaw = get(15);
+      const audience = audienceRaw?.insights || (Array.isArray(audienceRaw) ? audienceRaw : []);
 
       setData({
         system: get(0),
@@ -101,22 +125,20 @@ export function useUnifiedDashboard() {
         campaigns: get(6) || [],
         tokenStatus: get(7),
         performance: get(8),
-        strategy: get(9),
-        abTests: get(10) || [],
-        aggressiveMode: get(11),
-        reputation: get(12),
-        replicaStats: get(13),
-        leads: leadsData
-          ? { pipeline: leadsData.pipeline || leadsData || [], total: leadsData.total || (Array.isArray(leadsData) ? leadsData.length : 0) }
-          : { pipeline: [], total: 0 },
-        strategicPlan: get(15),
-        audience: get(16) || [],
+        strategy: null,
+        abTests,
+        aggressiveMode: get(10),
+        reputation: get(11),
+        replicaStats: get(12),
+        leads: { pipeline: leadsArray, total: leadsTotal },
+        strategicPlan: get(14),
+        audience,
         compliance: compData
-          ? { score: compData.score ?? 100, total: compData.total ?? 0, passed: compData.passed ?? 0 }
-          : { score: 100, total: 0, passed: 0 },
+          ? { complianceRate: compData.complianceRate ?? 100, totalReviewed: compData.totalReviewed ?? 0, rejected: compData.rejected ?? 0 }
+          : { complianceRate: 100, totalReviewed: 0, rejected: 0 },
         variation: varData
-          ? { score: varData.score ?? 100, contentMix: varData.contentMix }
-          : { score: 100 },
+          ? { diversityScore: varData.diversityScore ?? 100, totalRecent: varData.totalRecent ?? 0, contentTypeMix: varData.contentTypeMix }
+          : { diversityScore: 100, totalRecent: 0 },
       });
       setError(null);
     } catch (err: any) {
@@ -169,7 +191,7 @@ export function useUnifiedDashboard() {
   }, [fetchAll]);
 
   const saveStrategy = useCallback(async (d: any) => {
-    await api.put('/agents/strategy', d);
+    await api.post('/agents/strategy', d);
     await fetchAll();
   }, [fetchAll]);
 
@@ -209,7 +231,7 @@ export function useUnifiedDashboard() {
   }, [fetchAll]);
 
   const replicatePost = useCallback(async (postId: string) => {
-    await api.post(`/agents/replicas/${postId}`);
+    await api.post('/agents/replicate', { postId });
     await fetchAll();
   }, [fetchAll]);
 

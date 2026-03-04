@@ -67,12 +67,14 @@ function resolveAgent(input: string): string {
 interface CommandDef {
   name: string;
   patterns: RegExp[];
+  requiredRole: 'ADMIN' | 'MANAGER' | 'MEMBER';
   execute: (match: RegExpMatchArray) => Promise<CommandResult>;
 }
 
 const COMMANDS: CommandDef[] = [
   {
     name: 'pause_agent',
+    requiredRole: 'ADMIN',
     patterns: [
       /(?:pausar?|pause|parar?|stop)\s+(?:o\s+)?(?:agente?\s+)?(.+)/i,
     ],
@@ -96,6 +98,7 @@ const COMMANDS: CommandDef[] = [
   },
   {
     name: 'resume_agent',
+    requiredRole: 'ADMIN',
     patterns: [
       /(?:retomar|resume|reativar?|reactivate|despausar?|unpause)\s+(?:o\s+)?(?:agente?\s+)?(.+)/i,
     ],
@@ -119,6 +122,7 @@ const COMMANDS: CommandDef[] = [
   },
   {
     name: 'safe_mode_on',
+    requiredRole: 'ADMIN',
     patterns: [
       /(?:ativar?|activate|ligar?|enable)\s+(?:o\s+)?(?:safe\s*mode|modo\s*seguro)/i,
     ],
@@ -134,6 +138,7 @@ const COMMANDS: CommandDef[] = [
   },
   {
     name: 'safe_mode_off',
+    requiredRole: 'ADMIN',
     patterns: [
       /(?:desativar?|deactivate|desligar?|disable)\s+(?:o\s+)?(?:safe\s*mode|modo\s*seguro)/i,
     ],
@@ -149,6 +154,7 @@ const COMMANDS: CommandDef[] = [
   },
   {
     name: 'run_sentinel',
+    requiredRole: 'ADMIN',
     patterns: [
       /(?:rodar?|run|executar?|execute)\s+(?:o\s+)?sentinel/i,
       /sentinel\s+(?:scan|check|verificar?|checar?)/i,
@@ -165,6 +171,7 @@ const COMMANDS: CommandDef[] = [
   },
   {
     name: 'override_post',
+    requiredRole: 'ADMIN',
     patterns: [
       /(?:aprovar?|approve)\s+(?:o\s+)?post\s+#?(\d+)/i,
       /(?:rejeitar?|reject)\s+(?:o\s+)?post\s+#?(\d+)/i,
@@ -187,6 +194,7 @@ const COMMANDS: CommandDef[] = [
   },
   {
     name: 'get_status',
+    requiredRole: 'MEMBER',
     patterns: [
       /(?:status|estado)\s+(?:do\s+)?(?:sistema|system)/i,
       /system\s+status/i,
@@ -220,9 +228,23 @@ export function matchCommand(userMessage: string): { def: CommandDef; match: Reg
   return null;
 }
 
-export async function executeCommand(userMessage: string): Promise<CommandResult | null> {
+const ROLE_HIERARCHY: Record<string, number> = { ADMIN: 3, MANAGER: 2, MEMBER: 1 };
+
+export async function executeCommand(userMessage: string, userRole?: string): Promise<CommandResult | null> {
   const found = matchCommand(userMessage);
   if (!found) return null;
+
+  // Enforce role-based access control
+  const requiredLevel = ROLE_HIERARCHY[found.def.requiredRole] || 1;
+  const userLevel = ROLE_HIERARCHY[userRole || 'MEMBER'] || 1;
+  if (userLevel < requiredLevel) {
+    return {
+      command: found.def.name,
+      success: false,
+      message: `Permissão insuficiente. Este comando requer role ${found.def.requiredRole}.`,
+    };
+  }
+
   return found.def.execute(found.match);
 }
 

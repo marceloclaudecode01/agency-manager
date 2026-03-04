@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { URL } from 'url';
+import dns from 'dns/promises';
 import { askGemini } from './gemini';
 
 export interface ProductInfo {
@@ -9,6 +11,52 @@ export interface ProductInfo {
   sourceDomain: string;
   highlights: string[];
   imageUrl?: string;
+}
+
+// SSRF protection: block requests to private/internal networks
+const BLOCKED_HOSTNAMES = ['localhost', '0.0.0.0', '[::1]'];
+
+function isPrivateIP(ip: string): boolean {
+  // IPv4 private ranges
+  if (/^127\./.test(ip)) return true;           // 127.0.0.0/8
+  if (/^10\./.test(ip)) return true;            // 10.0.0.0/8
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true; // 172.16.0.0/12
+  if (/^192\.168\./.test(ip)) return true;      // 192.168.0.0/16
+  if (/^169\.254\./.test(ip)) return true;      // link-local
+  if (ip === '0.0.0.0') return true;
+  // IPv6 loopback and private
+  if (ip === '::1' || ip === '::') return true;
+  if (/^f[cd]/i.test(ip)) return true;          // fc00::/7
+  if (/^fe80/i.test(ip)) return true;           // link-local
+  return false;
+}
+
+async function validateUrlSafety(url: string): Promise<void> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error('URL inválida');
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('Apenas URLs HTTP/HTTPS são permitidas');
+  }
+
+  if (BLOCKED_HOSTNAMES.includes(parsed.hostname)) {
+    throw new Error('URL bloqueada: endereço interno');
+  }
+
+  // Resolve DNS and check if it points to a private IP
+  try {
+    const { address } = await dns.lookup(parsed.hostname);
+    if (isPrivateIP(address)) {
+      throw new Error('URL bloqueada: resolve para endereço interno');
+    }
+  } catch (err: any) {
+    if (err.message.includes('bloqueada')) throw err;
+    // DNS resolution failed — let axios handle it
+  }
 }
 
 function extractTextFromHtml(html: string): string {
@@ -58,6 +106,9 @@ export async function analyzeProductLink(url: string): Promise<ProductInfo> {
   const domain = extractDomain(url);
 
   try {
+    // SSRF protection: validate URL before fetching
+    await validateUrlSafety(url);
+
     // Resolve redirects (links curtos vt.tiktok.com, etc.)
     const response = await axios.get(url, {
       timeout: 15000,

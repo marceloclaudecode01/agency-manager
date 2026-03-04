@@ -32,9 +32,15 @@ export class UsersService {
     return user;
   }
 
-  async create(data: { name: string; email: string; password: string; role?: string }) {
+  async create(data: { name: string; email: string; password: string; role?: string }, requesterRole?: string) {
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
     if (existing) throw { statusCode: 409, message: 'Email already registered' };
+
+    // Only ADMIN can create ADMIN users
+    const targetRole = data.role || 'MEMBER';
+    if (targetRole === 'ADMIN' && requesterRole !== 'ADMIN') {
+      throw { statusCode: 403, message: 'Only admins can create admin users' };
+    }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
@@ -43,15 +49,23 @@ export class UsersService {
         name: data.name,
         email: data.email,
         password: hashedPassword,
-        role: (data.role as any) || 'MEMBER',
+        role: targetRole as any,
       },
       select: { id: true, name: true, email: true, role: true, avatar: true, createdAt: true },
     });
   }
 
-  async update(id: string, data: { name?: string; email?: string; role?: string }) {
+  async update(id: string, data: { name?: string; email?: string; role?: string }, requesterRole?: string) {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) throw { statusCode: 404, message: 'User not found' };
+
+    // Only ADMIN can promote to ADMIN or modify ADMIN users
+    if (data.role === 'ADMIN' && requesterRole !== 'ADMIN') {
+      throw { statusCode: 403, message: 'Only admins can assign admin role' };
+    }
+    if (user.role === 'ADMIN' && requesterRole !== 'ADMIN') {
+      throw { statusCode: 403, message: 'Only admins can modify admin users' };
+    }
 
     if (data.email && data.email !== user.email) {
       const existing = await prisma.user.findUnique({ where: { email: data.email } });

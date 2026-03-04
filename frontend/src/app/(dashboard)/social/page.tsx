@@ -124,16 +124,16 @@ export default function SocialPage() {
   const loadPerformance = async () => {
     setLoadingPerformance(true);
     try {
-      const [overviewRes, postsRes, bestTimesRes] = await Promise.all([
-        api.get('/analytics/overview').catch(() => ({ data: { data: null } })),
-        api.get('/analytics/posts').catch(() => ({ data: { data: null } })),
-        api.get('/analytics/best-times').catch(() => ({ data: { data: null } })),
-      ]);
-      setPerformanceData({
-        overview: overviewRes.data.data,
-        posts: postsRes.data.data,
-        bestTimes: bestTimesRes.data.data,
-      });
+      // Use existing agents/performance endpoint (analytics/* routes don't exist)
+      const perfRes = await api.get('/agents/performance').catch(() => ({ data: { data: null } }));
+      const data = perfRes.data.data;
+      if (data) {
+        setPerformanceData({
+          overview: data.overview || data,
+          posts: data.topPosts || data.posts || null,
+          bestTimes: data.bestTimes || null,
+        });
+      }
     } catch {
       toast('Erro ao carregar performance', 'error');
     } finally {

@@ -11,7 +11,7 @@ export async function sendMessage(req: AuthRequest, res: Response) {
       return ApiResponse.badRequest(res, 'Mensagem é obrigatória');
     }
 
-    const result = await getOrionResponse(message.trim(), history || []);
+    const result = await getOrionResponse(message.trim(), history || [], req.user?.role);
 
     return ApiResponse.success(res, {
       response: result.response,

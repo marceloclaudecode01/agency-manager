@@ -1,7 +1,15 @@
 import { Router } from 'express';
 import { AgentsController } from './agents.controller';
 import { authMiddleware, requireRole } from '../../middlewares/auth';
+import { validate } from '../../middlewares/validate';
 import { upload } from '../../middlewares/upload';
+import {
+  generatePostSchema, createScheduledPostSchema, approvePostSchema,
+  safeModeSchema, toggleAgentSchema, overridePostSchema, overrideStrategySchema,
+  brandConfigSchema, createCampaignSchema, updateCampaignSchema,
+  replicatePostSchema, aggressiveModeSchema, createAgentSchema, updateAgentStatusSchema,
+  postFromLinkSchema, productOrchestratorSchema,
+} from './agents.schema';
 
 const router = Router();
 const controller = new AgentsController();
@@ -9,13 +17,13 @@ const controller = new AgentsController();
 router.use(authMiddleware);
 
 // Geração de conteúdo com IA
-router.post('/generate-post', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.generatePost(req as any, res));
+router.post('/generate-post', requireRole('ADMIN', 'MANAGER'), validate(generatePostSchema), (req, res) => controller.generatePost(req as any, res));
 router.post('/generate-weekly', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.generateWeeklyPlan(req as any, res));
 
 // Posts agendados
 router.get('/scheduled', (req, res) => controller.getScheduledPosts(req as any, res));
-router.post('/scheduled', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.createScheduledPost(req as any, res));
-router.patch('/scheduled/:id/approve', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.approvePost(req as any, res));
+router.post('/scheduled', requireRole('ADMIN', 'MANAGER'), validate(createScheduledPostSchema), (req, res) => controller.createScheduledPost(req as any, res));
+router.patch('/scheduled/:id/approve', requireRole('ADMIN', 'MANAGER'), validate(approvePostSchema), (req, res) => controller.approvePost(req as any, res));
 router.patch('/scheduled/:id/reject', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.rejectPost(req as any, res));
 router.delete('/scheduled/:id', requireRole('ADMIN'), (req, res) => controller.deleteScheduledPost(req as any, res));
 
@@ -32,10 +40,10 @@ router.get('/trending', requireRole('ADMIN', 'MANAGER'), (req, res) => controlle
 
 // TikTok Shop
 router.get('/products/tiktok', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getTikTokProducts(req as any, res));
-router.post('/products/run', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.runProductOrchestrator(req as any, res));
+router.post('/products/run', requireRole('ADMIN', 'MANAGER'), validate(productOrchestratorSchema), (req, res) => controller.runProductOrchestrator(req as any, res));
 
 // Criar post a partir de link de produto
-router.post('/post-from-link', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.createPostFromLink(req as any, res));
+router.post('/post-from-link', requireRole('ADMIN', 'MANAGER'), validate(postFromLinkSchema), (req, res) => controller.createPostFromLink(req as any, res));
 
 // Upload de mídia (imagem ou vídeo)
 router.post('/upload-media', requireRole('ADMIN', 'MANAGER'), upload.single('file'), (req, res) => controller.uploadMedia(req as any, res));
@@ -51,26 +59,26 @@ router.get('/logs', (req, res) => controller.getAgentLogs(req as any, res));
 
 // Phase 6: Control panel routes
 router.get('/status', (req, res) => controller.getAgentsStatus(req as any, res));
-router.post('/safe-mode', requireRole('ADMIN'), (req, res) => controller.setSafeMode(req as any, res));
-router.post('/pause/:agentName', requireRole('ADMIN'), (req, res) => controller.toggleAgent(req as any, res));
-router.post('/override/:id', requireRole('ADMIN'), (req, res) => controller.overridePost(req as any, res));
-router.post('/strategy', requireRole('ADMIN'), (req, res) => controller.overrideStrategy(req as any, res));
+router.post('/safe-mode', requireRole('ADMIN'), validate(safeModeSchema), (req, res) => controller.setSafeMode(req as any, res));
+router.post('/pause/:agentName', requireRole('ADMIN'), validate(toggleAgentSchema), (req, res) => controller.toggleAgent(req as any, res));
+router.post('/override/:id', requireRole('ADMIN'), validate(overridePostSchema), (req, res) => controller.overridePost(req as any, res));
+router.post('/strategy', requireRole('ADMIN'), validate(overrideStrategySchema), (req, res) => controller.overrideStrategy(req as any, res));
 router.post('/sentinel/run', requireRole('ADMIN'), (req, res) => controller.runSentinelNow(req as any, res));
 
 // Phase 4: Brand config
 router.get('/brand', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getBrandConfig(req as any, res));
-router.put('/brand', requireRole('ADMIN'), (req, res) => controller.updateBrandConfigEndpoint(req as any, res));
+router.put('/brand', requireRole('ADMIN'), validate(brandConfigSchema), (req, res) => controller.updateBrandConfigEndpoint(req as any, res));
 
 // Phase 9: Performance insights
 router.get('/performance', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getPerformanceInsightsEndpoint(req as any, res));
 
 // Phase 8: Content campaigns
 router.get('/campaigns', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getCampaigns(req as any, res));
-router.post('/campaigns', requireRole('ADMIN'), (req, res) => controller.createCampaign(req as any, res));
-router.patch('/campaigns/:id', requireRole('ADMIN'), (req, res) => controller.updateCampaign(req as any, res));
+router.post('/campaigns', requireRole('ADMIN'), validate(createCampaignSchema), (req, res) => controller.createCampaign(req as any, res));
+router.patch('/campaigns/:id', requireRole('ADMIN'), validate(updateCampaignSchema), (req, res) => controller.updateCampaign(req as any, res));
 
 // Epic 2: Content Replicator & Multi-format
-router.post('/replicate', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.replicatePost(req as any, res));
+router.post('/replicate', requireRole('ADMIN', 'MANAGER'), validate(replicatePostSchema), (req, res) => controller.replicatePost(req as any, res));
 router.get('/replicas/stats', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getReplicaStatsEndpoint(req as any, res));
 router.get('/replicas/:postId', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getPostReplicas(req as any, res));
 // Epic 1: A/B Testing
@@ -79,7 +87,7 @@ router.post('/ab-tests/measure', requireRole('ADMIN'), (req, res) => controller.
 
 // Epic 1: Aggressive Growth Mode
 router.get('/aggressive-mode', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getAggressiveMode(req as any, res));
-router.post('/aggressive-mode', requireRole('ADMIN'), (req, res) => controller.toggleAggressiveMode(req as any, res));
+router.post('/aggressive-mode', requireRole('ADMIN'), validate(aggressiveModeSchema), (req, res) => controller.toggleAggressiveMode(req as any, res));
 
 // Epic 1: Reputation Monitor
 router.get('/reputation', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getReputationStatus(req as any, res));
@@ -94,8 +102,8 @@ router.post('/video/run', requireRole('ADMIN'), (req, res) => controller.runVide
 
 // Agent Registry CRUD
 router.get('/registry', (req, res) => controller.getAgentRegistry(req as any, res));
-router.post('/registry', requireRole('ADMIN'), (req, res) => controller.createAgent(req as any, res));
-router.patch('/registry/:id/status', requireRole('ADMIN'), (req, res) => controller.updateAgentStatus(req as any, res));
+router.post('/registry', requireRole('ADMIN'), validate(createAgentSchema), (req, res) => controller.createAgent(req as any, res));
+router.patch('/registry/:id/status', requireRole('ADMIN'), validate(updateAgentStatusSchema), (req, res) => controller.updateAgentStatus(req as any, res));
 router.delete('/registry/:id', requireRole('ADMIN'), (req, res) => controller.deleteAgent(req as any, res));
 
 export default router;

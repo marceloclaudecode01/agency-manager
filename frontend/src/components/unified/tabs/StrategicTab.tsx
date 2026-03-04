@@ -7,7 +7,7 @@ import { Brain, Target, BookOpen, Sparkles } from 'lucide-react';
 
 interface StrategicTabProps {
   strategicPlan: any;
-  audience: any[];
+  audience: any[]; // Already flattened from { insights } in hook
   onGeneratePlan: () => Promise<void>;
   onLearnAudience: () => Promise<void>;
 }

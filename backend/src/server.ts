@@ -41,15 +41,30 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 app.set('trust proxy', 1);
 app.use(helmet());
+const IS_PROD = process.env.NODE_ENV === 'production';
+const CORS_ORIGINS = IS_PROD
+  ? [FRONTEND_URL]
+  : [FRONTEND_URL, 'http://localhost:3000', 'http://localhost:3001'];
 app.use(cors({
-  origin: [FRONTEND_URL, 'http://localhost:3000', 'http://localhost:3001'],
+  origin: CORS_ORIGINS,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '200mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// CSRF protection: validate Origin header on mutating requests in production
+const ALLOWED_ORIGINS = new Set(CORS_ORIGINS);
+app.use((req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  const origin = req.headers.origin;
+  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+    return res.status(403).json({ success: false, message: 'Forbidden: invalid origin' });
+  }
+  next();
+});
 
 // Rate limit geral
 app.use(rateLimit({
@@ -91,7 +106,7 @@ const httpServer = createServer(app);
 
 export const io = new Server(httpServer, {
   cors: {
-    origin: [FRONTEND_URL, 'http://localhost:3000', 'http://localhost:3001'],
+    origin: CORS_ORIGINS,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -102,7 +117,7 @@ io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error('Unauthorized'));
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as any;
     socket.data.user = decoded;
     next();
   } catch {

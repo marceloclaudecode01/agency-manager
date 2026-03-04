@@ -1,5 +1,13 @@
 import prisma from '../../config/database';
 
+// CSV injection protection: prefix dangerous formula characters
+function sanitizeCsvCell(value: string): string {
+  if (/^[=+\-@\t\r]/.test(value)) {
+    return `'${value}`;
+  }
+  return value;
+}
+
 export class ReportsService {
   async getRevenue(query: { period?: string; startDate?: string; endDate?: string }) {
     const now = new Date();
@@ -131,8 +139,9 @@ export class ReportsService {
 
     const lines = clients.map((c) => {
       const revenueFormatted = c.totalRevenue.toFixed(2).replace('.', ',');
-      const clientName = c.name.replace(/;/g, ',');
-      return `${clientName};${revenueFormatted};${c.campaignCount};${c.status}`;
+      const clientName = sanitizeCsvCell(c.name.replace(/;/g, ','));
+      const status = sanitizeCsvCell(c.status);
+      return `${clientName};${revenueFormatted};${c.campaignCount};${status}`;
     });
 
     return '\uFEFF' + [header, ...lines].join('\r\n');

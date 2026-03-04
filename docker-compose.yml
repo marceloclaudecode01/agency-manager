@@ -8,9 +8,9 @@ services:
     ports:
       - '5432:5432'
     environment:
-      POSTGRES_USER: agency
-      POSTGRES_PASSWORD: agency123
-      POSTGRES_DB: agency_db
+      POSTGRES_USER: ${POSTGRES_USER:-agency}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD env var}
+      POSTGRES_DB: ${POSTGRES_DB:-agency_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

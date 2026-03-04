@@ -27,9 +27,10 @@ export class UsersController {
 
   async create(req: AuthRequest, res: Response) {
     try {
-      const user = await usersService.create(req.body);
+      const user = await usersService.create(req.body, req.user!.role);
       return ApiResponse.created(res, user, 'User created successfully');
     } catch (error: any) {
+      if (error.statusCode === 403) return ApiResponse.error(res, error.message, 403);
       if (error.statusCode === 409) return ApiResponse.error(res, error.message, 409);
       return ApiResponse.error(res, 'Failed to create user');
     }
@@ -37,9 +38,10 @@ export class UsersController {
 
   async update(req: AuthRequest, res: Response) {
     try {
-      const user = await usersService.update(req.params.id as string, req.body);
+      const user = await usersService.update(req.params.id as string, req.body, req.user!.role);
       return ApiResponse.success(res, user, 'User updated successfully');
     } catch (error: any) {
+      if (error.statusCode === 403) return ApiResponse.error(res, error.message, 403);
       if (error.statusCode === 404) return ApiResponse.notFound(res, error.message);
       if (error.statusCode === 409) return ApiResponse.error(res, error.message, 409);
       return ApiResponse.error(res, 'Failed to update user');

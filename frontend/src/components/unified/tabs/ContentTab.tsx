@@ -33,7 +33,9 @@ export function ContentTab({ scheduledPosts, replicaStats, onOverride, onReplica
         {replicaStats && (
           <div className="flex gap-3 mb-3">
             <Badge variant="default" className="text-xs">Total: {replicaStats.total || 0}</Badge>
-            <Badge variant="success" className="text-xs">Sucesso: {replicaStats.success || 0}</Badge>
+            {replicaStats.byFormat && (
+              <Badge variant="success" className="text-xs">Formatos: {Array.isArray(replicaStats.byFormat) ? replicaStats.byFormat.length : Object.keys(replicaStats.byFormat).length}</Badge>
+            )}
           </div>
         )}
         {publishedPosts.length === 0 ? (

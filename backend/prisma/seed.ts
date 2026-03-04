@@ -6,8 +6,17 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding database...');
 
+  // Seed passwords: use env vars in production, fallback to defaults only in dev
+  const seedAdminPw = process.env.SEED_ADMIN_PASSWORD || 'admin123';
+  const seedManagerPw = process.env.SEED_MANAGER_PASSWORD || 'manager123';
+  const seedMemberPw = process.env.SEED_MEMBER_PASSWORD || 'member123';
+
+  if (!process.env.SEED_ADMIN_PASSWORD) {
+    console.warn('⚠ SEED_ADMIN_PASSWORD not set — using default dev password. DO NOT use in production!');
+  }
+
   // Admin user
-  const adminPassword = await bcrypt.hash('admin123', 10);
+  const adminPassword = await bcrypt.hash(seedAdminPw, 10);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@agency.com' },
     update: {},
@@ -20,7 +29,7 @@ async function main() {
   });
 
   // Manager user
-  const managerPassword = await bcrypt.hash('manager123', 10);
+  const managerPassword = await bcrypt.hash(seedManagerPw, 10);
   const manager = await prisma.user.upsert({
     where: { email: 'manager@agency.com' },
     update: {},
@@ -33,7 +42,7 @@ async function main() {
   });
 
   // Member user
-  const memberPassword = await bcrypt.hash('member123', 10);
+  const memberPassword = await bcrypt.hash(seedMemberPw, 10);
   const member = await prisma.user.upsert({
     where: { email: 'member@agency.com' },
     update: {},
@@ -241,10 +250,8 @@ async function main() {
   });
 
   console.log('Seed completed!');
-  console.log('Users created:');
-  console.log('  admin@agency.com / admin123 (ADMIN)');
-  console.log('  manager@agency.com / manager123 (MANAGER)');
-  console.log('  member@agency.com / member123 (MEMBER)');
+  console.log('Users created: admin@agency.com (ADMIN), manager@agency.com (MANAGER), member@agency.com (MEMBER)');
+  console.log('Set SEED_ADMIN_PASSWORD, SEED_MANAGER_PASSWORD, SEED_MEMBER_PASSWORD env vars for custom passwords.');
 }
 
 main()

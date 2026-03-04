@@ -6,9 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Zap, FlaskConical, Shield, TrendingUp, AlertTriangle } from 'lucide-react';
 
 interface GrowthTabProps {
-  abTests: any[];
+  abTests: { running: number; completed: number; avgImprovement: number; recentTests: any[] };
   aggressiveMode: any;
-  reputation: any;
+  reputation: { current: any; history: any[] } | null;
   onToggleAggressive: (enabled: boolean) => Promise<void>;
   onMeasureABTests: () => Promise<void>;
 }
@@ -21,13 +21,14 @@ export function GrowthTab({ abTests, aggressiveMode, reputation, onToggleAggress
     try { await onMeasureABTests(); } finally { setMeasuring(false); }
   };
 
-  const running = abTests.filter(t => t.status === 'RUNNING');
-  const completed = abTests.filter(t => t.status === 'COMPLETED');
-  const avgImprovement = completed.length > 0
-    ? Math.round(completed.reduce((s, t) => s + (t.improvement || 0), 0) / completed.length)
-    : 0;
+  const runningCount = abTests.running ?? 0;
+  const completedCount = abTests.completed ?? 0;
+  const avgImprovement = abTests.avgImprovement ?? 0;
+  const recentTests = abTests.recentTests || [];
 
-  const repStatus = reputation?.status || 'HEALTHY';
+  const repCurrent = reputation?.current;
+  const repHistory = reputation?.history || [];
+  const repStatus = repCurrent?.overallHealth || 'HEALTHY';
   const repColor = repStatus === 'HEALTHY' ? 'text-emerald-400' : repStatus === 'WARNING' ? 'text-yellow-400' : 'text-red-400';
 
   return (
@@ -59,8 +60,8 @@ export function GrowthTab({ abTests, aggressiveMode, reputation, onToggleAggress
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-heading font-semibold text-text-primary flex items-center gap-2">
             <FlaskConical className="w-4 h-4 text-violet-400" /> A/B Tests
-            <Badge variant="default" className="text-xs">{running.length} rodando</Badge>
-            <Badge variant="success" className="text-xs">{completed.length} completos</Badge>
+            <Badge variant="default" className="text-xs">{runningCount} rodando</Badge>
+            <Badge variant="success" className="text-xs">{completedCount} completos</Badge>
           </h3>
           <Button size="sm" variant="outline" onClick={handleMeasure} disabled={measuring} className="gap-1.5">
             <TrendingUp className="w-3.5 h-3.5" /> {measuring ? 'Medindo...' : 'Medir'}
@@ -70,11 +71,11 @@ export function GrowthTab({ abTests, aggressiveMode, reputation, onToggleAggress
           <p className="text-xs text-emerald-400 mb-2">Melhoria média: +{avgImprovement}%</p>
         )}
         <div className="space-y-2 max-h-60 overflow-y-auto">
-          {abTests.map((test, i) => (
+          {recentTests.map((test, i) => (
             <div key={test.id || i} className="rounded-lg border border-border/60 bg-surface/80 p-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-text-primary font-medium">{test.name || test.metric || 'Test'}</span>
-                <Badge variant={test.status === 'RUNNING' ? 'warning' : 'success'} className="text-xs">{test.status}</Badge>
+                <span className="text-sm text-text-primary font-medium">{test.topic || test.name || 'Test'}</span>
+                {test.winner && <Badge variant="success" className="text-xs">Concluído</Badge>}
               </div>
               {test.winner && <p className="text-xs text-emerald-400 mt-1">Vencedor: {test.winner}</p>}
               {test.scoreA != null && (
@@ -85,7 +86,7 @@ export function GrowthTab({ abTests, aggressiveMode, reputation, onToggleAggress
               )}
             </div>
           ))}
-          {abTests.length === 0 && <p className="text-xs text-text-secondary/50">Nenhum teste A/B</p>}
+          {recentTests.length === 0 && <p className="text-xs text-text-secondary/50">Nenhum teste A/B</p>}
         </div>
       </div>
 
@@ -98,25 +99,25 @@ export function GrowthTab({ abTests, aggressiveMode, reputation, onToggleAggress
         </div>
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
-            <p className="text-lg font-bold text-text-primary">{reputation?.totalComments || 0}</p>
+            <p className="text-lg font-bold text-text-primary">{repCurrent?.totalComments || 0}</p>
             <p className="text-xs text-text-secondary">Comentários</p>
           </div>
           <div>
-            <p className="text-lg font-bold text-yellow-400">{reputation?.negativeCount || 0}</p>
+            <p className="text-lg font-bold text-yellow-400">{repCurrent?.negativeComments || 0}</p>
             <p className="text-xs text-text-secondary">Negativos</p>
           </div>
           <div>
-            <p className="text-lg font-bold text-red-400">{reputation?.crisisCount || 0}</p>
+            <p className="text-lg font-bold text-red-400">{repCurrent?.crisisCount || 0}</p>
             <p className="text-xs text-text-secondary">Crises</p>
           </div>
         </div>
-        {reputation?.events && reputation.events.length > 0 && (
+        {repHistory.length > 0 && (
           <div className="mt-3 space-y-1 max-h-40 overflow-y-auto">
-            {reputation.events.slice(0, 5).map((ev: any, i: number) => (
+            {repHistory.slice(0, 5).map((ev: any, i: number) => (
               <div key={i} className="flex items-center gap-2 text-xs text-text-secondary">
                 <div className={`w-2 h-2 rounded-full ${ev.severity === 'HIGH' ? 'bg-red-400' : ev.severity === 'MEDIUM' ? 'bg-yellow-400' : 'bg-blue-400'}`} />
-                <span className="flex-1 truncate">{ev.type}: {ev.action || ev.description}</span>
-                <span className="text-text-secondary/50">{ev.date ? new Date(ev.date).toLocaleDateString('pt-BR') : ''}</span>
+                <span className="flex-1 truncate">{ev.type}: {ev.details || ev.description}</span>
+                <span className="text-text-secondary/50">{ev.createdAt ? new Date(ev.createdAt).toLocaleDateString('pt-BR') : ''}</span>
               </div>
             ))}
           </div>

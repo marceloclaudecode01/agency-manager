@@ -41,7 +41,8 @@ export class SocialController {
       return ApiResponse.success(res, data);
     } catch (error: any) {
       const status = error.statusCode || 500;
-      return ApiResponse.error(res, error.message || 'Failed to get posts', status, error.fbResponse || null);
+      if (error.fbResponse) console.error('[Social] Facebook error detail:', JSON.stringify(error.fbResponse));
+      return ApiResponse.error(res, error.message || 'Failed to get posts', status);
     }
   }
 
@@ -65,7 +66,8 @@ export class SocialController {
 
       return ApiResponse.created(res, data, scheduledTime ? 'Post scheduled successfully' : 'Post published successfully');
     } catch (error: any) {
-      return ApiResponse.error(res, error.response?.data?.error?.message || error.message || 'Failed to publish post', error.statusCode || 500);
+      if (error.response?.data) console.error('[Social] Facebook publish error:', JSON.stringify(error.response.data));
+      return ApiResponse.error(res, error.message || 'Failed to publish post', error.statusCode || 500);
     }
   }
 

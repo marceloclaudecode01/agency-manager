@@ -67,7 +67,7 @@ export function useCommandCenter() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [statusRes, engineRes, logsRes, metricsRes, scheduledRes, brandRes, campaignsRes, tokenRes, perfRes, strategyRes, strategicRes] = await Promise.allSettled([
+      const [statusRes, engineRes, logsRes, metricsRes, scheduledRes, brandRes, campaignsRes, tokenRes, perfRes, strategicRes] = await Promise.allSettled([
         api.get('/agents/status'),
         api.get('/agents/engine/status'),
         api.get('/agents/logs?limit=200'),
@@ -77,7 +77,6 @@ export function useCommandCenter() {
         api.get('/agents/campaigns'),
         api.get('/agents/token/status'),
         api.get('/agents/performance'),
-        api.get('/agents/strategy'),
         api.get('/agents/orion/strategic-state'),
       ]);
 
@@ -94,7 +93,6 @@ export function useCommandCenter() {
       if (campaignsRes.status === 'fulfilled') setCampaigns(campaignsRes.value.data.data || []);
       if (tokenRes.status === 'fulfilled') setTokenStatus(tokenRes.value.data.data || null);
       if (perfRes.status === 'fulfilled') setPerformance(perfRes.value.data.data || null);
-      if (strategyRes.status === 'fulfilled') setStrategy(strategyRes.value.data.data || null);
       if (strategicRes.status === 'fulfilled') setStrategicState(strategicRes.value.data.data || null);
 
       setError(null);
@@ -150,7 +148,7 @@ export function useCommandCenter() {
   }, [fetchAll]);
 
   const saveStrategy = useCallback(async (data: any) => {
-    await api.put('/agents/strategy', data);
+    await api.post('/agents/strategy', data);
     await fetchAll();
   }, [fetchAll]);
 

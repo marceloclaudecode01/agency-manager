@@ -94,14 +94,14 @@ async function runSentinelCheck(): Promise<SentinelReport> {
   }
 
   // 7. Phase 7: Governor approve+reject same post >3x
-  const governorFlips = await prisma.$queryRawUnsafe<any[]>(`
+  const governorFlips = await prisma.$queryRaw<any[]>`
     SELECT "id", COUNT(*) as flip_count FROM "scheduled_posts"
     WHERE "governorReviewedAt" > NOW() - INTERVAL '24 hours'
     AND "governorDecision" IS NOT NULL
     GROUP BY "id"
     HAVING COUNT(*) > 3
     LIMIT 5
-  `).catch(() => []);
+  `.catch(() => []);
   if (governorFlips.length > 0) {
     await agentLog('System Sentinel', `Governor flip-flop detectado em ${governorFlips.length} posts`, { type: 'error' });
   }

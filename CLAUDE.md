@@ -105,15 +105,19 @@ docs/
 
 ### Backend (`backend/.env`)
 ```
-DATABASE_URL=postgresql://agency:agency123@localhost:5432/agency_db
-JWT_SECRET=super-secret-key-change-in-production
+DATABASE_URL=postgresql://<user>:<password>@localhost:5432/agency_db
+JWT_SECRET=<gerar-com-openssl-rand-base64-32>
+REFRESH_TOKEN_SECRET=<gerar-com-openssl-rand-base64-32>
 PORT=3333
+# Ver backend/.env.example para lista completa de variáveis
 ```
 
 ### Frontend (`frontend/.env.local`)
 ```
 NEXT_PUBLIC_API_URL=http://localhost:3333/api
 ```
+
+> **IMPORTANTE**: Nunca commitar secrets reais. Usar `openssl rand -base64 32` para gerar JWT secrets.
 
 ---
 

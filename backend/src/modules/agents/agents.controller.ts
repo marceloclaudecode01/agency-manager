@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { AuthRequest } from '../../types';
 import { ApiResponse } from '../../utils/api-response';
 import { generatePost, generateWeeklyPlan, generatePostFromStrategy } from '../../agents/content-creator.agent';
@@ -14,7 +14,6 @@ import { getSafeModeStatus, activateSafeMode, deactivateSafeMode, pauseAgent, re
 import { runSentinel } from '../../agents/system-sentinel.agent';
 import { getAllBrandConfig, updateBrandConfig } from '../../agents/brand-brain.agent';
 import { getPerformanceInsights } from '../../agents/performance-learner.agent';
-import { generateWeeklyStrategy } from '../../agents/growth-director.agent';
 import { getABTestStats, measureABTests } from '../../agents/ab-testing-engine.agent';
 import { checkReputation, getReputationHistory } from '../../agents/reputation-monitor.agent';
 import { replicateContent, replicateAll, getReplicasForPost, getReplicaStats, ReplicaFormat } from '../../agents/content-replicator.agent';
@@ -591,7 +590,11 @@ Retorne APENAS JSON válido:
 
   async createCampaign(req: AuthRequest, res: Response) {
     try {
-      const campaign = await prisma.contentCampaign.create({ data: req.body });
+      const { name, description, startDate, endDate, priority, status, contentMix, postsPerDay } = req.body;
+      const data: any = { name, description, priority, status, contentMix, postsPerDay };
+      if (startDate) data.startDate = new Date(startDate);
+      if (endDate) data.endDate = new Date(endDate);
+      const campaign = await prisma.contentCampaign.create({ data });
       return ApiResponse.created(res, campaign, 'Campanha criada');
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);
@@ -601,7 +604,17 @@ Retorne APENAS JSON válido:
   async updateCampaign(req: AuthRequest, res: Response) {
     try {
       const id = req.params.id as string;
-      const campaign = await prisma.contentCampaign.update({ where: { id }, data: req.body });
+      const { name, description, startDate, endDate, priority, status, contentMix, postsPerDay } = req.body;
+      const data: any = {};
+      if (name !== undefined) data.name = name;
+      if (description !== undefined) data.description = description;
+      if (startDate !== undefined) data.startDate = new Date(startDate);
+      if (endDate !== undefined) data.endDate = new Date(endDate);
+      if (priority !== undefined) data.priority = priority;
+      if (status !== undefined) data.status = status;
+      if (contentMix !== undefined) data.contentMix = contentMix;
+      if (postsPerDay !== undefined) data.postsPerDay = postsPerDay;
+      const campaign = await prisma.contentCampaign.update({ where: { id }, data });
       return ApiResponse.success(res, campaign, 'Campanha atualizada');
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);

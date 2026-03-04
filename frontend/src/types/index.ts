@@ -98,34 +98,6 @@ export interface CalendarEvent {
   user?: { id: string; name: string; avatar?: string };
 }
 
-export interface DashboardSummary {
-  kpis: {
-    activeClients: number;
-    activeCampaigns: number;
-    pendingTasks: number;
-    monthRevenue: number;
-  };
-  revenueChart: { month: string; total: number }[];
-  recentCampaigns: {
-    id: string;
-    name: string;
-    client: { id: string; name: string };
-    status: string;
-    progress: number;
-    totalTasks: number;
-    doneTasks: number;
-  }[];
-  myTasks: Task[];
-  recentClients: Pick<Client, 'id' | 'name' | 'company' | 'status' | 'createdAt'>[];
-}
-
-export interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-  error?: any;
-}
-
 export interface Message {
   id: string;
   content: string;
@@ -147,11 +119,3 @@ export interface Notification {
   createdAt: string;
 }
 
-export type Platform = 'facebook' | 'instagram' | 'youtube' | 'tiktok';
-
-export interface PlatformConfig {
-  key: Platform;
-  name: string;
-  enabled: boolean;
-  color: string;
-}

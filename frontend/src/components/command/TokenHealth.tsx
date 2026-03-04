@@ -6,9 +6,12 @@ import { Shield, ShieldCheck, ShieldAlert, AlertTriangle } from 'lucide-react';
 interface TokenHealthProps {
   tokenStatus: {
     valid?: boolean;
+    isValid?: boolean;
     expiresAt?: string;
+    daysUntilExpiry?: number | null;
     scopes?: string[];
     pageName?: string;
+    appName?: string;
   } | null;
 }
 
@@ -25,9 +28,10 @@ export function TokenHealth({ tokenStatus }: TokenHealthProps) {
     );
   }
 
-  const isValid = tokenStatus.valid;
+  // Support both backend field names: isValid (backend) and valid (legacy)
+  const isValid = tokenStatus.isValid ?? tokenStatus.valid ?? false;
   const expiresAt = tokenStatus.expiresAt ? new Date(tokenStatus.expiresAt) : null;
-  const daysLeft = expiresAt ? Math.ceil((expiresAt.getTime() - Date.now()) / 86400000) : null;
+  const daysLeft = tokenStatus.daysUntilExpiry ?? (expiresAt ? Math.ceil((expiresAt.getTime() - Date.now()) / 86400000) : null);
 
   return (
     <div className={`rounded-xl border bg-surface/80 backdrop-blur-sm p-4 ${
@@ -47,16 +51,23 @@ export function TokenHealth({ tokenStatus }: TokenHealthProps) {
         </Badge>
       </div>
       <div className="space-y-1.5 text-xs">
-        {tokenStatus.pageName && (
-          <p className="text-text-secondary">Página: <span className="text-text-primary">{tokenStatus.pageName}</span></p>
+        {(tokenStatus.pageName || tokenStatus.appName) && (
+          <p className="text-text-secondary">App: <span className="text-text-primary">{tokenStatus.pageName || tokenStatus.appName}</span></p>
         )}
-        {daysLeft != null && (
+        {isValid && daysLeft == null ? (
+          <p className="text-text-secondary flex items-center gap-1">
+            Expira em: <span className="font-mono text-emerald-400">Nunca</span>
+          </p>
+        ) : daysLeft != null ? (
           <p className="text-text-secondary flex items-center gap-1">
             Expira em: <span className={`font-mono ${daysLeft < 7 ? 'text-red-400' : daysLeft < 30 ? 'text-yellow-400' : 'text-emerald-400'}`}>
               {daysLeft}d
             </span>
             {daysLeft < 7 && <AlertTriangle className="w-3 h-3 text-red-400" />}
           </p>
+        ) : null}
+        {tokenStatus.scopes && tokenStatus.scopes.length > 0 && (
+          <p className="text-text-secondary">Permissões: <span className="text-text-primary font-mono">{tokenStatus.scopes.length}</span></p>
         )}
       </div>
     </div>

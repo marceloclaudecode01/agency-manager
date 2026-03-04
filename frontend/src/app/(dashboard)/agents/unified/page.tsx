@@ -101,7 +101,7 @@ export default function UnifiedDashboardPage() {
             leadsCount={leads.total}
             postsToday={postsToday}
             growthScore={growthScore}
-            compliancePercent={compliance.score}
+            compliancePercent={compliance.complianceRate}
           />
           <AgentGrid
             agents={system?.agents || []}

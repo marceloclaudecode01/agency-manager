@@ -40,7 +40,10 @@ export class AgentsGrowthController {
 
   async createLead(req: AuthRequest, res: Response) {
     try {
-      const lead = await prisma.lead.create({ data: { ...req.body, source: req.body.source || 'manual' } });
+      const { name, email, phone, stage, score, source, sourceId, notes } = req.body;
+      const lead = await prisma.lead.create({
+        data: { name, email, phone, stage: stage || 'NEW', score: score || 0, source: source || 'manual', sourceId, notes },
+      });
       return ApiResponse.created(res, lead, 'Lead criado');
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);
@@ -50,7 +53,15 @@ export class AgentsGrowthController {
   async updateLead(req: AuthRequest, res: Response) {
     try {
       const id = req.params.id as string;
-      const lead = await prisma.lead.update({ where: { id }, data: req.body });
+      const { name, email, phone, stage, score, notes } = req.body;
+      const data: any = {};
+      if (name !== undefined) data.name = name;
+      if (email !== undefined) data.email = email;
+      if (phone !== undefined) data.phone = phone;
+      if (stage !== undefined) data.stage = stage;
+      if (score !== undefined) data.score = score;
+      if (notes !== undefined) data.notes = notes;
+      const lead = await prisma.lead.update({ where: { id }, data });
       return ApiResponse.success(res, lead, 'Lead atualizado');
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);

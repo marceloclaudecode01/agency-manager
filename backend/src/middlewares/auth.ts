@@ -21,7 +21,7 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
   }
 
   try {
-    const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET) as { id: string; email: string; role: string };
+    const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET, { algorithms: ['HS256'] }) as { id: string; email: string; role: string };
     req.user = decoded;
     next();
   } catch {
