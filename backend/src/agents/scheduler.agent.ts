@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import prisma from '../config/database';
 import { SocialService, PageCredentials } from '../modules/social/social.service';
-import { generateCommentReply } from './comment-responder.agent';
+import { generateCommentReply, CommentClientContext } from './comment-responder.agent';
 import { analyzeMetrics } from './metrics-analyzer.agent';
 import { generateImageForPost } from './image-generator.agent';
 import { notificationsService } from '../modules/notifications/notifications.service';
@@ -246,107 +246,162 @@ function hasBuyIntent(text: string): boolean {
   return BUY_INTENT_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-// Roda a cada 30 minutos: verifica e responde comentários novos
+// Extract signup/cadastro link from client niche field
+function extractSignupLink(niche?: string | null): string | undefined {
+  if (!niche) return undefined;
+  const match = niche.match(/https?:\/\/federalassociados\.com\.br\S*/i);
+  return match ? match[0] : undefined;
+}
+
+// Process comments for a single page (client or default)
+async function processCommentsForPage(
+  pageSocialService: SocialService,
+  clientLabel: string,
+  commentCtx?: CommentClientContext
+): Promise<number> {
+  let posts: any[] = [];
+  try {
+    posts = await pageSocialService.getPosts(10);
+  } catch (fetchErr: any) {
+    await agentLog('Comment Responder', `${clientLabel} ⚠️ Não foi possível buscar posts: ${fetchErr.message}`, { type: 'info' });
+    return 0;
+  }
+  if (posts.length === 0) return 0;
+
+  const productCampaigns = await prisma.productCampaign.findMany({
+    where: { status: 'PUBLISHED', autoReply: true, replyTemplate: { not: null } },
+  });
+
+  let repliedCount = 0;
+
+  for (const post of posts) {
+    let comments: any[] = [];
+    try {
+      comments = await pageSocialService.getPostComments(post.id);
+    } catch (commentErr: any) {
+      const msg = commentErr.response?.data?.error?.message || commentErr.message;
+      if (msg.includes('pages_read_engagement') || msg.includes('Page Public Content Access')) {
+        await agentLog('Comment Responder', `${clientLabel} ⚠️ Facebook App em modo Development — comments desabilitados.`, { type: 'info' });
+        return repliedCount;
+      }
+      continue;
+    }
+    const campaign = productCampaigns.find(
+      (c) => c.fbPostId === post.id || (post.message && c.generatedCopy && post.message.includes(c.generatedCopy.substring(0, 50)))
+    );
+
+    for (const comment of comments) {
+      const alreadyReplied = await prisma.commentLog.findFirst({ where: { commentId: comment.id } });
+      if (alreadyReplied) continue;
+
+      let reply = '';
+
+      if (campaign?.replyTemplate && hasBuyIntent(comment.message)) {
+        const commenterName = comment.from?.name?.split(' ')[0] || 'você';
+        reply = campaign.replyTemplate.replace('[NOME]', commenterName);
+        await agentLog('Comment Responder', `${clientLabel} 💬 Intenção de compra detectada de "${comment.from?.name || 'usuário'}".`, { type: 'communication', to: 'Copywriter' });
+      } else {
+        await agentLog('Comment Responder', `${clientLabel} Gerando resposta para: "${comment.message.substring(0, 60)}"`, { type: 'communication', to: 'Gemini AI' });
+        reply = await generateCommentReply(comment.message, post.message || post.story, commentCtx);
+      }
+
+      // Sentiment analysis before replying
+      let sentiment: string | null = null;
+      try {
+        const { askGemini: askGeminiSentiment } = await import('./gemini');
+        const sentimentRaw = await askGeminiSentiment(`Classifique o sentimento deste comentário em uma palavra: POSITIVE, NEUTRAL, NEGATIVE ou CRISIS.
+Comentário: "${comment.message.substring(0, 200)}"
+Retorne APENAS a classificação.`);
+        const cleaned = sentimentRaw.trim().toUpperCase();
+        if (['POSITIVE', 'NEUTRAL', 'NEGATIVE', 'CRISIS'].includes(cleaned)) {
+          sentiment = cleaned;
+        }
+      } catch {}
+
+      // CRISIS — don't auto-reply, alert admin
+      if (sentiment === 'CRISIS') {
+        await prisma.commentLog.create({ data: { commentId: comment.id, action: 'CRISIS_HOLD', reply: '', sentiment } });
+        await agentLog('Comment Responder', `${clientLabel} 🚨 CRISE detectada: "${comment.message.substring(0, 60)}" — admin notificado`, { type: 'error' });
+        const crisisAdmins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+        for (const admin of crisisAdmins) {
+          await notificationsService.createAndEmit(admin.id, 'TASK_ASSIGNED', 'CRISE: Comentário negativo', `${clientLabel} "${comment.message.substring(0, 100)}". Responda manualmente.`);
+        }
+        continue;
+      }
+
+      if (!reply) {
+        await prisma.commentLog.create({ data: { commentId: comment.id, action: 'IGNORED', reply: '', sentiment } });
+        continue;
+      }
+
+      try {
+        await pageSocialService.replyToComment(comment.id, reply);
+      } catch (replyErr: any) {
+        await agentLog('Comment Responder', `${clientLabel} ⚠️ Falha ao responder: ${replyErr.message}`, { type: 'info' });
+        await prisma.commentLog.create({ data: { commentId: comment.id, action: 'FAILED', reply, sentiment } });
+        continue;
+      }
+      await prisma.commentLog.create({ data: { commentId: comment.id, action: 'REPLIED', reply, sentiment } });
+      repliedCount++;
+
+      await agentLog('Comment Responder', `${clientLabel} ✅ Respondido: "${comment.message.substring(0, 40)}" → "${reply.substring(0, 40)}"`, { type: 'result' });
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+
+  return repliedCount;
+}
+
+// Roda a cada 30 minutos: verifica e responde comentários novos — MULTI-PAGE
 export function startCommentResponder() {
   cron.schedule('*/30 * * * *', async () => {
     await trackAgentExecution('comment-responder', async () => {
     try {
-      await agentLog('Comment Responder', 'Verificando comentários novos nos posts...', { type: 'action', to: 'Facebook API' });
-      let posts: any[] = [];
-      try {
-        posts = await socialService.getPosts(10);
-      } catch (fetchErr: any) {
-        await agentLog('Comment Responder', `⚠️ Não foi possível buscar posts do Facebook: ${fetchErr.message}. Aguardando próximo ciclo.`, { type: 'info' });
-        return;
-      }
-      if (posts.length === 0) {
-        await agentLog('Comment Responder', 'Nenhum post encontrado na página.', { type: 'info' });
-        return;
-      }
+      await agentLog('Comment Responder', 'Verificando comentários novos (multi-page)...', { type: 'action', to: 'Facebook API' });
 
-      const productCampaigns = await prisma.productCampaign.findMany({
-        where: { status: 'PUBLISHED', autoReply: true, replyTemplate: { not: null } },
+      // Load active clients with Facebook page config
+      const activeClients = await prisma.client.findMany({
+        where: { isActive: true, status: 'ACTIVE' },
+        select: { id: true, name: true, niche: true, notes: true, facebookPageId: true, facebookAccessToken: true, facebookPageName: true },
       });
 
-      let repliedCount = 0;
+      let totalReplied = 0;
 
-      for (const post of posts) {
-        let comments: any[] = [];
-        try {
-          comments = await socialService.getPostComments(post.id);
-        } catch (commentErr: any) {
-          const msg = commentErr.response?.data?.error?.message || commentErr.message;
-          if (msg.includes('pages_read_engagement') || msg.includes('Page Public Content Access')) {
-            await agentLog('Comment Responder', '⚠️ Facebook App em modo Development — comments desabilitados. Ative Live Mode no Facebook Developers.', { type: 'info' });
-            return;
-          }
-          continue;
-        }
-        const campaign = productCampaigns.find(
-          (c) => c.fbPostId === post.id || (post.message && c.generatedCopy && post.message.includes(c.generatedCopy.substring(0, 50)))
-        );
-
-        for (const comment of comments) {
-          const alreadyReplied = await prisma.commentLog.findFirst({ where: { commentId: comment.id } });
-          if (alreadyReplied) continue;
-
-          let reply = '';
-
-          if (campaign?.replyTemplate && hasBuyIntent(comment.message)) {
-            const commenterName = comment.from?.name?.split(' ')[0] || 'você';
-            reply = campaign.replyTemplate.replace('[NOME]', commenterName);
-            await agentLog('Comment Responder', `💬 Intenção de compra detectada de "${comment.from?.name || 'usuário'}". Usando template de produto.`, { type: 'communication', to: 'Copywriter' });
-          } else {
-            await agentLog('Comment Responder', `Gerando resposta para comentário: "${comment.message.substring(0, 60)}"`, { type: 'communication', to: 'Gemini AI' });
-            reply = await generateCommentReply(comment.message, post.message || post.story);
-          }
-
-          // Phase 5: Sentiment analysis before replying
-          let sentiment: string | null = null;
+      if (activeClients.length === 0) {
+        // No clients — use default page
+        totalReplied = await processCommentsForPage(socialService, '[Default]');
+      } else {
+        for (const client of activeClients) {
           try {
-            const { askGemini: askGeminiSentiment } = await import('./gemini');
-            const sentimentRaw = await askGeminiSentiment(`Classifique o sentimento deste comentário em uma palavra: POSITIVE, NEUTRAL, NEGATIVE ou CRISIS.
-Comentário: "${comment.message.substring(0, 200)}"
-Retorne APENAS a classificação.`);
-            const cleaned = sentimentRaw.trim().toUpperCase();
-            if (['POSITIVE', 'NEUTRAL', 'NEGATIVE', 'CRISIS'].includes(cleaned)) {
-              sentiment = cleaned;
+            // Build SocialService for this client
+            let clientSocial: SocialService;
+            if (client.facebookPageId && client.facebookAccessToken) {
+              clientSocial = new SocialService({ pageId: client.facebookPageId, accessToken: client.facebookAccessToken });
+            } else {
+              clientSocial = socialService; // fallback to env vars
             }
-          } catch {}
 
-          // Phase 5: CRISIS — don't auto-reply, alert admin
-          if (sentiment === 'CRISIS') {
-            await prisma.commentLog.create({ data: { commentId: comment.id, action: 'CRISIS_HOLD', reply: '', sentiment } });
-            await agentLog('Comment Responder', `🚨 CRISE detectada: "${comment.message.substring(0, 60)}" — resposta suspensa, admin notificado`, { type: 'error' });
-            const crisisAdmins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
-            for (const admin of crisisAdmins) {
-              await notificationsService.createAndEmit(admin.id, 'TASK_ASSIGNED', 'CRISE: Comentário negativo', `Comentário de crise detectado: "${comment.message.substring(0, 100)}". Responda manualmente.`);
-            }
-            continue;
+            // Build comment context with signup link for Federal
+            const signupLink = extractSignupLink(client.niche);
+            const commentCtx: CommentClientContext = {
+              pageName: client.facebookPageName || client.name,
+              niche: client.niche || undefined,
+              notes: client.notes || undefined,
+              signupLink,
+            };
+
+            const replied = await processCommentsForPage(clientSocial, `[${client.name}]`, commentCtx);
+            totalReplied += replied;
+          } catch (clientErr: any) {
+            await agentLog('Comment Responder', `[${client.name}] ❌ Erro: ${clientErr.message}`, { type: 'error' });
           }
-
-          if (!reply) {
-            await prisma.commentLog.create({ data: { commentId: comment.id, action: 'IGNORED', reply: '', sentiment } });
-            continue;
-          }
-
-          try {
-            await socialService.replyToComment(comment.id, reply);
-          } catch (replyErr: any) {
-            await agentLog('Comment Responder', `⚠️ Não foi possível responder comentário: ${replyErr.message}`, { type: 'info' });
-            await prisma.commentLog.create({ data: { commentId: comment.id, action: 'FAILED', reply, sentiment } });
-            continue;
-          }
-          await prisma.commentLog.create({ data: { commentId: comment.id, action: 'REPLIED', reply, sentiment } });
-          repliedCount++;
-
-          await agentLog('Comment Responder', `✅ Respondido: "${comment.message.substring(0, 40)}" → "${reply.substring(0, 40)}"`, { type: 'result' });
-          await new Promise((r) => setTimeout(r, 3000));
         }
       }
 
-      if (repliedCount === 0) {
+      if (totalReplied === 0) {
         await agentLog('Comment Responder', 'Nenhum comentário novo para responder.', { type: 'info' });
+      } else {
+        await agentLog('Comment Responder', `✅ ${totalReplied} comentários respondidos no total.`, { type: 'result' });
       }
     } catch (err: any) {
       console.error('[Comments] Erro:', err.message);
@@ -355,7 +410,7 @@ Retorne APENAS a classificação.`);
     }); // trackAgentExecution
   });
 
-  console.log('[Comments] Comment responder iniciado (verificação a cada 30 minutos)');
+  console.log('[Comments] Comment responder MULTI-PAGE iniciado (verificação a cada 30 minutos)');
 }
 
 // Roda todo dia às 8h: análise de métricas
