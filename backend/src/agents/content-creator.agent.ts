@@ -109,8 +109,10 @@ INSTRUÇÃO DE FORMATO: Varie SEMPRE o formato. Alterne entre:
 Crie um post para o Facebook sobre o tema: "${topic}"
 Tipo de foco: ${focusType} — ${focusGuide}
 
-IMPORTANTE: NÃO repita esses temas recentes: ${recentStr}
+ANTI-REPETIÇÃO (CRÍTICO): O tema DEVE ser COMPLETAMENTE DIFERENTE dos recentes abaixo. Não repita tema, ângulo, abordagem ou variação semelhante. Se o tema for parecido com qualquer um dos listados, escolha outro completamente novo.
+Temas recentes (últimos 50 posts — PROIBIDO repetir): ${recentStr}
 PROIBIDO: Falar sobre filmes, séries, streaming, TV, streamers.
+O post DEVE estar alinhado a um dos 4 pilares temáticos definidos nas brand guidelines.
 
 Retorne APENAS um JSON válido neste formato exato:
 {

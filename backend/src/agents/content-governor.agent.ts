@@ -138,24 +138,26 @@ Retorne APENAS JSON: { "score": 8, "isDuplicate": false }`;
     };
   }
 
-  // Rule 4: LLM quality check + duplicate detection (Phase 2: expanded to 20 posts)
+  // Rule 4: LLM quality check + duplicate detection (expanded to 50 posts for anti-repetition)
   let qualityScore = 7; // default if LLM fails
   try {
     const recentPosts = await prisma.scheduledPost.findMany({
       where: { status: 'PUBLISHED' },
       orderBy: { publishedAt: 'desc' },
-      take: 20,
+      take: 50,
       select: { topic: true, message: true },
     });
 
     const recentTopics = recentPosts.map((p) => p.topic).join(', ');
     const brandContext = await getBrandContext();
 
-    const prompt = `Avalie este post para redes sociais de 1 a 10 (qualidade, originalidade, engajamento) e verifique duplicatas.
+    const prompt = `Avalie este post para redes sociais de 1 a 10 (qualidade, originalidade, engajamento) e verifique duplicatas com RIGOR.
 ${brandContext}
 Post: "${post.message.substring(0, 300)}"
 Tópico: "${post.topic}"
-Tópicos recentes publicados (últimos 20): ${recentTopics || 'nenhum'}
+Tópicos recentes publicados (últimos 50): ${recentTopics || 'nenhum'}
+
+REGRA DE DUPLICATA RIGOROSA: Marque isDuplicate=true se o tópico for SEMANTICAMENTE SIMILAR a qualquer um dos 50 recentes — não apenas se for idêntico. Exemplos: "5 dicas de produtividade" e "como ser mais produtivo" são duplicatas. "IA no marketing" e "inteligência artificial para negócios" são duplicatas.
 Retorne APENAS JSON: { "score": 7, "isDuplicate": false, "reason": "motivo breve" }`;
 
     const raw = await askGemini(prompt);

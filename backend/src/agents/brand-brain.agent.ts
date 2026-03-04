@@ -9,6 +9,10 @@ const DEFAULT_BRAND: Record<string, string> = {
   emojis_preferidos: 'NAO usar emojis — texto puro e direto, apenas caracteres ASCII',
   nicho_proibido: 'NÃO produzir conteúdo sobre streamers, filmes, séries, entretenimento genérico ou TV online.',
   estrategia_conteudo: 'Distribuição: 40% educativo, 30% engajamento/interação, 20% autoridade/prova social, 10% pessoal/bastidores.',
+  pilares_tematicos: `1. Liderança & Estratégia (tendências globais, crescimento exponencial, decisão baseada em dados, alta performance)
+2. Tecnologia & Inovação (IA, automação, ecossistemas digitais, transformação digital)
+3. Performance & Resultados (estudos de caso, métricas reais, escalabilidade, ROI)
+4. Cultura & Propósito (visão de futuro, impacto social, cultura organizacional, branding global)`,
 };
 
 export async function getBrandContext(): Promise<string> {
@@ -30,7 +34,9 @@ BRAND GUIDELINES:
 - Emojis preferidos: ${brand.emojis_preferidos}
 - RESTRIÇÃO DE NICHO: ${brand.nicho_proibido || ''}
 - Estratégia de conteúdo: ${brand.estrategia_conteudo || ''}
-IMPORTANTE: Sempre siga estas guidelines. NUNCA produza conteúdo sobre filmes, séries, streaming ou entretenimento genérico.`;
+- PILARES TEMÁTICOS (todo conteúdo DEVE se encaixar em um destes):
+${brand.pilares_tematicos || ''}
+IMPORTANTE: Sempre siga estas guidelines. NUNCA produza conteúdo sobre filmes, séries, streaming ou entretenimento genérico. Todo post deve estar alinhado a um dos 4 pilares temáticos.`;
   } catch {
     return '';
   }

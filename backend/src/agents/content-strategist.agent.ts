@@ -1,5 +1,6 @@
 import { askGemini } from './gemini';
 import prisma from '../config/database';
+import { getBrandContext } from './brand-brain.agent';
 
 export interface DailyStrategy {
   postsToCreate: number;
@@ -38,7 +39,7 @@ export async function buildDailyStrategy(): Promise<DailyStrategy> {
   const recentPosts = await prisma.scheduledPost.findMany({
     where: { status: 'PUBLISHED' },
     orderBy: { publishedAt: 'desc' },
-    take: 15,
+    take: 50,
     select: { topic: true, message: true, contentType: true },
   });
 
@@ -50,6 +51,9 @@ export async function buildDailyStrategy(): Promise<DailyStrategy> {
   const trendingContext = trendingCache
     ? `Tendências em alta esta semana: ${(trendingCache.trends as any[]).map((t: any) => t.topic).join(', ')}. Use como inspiração para temas relevantes e virais.`
     : '';
+
+  let brandCtx = '';
+  try { brandCtx = await getBrandContext(); } catch {}
 
   const recentTopics = recentPosts.map((p) => p.topic).filter(Boolean).join(', ');
   const metricsContext = lastReport
@@ -68,16 +72,21 @@ Você é um estrategista de conteúdo focado em CRESCIMENTO ACELERADO de página
 
 OBJETIVO: Crescer seguidores, alcance e engajamento de forma orgânica e consistente.
 
+${brandCtx}
+
 REGRAS ABSOLUTAS:
 - NÃO sugerir temas sobre filmes, séries, streaming, TV online ou entretenimento genérico.
 - Focar em: dicas práticas, tendências, conhecimento útil, provocações inteligentes, insights poderosos.
 - Cada post deve ter potencial VIRAL — algo que as pessoas queiram compartilhar.
+- Cada post DEVE se encaixar em um dos 4 PILARES TEMÁTICOS definidos nas brand guidelines.
+- ROTAÇÃO OBRIGATÓRIA: cada post do dia deve cobrir um pilar DIFERENTE. NÃO repetir pilar no mesmo dia.
 
 Hoje é ${dayOfWeek}, ${dateStr}.
 
 ${metricsContext}
 
-Temas publicados recentemente (NÃO repita): ${recentTopics || 'nenhum ainda'}
+TEMAS JÁ PUBLICADOS RECENTEMENTE (últimos 50 posts — é PROIBIDO repetir qualquer um destes temas ou variações semelhantes):
+${recentTopics || 'nenhum ainda'}
 
 ${trendingContext}
 
@@ -95,14 +104,16 @@ Retorne APENAS um JSON válido neste formato exato:
   "topics": ["tema viral 1", "tema viral 2", "tema viral 3"],
   "scheduledTimes": ["09:00", "14:00", "19:00"],
   "focusType": ["educativo", "engajamento", "autoridade"],
+  "pilpilar": ["Liderança & Estratégia", "Tecnologia & Inovação", "Performance & Resultados"],
   "reasoning": "Justificativa breve da estratégia"
 }
 
 Regras:
 - postsToCreate: entre 2 e 4 (se engajamento baixo, criar mais; se alto, manter qualidade)
-- topics: temas DIFERENTES dos recentes, com alto potencial viral. PROIBIDO temas de entretenimento/filmes/séries.
+- topics: temas COMPLETAMENTE DIFERENTES dos 50 recentes listados acima. NÃO repita tema, ângulo, ou variação semelhante. PROIBIDO temas de entretenimento/filmes/séries.
 - scheduledTimes: horários entre 08:00 e 22:00, com pelo menos 2h de intervalo
 - focusType: "educativo" | "engajamento" | "autoridade" | "bastidores"
+- pilar: qual dos 4 pilares temáticos cada post aborda (cada post deve ter pilar diferente)
 - reasoning: 1-2 frases explicando a escolha estratégica
 `;
 

@@ -427,7 +427,7 @@ export function startAutonomousContentEngine() {
       const recentPosts = await prisma.scheduledPost.findMany({
         where: { status: 'PUBLISHED' },
         orderBy: { publishedAt: 'desc' },
-        take: 10,
+        take: 30,
         select: { topic: true },
       });
       const recentTopics = recentPosts.map((p) => p.topic).filter(Boolean) as string[];
