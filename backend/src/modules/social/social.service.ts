@@ -15,20 +15,25 @@ type PublishMediaOptions = PublishOptions & {
   mediaType?: 'image' | 'video' | null;
 };
 
-// Cache do Page Token para não converter a cada request
-let cachedPageToken: string | null = null;
-let pageTokenExpiresAt = 0;
+export type PageCredentials = {
+  pageId: string;
+  accessToken: string;
+};
 
-// Fix #7: Invalidar cache quando token expirar
-function invalidateTokenCache() {
-  cachedPageToken = null;
-  pageTokenExpiresAt = 0;
+// Cache do Page Token por pageId (multi-page support)
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
+
+function invalidateTokenCache(pageId?: string) {
+  if (pageId) {
+    tokenCache.delete(pageId);
+  } else {
+    tokenCache.clear();
+  }
 }
 
 function isAuthError(err: any): boolean {
   const fbCode = err.response?.data?.error?.code;
   const status = err.response?.status;
-  // 190 = token expired/invalid, 102 = session expired, 401 = unauthorized
   return status === 401 || fbCode === 190 || fbCode === 102;
 }
 
@@ -69,7 +74,7 @@ function authHeaders(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
-function getUserToken() {
+function getEnvToken() {
   const token = (process.env.FACEBOOK_ACCESS_TOKEN || '').trim();
   if (!token || token === 'cole_seu_novo_token_aqui') {
     throw { statusCode: 503, message: 'Facebook token not configured' };
@@ -77,7 +82,7 @@ function getUserToken() {
   return token;
 }
 
-function getPageId() {
+function getEnvPageId() {
   const id = process.env.FACEBOOK_PAGE_ID;
   if (!id || id === 'cole_o_page_id_aqui') {
     throw { statusCode: 503, message: 'Facebook page ID not configured' };
@@ -85,40 +90,55 @@ function getPageId() {
   return id;
 }
 
-async function getPageToken(): Promise<string> {
-  // Cache válido por 1h
-  if (cachedPageToken && Date.now() < pageTokenExpiresAt) {
-    return cachedPageToken;
-  }
-
-  const userToken = getUserToken();
-  const pageId = getPageId();
-
-  try {
-    const { data } = await fbApi.get(`${GRAPH_API}/${pageId}`, {
-      params: { fields: 'access_token' },
-      headers: authHeaders(userToken),
-    });
-
-    if (data.access_token) {
-      cachedPageToken = data.access_token;
-      pageTokenExpiresAt = Date.now() + 60 * 60 * 1000;
-      console.log('[SocialService] Page token obtained successfully');
-      return data.access_token as string;
-    }
-  } catch (err: any) {
-    console.warn('[SocialService] Could not get page token, falling back to user token:', err.response?.data?.error?.message || err.message);
-  }
-
-  // Fallback: o token configurado já pode ser um Page Token
-  return userToken;
-}
-
 export class SocialService {
+  private pageId: string;
+  private accessToken: string;
+
+  /**
+   * Create SocialService instance.
+   * - With credentials: uses provided pageId + accessToken (multi-page)
+   * - Without credentials: falls back to env vars (backward compat)
+   */
+  constructor(credentials?: PageCredentials) {
+    if (credentials) {
+      this.pageId = credentials.pageId;
+      this.accessToken = credentials.accessToken;
+    } else {
+      this.pageId = getEnvPageId();
+      this.accessToken = getEnvToken();
+    }
+  }
+
+  private async getPageToken(): Promise<string> {
+    const cached = tokenCache.get(this.pageId);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.token;
+    }
+
+    try {
+      const { data } = await fbApi.get(`${GRAPH_API}/${this.pageId}`, {
+        params: { fields: 'access_token' },
+        headers: authHeaders(this.accessToken),
+      });
+
+      if (data.access_token) {
+        tokenCache.set(this.pageId, {
+          token: data.access_token,
+          expiresAt: Date.now() + 60 * 60 * 1000,
+        });
+        console.log(`[SocialService] Page token obtained for ${this.pageId}`);
+        return data.access_token as string;
+      }
+    } catch (err: any) {
+      console.warn(`[SocialService] Could not get page token for ${this.pageId}, falling back to user token:`, err.response?.data?.error?.message || err.message);
+    }
+
+    return this.accessToken;
+  }
+
   async getPageInfo() {
-    const token = await getPageToken();
-    const pageId = getPageId();
-    const { data } = await fbApi.get(`${GRAPH_API}/${pageId}`, {
+    const token = await this.getPageToken();
+    const { data } = await fbApi.get(`${GRAPH_API}/${this.pageId}`, {
       params: {
         fields: 'id,name,fan_count,followers_count,about,category,picture,cover,website',
       },
@@ -128,8 +148,7 @@ export class SocialService {
   }
 
   async getPageInsights(period: 'day' | 'week' | 'month' = 'month') {
-    const token = await getPageToken();
-    const pageId = getPageId();
+    const token = await this.getPageToken();
 
     const metrics = [
       'page_impressions',
@@ -141,7 +160,7 @@ export class SocialService {
       'page_views_total',
     ].join(',');
 
-    const { data } = await fbApi.get(`${GRAPH_API}/${pageId}/insights`, {
+    const { data } = await fbApi.get(`${GRAPH_API}/${this.pageId}/insights`, {
       params: { metric: metrics, period },
       headers: authHeaders(token),
     });
@@ -158,10 +177,9 @@ export class SocialService {
   }
 
   async getPosts(limit = 10) {
-    const token = await getPageToken();
-    const pageId = getPageId();
+    const token = await this.getPageToken();
     try {
-      const { data } = await fbApi.get(`${GRAPH_API}/${pageId}/posts`, {
+      const { data } = await fbApi.get(`${GRAPH_API}/${this.pageId}/posts`, {
         params: {
           fields: 'id,message,story,created_time,full_picture,permalink_url',
           limit,
@@ -195,23 +213,20 @@ export class SocialService {
   }
 
   async publishPost(message: string, options?: PublishOptions) {
-    const token = await getPageToken();
-    const pageId = getPageId();
+    const token = await this.getPageToken();
 
     const finalMessage = this.buildMessageWithLink(message, options?.linkUrl);
     const params = this.withSchedule({ message: finalMessage }, options?.scheduledTime);
 
-    const { data } = await fbApi.post(`${GRAPH_API}/${pageId}/feed`, null, {
+    const { data } = await fbApi.post(`${GRAPH_API}/${this.pageId}/feed`, null, {
       params,
       headers: authHeaders(token),
     });
     return data;
   }
 
-  // Fix #3: campo "caption" → "message" (API /photos usa "message" para legenda)
   async publishPhotoPost(message: string, imageUrl: string, options?: PublishOptions) {
-    const token = await getPageToken();
-    const pageId = getPageId();
+    const token = await this.getPageToken();
 
     const finalMessage = this.buildMessageWithLink(message, options?.linkUrl);
     const params = this.withSchedule(
@@ -222,7 +237,7 @@ export class SocialService {
       options?.scheduledTime,
     );
 
-    const { data } = await fbApi.post(`${GRAPH_API}/${pageId}/photos`, null, {
+    const { data } = await fbApi.post(`${GRAPH_API}/${this.pageId}/photos`, null, {
       params,
       headers: authHeaders(token),
     });
@@ -230,8 +245,7 @@ export class SocialService {
   }
 
   async publishVideoPost(message: string, videoUrl: string, options?: PublishOptions) {
-    const token = await getPageToken();
-    const pageId = getPageId();
+    const token = await this.getPageToken();
 
     const finalDescription = this.buildMessageWithLink(message, options?.linkUrl);
     const params = this.withSchedule(
@@ -242,7 +256,7 @@ export class SocialService {
       options?.scheduledTime,
     );
 
-    const { data } = await fbApi.post(`${GRAPH_API}/${pageId}/videos`, null, {
+    const { data } = await fbApi.post(`${GRAPH_API}/${this.pageId}/videos`, null, {
       params,
       headers: authHeaders(token),
     });
@@ -264,12 +278,10 @@ export class SocialService {
       : this.publishPhotoPost(message, mediaUrl, options);
   }
 
-  // Fix #6: error handling no getScheduledPosts
   async getScheduledPosts() {
-    const token = await getPageToken();
-    const pageId = getPageId();
+    const token = await this.getPageToken();
     try {
-      const { data } = await fbApi.get(`${GRAPH_API}/${pageId}/scheduled_posts`, {
+      const { data } = await fbApi.get(`${GRAPH_API}/${this.pageId}/scheduled_posts`, {
         params: {
           fields: 'id,message,scheduled_publish_time,full_picture',
         },
@@ -283,7 +295,7 @@ export class SocialService {
   }
 
   async deletePost(postId: string) {
-    const token = await getPageToken();
+    const token = await this.getPageToken();
     const { data } = await fbApi.delete(`${GRAPH_API}/${postId}`, {
       headers: authHeaders(token),
     });
@@ -291,7 +303,7 @@ export class SocialService {
   }
 
   async getPostComments(postId: string) {
-    const token = await getPageToken();
+    const token = await this.getPageToken();
     const { data } = await fbApi.get(`${GRAPH_API}/${postId}/comments`, {
       params: {
         fields: 'id,message,from,created_time,like_count',
@@ -302,23 +314,21 @@ export class SocialService {
   }
 
   async replyToComment(commentId: string, message: string): Promise<void> {
-    const token = await getPageToken();
+    const token = await this.getPageToken();
     await fbApi.post(`${GRAPH_API}/${commentId}/comments`, null, {
       params: { message },
       headers: authHeaders(token),
     });
   }
 
-  // Fix #5: Token no header ao invés de FormData body no video upload
   async publishVideoFromFile(message: string, filePath: string) {
-    const token = await getPageToken();
-    const pageId = getPageId();
+    const token = await this.getPageToken();
 
     const form = new FormData();
     form.append('source', fs.createReadStream(filePath));
     form.append('description', message);
 
-    const { data } = await fbApi.post(`${GRAPH_API}/${pageId}/videos`, form, {
+    const { data } = await fbApi.post(`${GRAPH_API}/${this.pageId}/videos`, form, {
       headers: {
         ...form.getHeaders(),
         ...authHeaders(token),
