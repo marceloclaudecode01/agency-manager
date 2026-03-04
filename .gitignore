@@ -37,3 +37,14 @@ coverage/
 
 # AIOS core (commitar — é parte do projeto)
 # .aios-core/ — NÃO ignorar
+
+# Local backups & scripts
+_backups/
+backup-projeto.ps1
+
+# Separate projects
+tiktok-vitrine/
+
+# TypeScript build cache
+tsconfig.tsbuildinfo
+*.tsbuildinfo
