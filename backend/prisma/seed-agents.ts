@@ -40,6 +40,7 @@ const AGENTS = [
   { name: 'Strategic Engine', function: 'strategic-engine', description: 'Avaliação estratégica do sistema', autonomyLevel: 5, cronExpression: '0 */6 * * *' },
   { name: 'Evolution Engine', function: 'evolution-engine', description: 'Auto-evolução baseada em performance', autonomyLevel: 5, cronExpression: '0 */12 * * *' },
   { name: 'Short Video Engine', function: 'short-video-engine', description: 'Criação de vídeos curtos com frameworks de elite', autonomyLevel: 5, cronExpression: '0 */4 * * *' },
+  { name: 'Video Processor', function: 'video-processor', description: 'ComfyDeploy video generation polling', autonomyLevel: 5, cronExpression: '*/2 * * * *' },
 ];
 
 async function main() {
