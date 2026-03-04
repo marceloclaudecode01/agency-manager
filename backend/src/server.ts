@@ -55,6 +55,10 @@ app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Webhook routes — BEFORE CSRF (external callbacks have no Origin header)
+import webhookRoutes from './modules/webhooks/webhook.routes';
+app.use('/api/webhooks', webhookRoutes);
+
 // CSRF protection: validate Origin header on mutating requests in production
 const ALLOWED_ORIGINS = new Set(CORS_ORIGINS);
 app.use((req, res, next) => {

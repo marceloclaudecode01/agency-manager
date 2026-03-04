@@ -30,6 +30,8 @@ import { startShortVideoEngine } from './short-video-engine.agent';
 import { startGrowthAnalyst } from './growth-analyst.agent';
 import { generateCarouselFromStructure, shouldGenerateCarousel } from './carousel-generator.agent';
 import { optimizeForPlatform } from './platform-optimizer.agent';
+import { queueVideoForPost, startVideoProcessor } from './video-generator.agent';
+import { isConfigured as isComfyDeployConfigured } from '../services/comfydeploy.service';
 
 // Default social service (env vars) — used for backward compat
 const socialService = new SocialService();
@@ -208,10 +210,14 @@ export function startPostScheduler() {
 
       let publishResult: any;
 
-      // Publish: image+text if imageUrl exists, text-only otherwise
-      publishResult = post.imageUrl
-        ? await postSocialService.publishMediaPost(fullMessage, post.imageUrl, { mediaType: 'image' })
-        : await postSocialService.publishPost(fullMessage);
+      // Publish: video if videoUrl, image if imageUrl, text-only otherwise
+      if (post.contentType === 'video' && post.videoUrl) {
+        publishResult = await postSocialService.publishVideoPost(fullMessage, post.videoUrl);
+      } else if (post.imageUrl) {
+        publishResult = await postSocialService.publishMediaPost(fullMessage, post.imageUrl, { mediaType: 'image' });
+      } else {
+        publishResult = await postSocialService.publishPost(fullMessage);
+      }
 
       const fbPostId = publishResult?.id || null;
 
@@ -653,7 +659,14 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
 
       // 50% of posts are video (every other post) — video-first strategy
       const isVideo = i % 2 === 1;
-      const postContentType = isVideo ? 'video' : 'organic';
+      const comfyConfigured = isComfyDeployConfigured();
+      const postContentType = (isVideo && comfyConfigured) ? 'video' : 'organic';
+      const postStatus = (isVideo && comfyConfigured) ? 'PENDING_VIDEO' as const : 'PENDING' as const;
+
+      if (isVideo && !comfyConfigured) {
+        // Silent fallback: ComfyDeploy not configured, all posts become image
+        console.log(`[Engine] ComfyDeploy not configured, falling back to image for post ${i + 1}`);
+      }
 
       const saved = await prisma.scheduledPost.create({
         data: {
@@ -661,7 +674,7 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
           message: generated.message,
           hashtags: hashtagsStr,
           imageUrl,
-          status: 'PENDING',
+          status: postStatus,
           source: 'autonomous-engine',
           contentType: postContentType,
           scheduledFor,
@@ -671,6 +684,13 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
           ...(clientCtx ? { clientId: clientCtx.clientId } : {}),
         },
       });
+
+      // Fire-and-forget: queue video generation for PENDING_VIDEO posts
+      if (postStatus === 'PENDING_VIDEO') {
+        queueVideoForPost(saved.id).catch((err: any) => {
+          console.error(`[Engine] Failed to queue video for post ${saved.id}: ${err.message}`);
+        });
+      }
 
       scheduledIds.push(saved.id);
       recentTopics.push(topic);
@@ -882,6 +902,7 @@ const AGENT_FUNCTION_MAP: Record<string, () => void> = {
   'evolution-engine': startEvolutionEngine,
   'short-video-engine': startShortVideoEngine,
   'growth-analyst': startGrowthAnalyst,
+  'video-processor': startVideoProcessor,
 };
 
 export async function updateLastRun(agentName: string): Promise<void> {

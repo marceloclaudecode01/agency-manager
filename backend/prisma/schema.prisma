@@ -230,6 +230,7 @@ model CalendarEvent {
 
 enum ScheduledPostStatus {
   PENDING
+  PENDING_VIDEO
   APPROVED
   REJECTED
   PUBLISHED
@@ -260,6 +261,8 @@ model ScheduledPost {
   viralScore          Int?
   viralEnhancements   Json?
   carouselData        Json?
+  videoUrl            String?
+  comfyRunId          String?
   clientId        String?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
