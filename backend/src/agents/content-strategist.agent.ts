@@ -15,6 +15,7 @@ export interface ClientContext {
   clientName: string;
   niche: string;
   facebookPageName?: string;
+  notes?: string;
 }
 
 // Distribuição ideal: 40% educativo, 30% engajamento, 20% autoridade, 10% bastidores
@@ -72,10 +73,13 @@ export async function buildDailyStrategy(clientCtx?: ClientContext): Promise<Dai
   const nicheContext = clientCtx ? `
 CLIENTE: ${clientCtx.clientName}${clientCtx.facebookPageName ? ` (Página: ${clientCtx.facebookPageName})` : ''}
 NICHO DO CLIENTE: ${clientCtx.niche}
+${clientCtx.notes ? `INFORMAÇÕES REAIS DO NEGÓCIO (USE APENAS ESTAS — NUNCA INVENTE DADOS):
+${clientCtx.notes}` : ''}
 IMPORTANTE: Todo o conteúdo DEVE ser 100% focado no nicho "${clientCtx.niche}".
-Gere conteúdo como se você fosse o MELHOR estrategista de conteúdo do mundo para o setor de ${clientCtx.niche}.
+REGRA CRÍTICA: Use SOMENTE informações reais fornecidas acima (planos, preços, benefícios). NUNCA invente valores, planos ou benefícios que não existam.
+Gere conteúdo como se você fosse o MELHOR estrategista de conteúdo do mundo para este negócio.
 Use terminologia, dores, desejos e linguagem específica deste nicho.
-O conteúdo deve posicionar esta página como AUTORIDADE ABSOLUTA no nicho de ${clientCtx.niche}.
+O conteúdo deve posicionar esta página como AUTORIDADE ABSOLUTA.
 ` : '';
 
   const recentTopics = recentPosts.map((p) => p.topic).filter(Boolean).join(', ');

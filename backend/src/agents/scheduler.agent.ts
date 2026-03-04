@@ -436,11 +436,17 @@ function startDueDateNotifier() {
 }
 
 // Generate posts for a single client (or default page if no client)
-async function generatePostsForClient(clientCtx?: { clientId: string; clientName: string; niche: string; facebookPageName?: string }): Promise<string[]> {
+async function generatePostsForClient(clientCtx?: { clientId: string; clientName: string; niche: string; facebookPageName?: string; notes?: string }): Promise<string[]> {
   const label = clientCtx ? `[${clientCtx.clientName}]` : '[Default]';
 
   await agentLog('Autonomous Engine', `${label} Solicitando estratégia diária ao Content Strategist...`, { type: 'communication', to: 'Content Strategist' });
-  const strategy = await buildDailyStrategy(clientCtx);
+  const strategy = await buildDailyStrategy(clientCtx ? {
+    clientId: clientCtx.clientId,
+    clientName: clientCtx.clientName,
+    niche: clientCtx.niche,
+    facebookPageName: clientCtx.facebookPageName,
+    notes: clientCtx.notes,
+  } : undefined);
 
   await agentLog('Content Strategist', `${label} Estratégia pronta: ${strategy.postsToCreate} posts — ${strategy.reasoning}`, { type: 'result', to: 'Autonomous Engine', payload: { postsToCreate: strategy.postsToCreate, topics: strategy.topics } });
 
@@ -465,7 +471,7 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
       const timeStr = strategy.scheduledTimes[i] || '18:00';
 
       await agentLog('Autonomous Engine', `${label} Solicitando post sobre "${topic}" ao Content Creator...`, { type: 'communication', to: 'Content Creator' });
-      const generated = await generatePostFromStrategy(topic, focusType, recentTopics, clientCtx?.niche);
+      const generated = await generatePostFromStrategy(topic, focusType, recentTopics, clientCtx?.niche, clientCtx?.notes);
       await agentLog('Content Creator', `${label} Post criado: "${generated.message.substring(0, 60)}..."`, { type: 'result', to: 'Autonomous Engine' });
 
       // Viral Mechanics Lab: enhance post before scheduling
@@ -573,7 +579,7 @@ export function startAutonomousContentEngine() {
       // Clients WITHOUT (like Newplay) → publish via env var default page
       const activeClients = await prisma.client.findMany({
         where: { isActive: true, status: 'ACTIVE' },
-        select: { id: true, name: true, niche: true, facebookPageName: true, facebookPageId: true, facebookAccessToken: true },
+        select: { id: true, name: true, niche: true, notes: true, facebookPageName: true, facebookPageId: true, facebookAccessToken: true },
       });
 
       let totalScheduled = 0;
@@ -603,6 +609,7 @@ export function startAutonomousContentEngine() {
               clientName: client.name,
               niche: client.niche || 'geral',
               facebookPageName: client.facebookPageName || undefined,
+              notes: client.notes || undefined,
             });
             totalScheduled += ids.length;
             clientSummaries.push(`${client.name}: ${ids.length} posts`);
