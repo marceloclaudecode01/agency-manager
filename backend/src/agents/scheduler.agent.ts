@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import prisma from '../config/database';
-import { SocialService } from '../modules/social/social.service';
+import { SocialService, PageCredentials } from '../modules/social/social.service';
 import { generateCommentReply } from './comment-responder.agent';
 import { analyzeMetrics } from './metrics-analyzer.agent';
 import { generateImageForPost } from './image-generator.agent';
@@ -28,7 +28,26 @@ import { startStrategicEngine } from './strategic-engine.agent';
 import { startEvolutionEngine } from './evolution-engine.agent';
 import { startShortVideoEngine } from './short-video-engine.agent';
 
+// Default social service (env vars) — used for backward compat
 const socialService = new SocialService();
+
+// Helper: get SocialService for a specific post (client-aware)
+async function getSocialServiceForPost(post: { clientId?: string | null }): Promise<SocialService> {
+  if (post.clientId) {
+    const client = await prisma.client.findUnique({
+      where: { id: post.clientId },
+      select: { facebookPageId: true, facebookAccessToken: true, name: true },
+    });
+    if (client?.facebookPageId && client?.facebookAccessToken) {
+      return new SocialService({
+        pageId: client.facebookPageId,
+        accessToken: client.facebookAccessToken,
+      });
+    }
+  }
+  // Fallback to default (env vars)
+  return socialService;
+}
 
 // Limits increased for video-first strategy: 10 posts/day, 1h interval
 const MAX_POSTS_PER_DAY = 10;
@@ -125,16 +144,19 @@ export function startPostScheduler() {
         return;
       }
 
-      await agentLog('Scheduler', `Post encontrado para publicação: "${post.topic || post.message.substring(0, 50)}"`, { type: 'action', to: 'Facebook API' });
+      await agentLog('Scheduler', `Post encontrado para publicação: "${post.topic || post.message.substring(0, 50)}"${post.clientId ? ` (client: ${post.clientId})` : ''}`, { type: 'action', to: 'Facebook API' });
 
       const fullMessage = post.hashtags ? `${post.message}\n\n${post.hashtags}` : post.message;
+
+      // Get client-specific SocialService (or default)
+      const postSocialService = await getSocialServiceForPost(post);
 
       let publishResult: any;
 
       // Publish: image+text if imageUrl exists, text-only otherwise
       publishResult = post.imageUrl
-        ? await socialService.publishMediaPost(fullMessage, post.imageUrl, { mediaType: 'image' })
-        : await socialService.publishPost(fullMessage);
+        ? await postSocialService.publishMediaPost(fullMessage, post.imageUrl, { mediaType: 'image' })
+        : await postSocialService.publishPost(fullMessage);
 
       const fbPostId = publishResult?.id || null;
 
