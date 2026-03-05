@@ -1,14 +1,19 @@
 /**
- * Video Generation Service — Dual Provider with Fallback
+ * Video Generation Service — Multi-Provider with Fallback
  *
- * Provider 1: Comfy Cloud (cloud.comfy.org) — workflow JSON inline, no setup needed
- * Provider 2: ComfyDeploy (comfydeploy.com) — requires deployment_id from dashboard
+ * Provider priority:
+ *   1. HuggingFace Inference API (FREE with HF token — LTX-Video)
+ *   2. Comfy Cloud (cloud.comfy.org)
+ *   3. ComfyDeploy (comfydeploy.com)
  *
  * Env vars:
- *   COMFY_CLOUD_API_KEY       → Provider 1 (primary)
- *   COMFYDEPLOY_API_KEY       → Provider 2 (fallback)
- *   COMFYDEPLOY_DEPLOYMENT_ID → Provider 2 (fallback)
+ *   HF_TOKEN                  → Provider 1 (primary, FREE)
+ *   COMFY_CLOUD_API_KEY       → Provider 2
+ *   COMFYDEPLOY_API_KEY       → Provider 3
+ *   COMFYDEPLOY_DEPLOYMENT_ID → Provider 3
  */
+
+import axios from 'axios';
 
 // ─── Types ───
 
@@ -18,19 +23,78 @@ interface VideoJobInput {
 }
 
 interface VideoJobResult {
-  provider: 'comfy-cloud' | 'comfydeploy';
+  provider: 'huggingface' | 'comfy-cloud' | 'comfydeploy';
   job_id: string;
+  videoUrl?: string; // HuggingFace returns video directly (synchronous)
 }
 
 interface VideoJobStatus {
   status: 'pending' | 'running' | 'completed' | 'failed';
   outputs?: any;
-  provider: 'comfy-cloud' | 'comfydeploy';
+  provider: 'huggingface' | 'comfy-cloud' | 'comfydeploy';
 }
 
-// ─── CogVideoX Text-to-Video Workflow (ComfyUI API format) ───
-// Minimal CogVideoX-5B pipeline: TextEncode → Sampler → Decode → SaveVideo
-// This runs on Comfy Cloud's GPU infrastructure with auto model download
+// ─── Provider 1: HuggingFace Inference API (FREE) ───
+// Uses LTX-Video — fast text-to-video, synchronous response
+// Returns video bytes directly — no polling needed
+
+const HF_MODEL = 'Lightricks/LTX-Video-0.9.8-13B-distilled';
+const HF_INFERENCE_URL = `https://router.huggingface.co/fal-ai/fal-ai/ltx-video/image-to-video`;
+const HF_TEXT_TO_VIDEO_URL = `https://router.huggingface.co/hf-inference/models/${HF_MODEL}`;
+
+function getHFToken(): string | null {
+  return process.env.HF_TOKEN || process.env.HUGGINGFACE_TOKEN || null;
+}
+
+function isHuggingFaceConfigured(): boolean {
+  return !!getHFToken();
+}
+
+async function submitHuggingFace(prompt: string, negativePrompt: string): Promise<{ videoBuffer: Buffer; jobId: string }> {
+  const token = getHFToken()!;
+
+  const res = await axios.post(
+    HF_TEXT_TO_VIDEO_URL,
+    {
+      inputs: prompt,
+      parameters: {
+        num_frames: 49,
+        num_inference_steps: 20,
+        guidance_scale: 7.5,
+        negative_prompt: [negativePrompt],
+        seed: Math.floor(Math.random() * 2147483647),
+      },
+    },
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'video/mp4',
+      },
+      responseType: 'arraybuffer',
+      timeout: 300000, // 5 minutes — video generation takes time
+    }
+  );
+
+  if (res.status !== 200 || !res.data || res.data.byteLength < 5000) {
+    throw new Error(`HuggingFace returned invalid response: status=${res.status}, size=${res.data?.byteLength || 0}`);
+  }
+
+  const jobId = `hf_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+  return { videoBuffer: Buffer.from(res.data), jobId };
+}
+
+// ─── Provider 2: Comfy Cloud ───
+
+const COMFY_CLOUD_BASE = 'https://cloud.comfy.org';
+
+function getComfyCloudKey(): string | null {
+  return process.env.COMFY_CLOUD_API_KEY || null;
+}
+
+function isComfyCloudConfigured(): boolean {
+  return !!getComfyCloudKey();
+}
 
 function buildCogVideoWorkflow(prompt: string, negativePrompt: string): Record<string, any> {
   return {
@@ -88,18 +152,6 @@ function buildCogVideoWorkflow(prompt: string, negativePrompt: string): Record<s
       }
     }
   };
-}
-
-// ─── Provider 1: Comfy Cloud ───
-
-const COMFY_CLOUD_BASE = 'https://cloud.comfy.org';
-
-function getComfyCloudKey(): string | null {
-  return process.env.COMFY_CLOUD_API_KEY || null;
-}
-
-function isComfyCloudConfigured(): boolean {
-  return !!getComfyCloudKey();
 }
 
 async function submitComfyCloud(prompt: string, negativePrompt: string): Promise<string> {
@@ -180,11 +232,9 @@ async function getComfyCloudOutputs(jobId: string): Promise<string | null> {
     const history = await res.json() as { outputs?: Record<string, any> };
     if (!history.outputs) return null;
 
-    // Find video output in node outputs (node "5" = VHS_VideoCombine)
     for (const nodeId of Object.keys(history.outputs)) {
       const nodeOutput = history.outputs[nodeId];
 
-      // Check for video files
       const videos = nodeOutput?.videos || nodeOutput?.gifs || [];
       for (const file of videos) {
         if (file.filename) {
@@ -193,7 +243,6 @@ async function getComfyCloudOutputs(jobId: string): Promise<string | null> {
             subfolder: file.subfolder || '',
             type: 'output',
           });
-          // Get signed URL via redirect
           const viewRes = await fetch(`${COMFY_CLOUD_BASE}/api/view?${params}`, {
             headers: { 'X-API-Key': apiKey },
             redirect: 'manual',
@@ -203,7 +252,6 @@ async function getComfyCloudOutputs(jobId: string): Promise<string | null> {
         }
       }
 
-      // Check for images (fallback if video saved as image sequence)
       const images = nodeOutput?.images || [];
       for (const file of images) {
         if (file.filename && (file.filename.includes('.mp4') || file.filename.includes('.webm'))) {
@@ -228,7 +276,7 @@ async function getComfyCloudOutputs(jobId: string): Promise<string | null> {
   }
 }
 
-// ─── Provider 2: ComfyDeploy (original) ───
+// ─── Provider 3: ComfyDeploy ───
 
 const COMFYDEPLOY_API_BASE = 'https://www.comfydeploy.com/api';
 const WEBHOOK_URL = process.env.RAILWAY_PUBLIC_DOMAIN
@@ -316,10 +364,11 @@ async function pollComfyDeploy(runId: string): Promise<VideoJobStatus> {
 // ─── Public API (unified, provider-agnostic) ───
 
 export function isConfigured(): boolean {
-  return isComfyCloudConfigured() || isComfyDeployConfigured();
+  return isHuggingFaceConfigured() || isComfyCloudConfigured() || isComfyDeployConfigured();
 }
 
-export function getActiveProvider(): 'comfy-cloud' | 'comfydeploy' | null {
+export function getActiveProvider(): 'huggingface' | 'comfy-cloud' | 'comfydeploy' | null {
+  if (isHuggingFaceConfigured()) return 'huggingface';
   if (isComfyCloudConfigured()) return 'comfy-cloud';
   if (isComfyDeployConfigured()) return 'comfydeploy';
   return null;
@@ -328,7 +377,32 @@ export function getActiveProvider(): 'comfy-cloud' | 'comfydeploy' | null {
 export async function queueVideoGeneration(inputs: VideoJobInput): Promise<VideoJobResult> {
   const { prompt, negative_prompt = '' } = inputs;
 
-  // Try Comfy Cloud first
+  // Try HuggingFace first (FREE, synchronous — returns video directly)
+  if (isHuggingFaceConfigured()) {
+    try {
+      const { videoBuffer, jobId } = await submitHuggingFace(prompt, negative_prompt);
+      console.log(`[VideoService] ✓ HuggingFace video generated: ${jobId} (${videoBuffer.byteLength} bytes)`);
+
+      // Upload to Cloudinary immediately (synchronous flow)
+      let videoUrl: string;
+      try {
+        const { uploadVideoFromBuffer } = await import('../config/cloudinary');
+        const uploaded = await uploadVideoFromBuffer(videoBuffer, 'agency-videos');
+        videoUrl = uploaded.url;
+        console.log(`[VideoService] ✓ Video uploaded to Cloudinary: ${videoUrl}`);
+      } catch (uploadErr: any) {
+        // Fallback: save as base64 data URI (temporary)
+        console.error(`[VideoService] Cloudinary upload failed: ${uploadErr.message}`);
+        throw new Error(`Video generated but upload failed: ${uploadErr.message}`);
+      }
+
+      return { provider: 'huggingface', job_id: jobId, videoUrl };
+    } catch (err: any) {
+      console.error(`[VideoService] HuggingFace failed: ${err.message} — trying next provider...`);
+    }
+  }
+
+  // Try Comfy Cloud
   if (isComfyCloudConfigured()) {
     try {
       const jobId = await submitComfyCloud(prompt, negative_prompt);
@@ -346,11 +420,16 @@ export async function queueVideoGeneration(inputs: VideoJobInput): Promise<Video
     return { provider: 'comfydeploy', job_id: runId };
   }
 
-  throw new Error('No video provider configured (need COMFY_CLOUD_API_KEY or COMFYDEPLOY_API_KEY + DEPLOYMENT_ID)');
+  throw new Error('No video provider configured (need HF_TOKEN, COMFY_CLOUD_API_KEY, or COMFYDEPLOY_API_KEY + DEPLOYMENT_ID)');
 }
 
 export async function getRunStatus(jobId: string): Promise<VideoJobStatus> {
-  // Try Comfy Cloud first
+  // HuggingFace jobs are synchronous — if we're polling, it means it completed already
+  if (jobId.startsWith('hf_')) {
+    return { status: 'completed', provider: 'huggingface' };
+  }
+
+  // Try Comfy Cloud
   if (isComfyCloudConfigured()) {
     try {
       return await pollComfyCloud(jobId);
@@ -367,6 +446,11 @@ export async function getRunStatus(jobId: string): Promise<VideoJobStatus> {
 }
 
 export async function getVideoOutputUrl(jobId: string, provider: string, outputs?: any): Promise<string | null> {
+  // HuggingFace: videoUrl is already set during queueVideoGeneration
+  if (provider === 'huggingface') {
+    return null; // Already handled synchronously
+  }
+
   // Comfy Cloud: get video URL from history
   if (provider === 'comfy-cloud') {
     return await getComfyCloudOutputs(jobId);

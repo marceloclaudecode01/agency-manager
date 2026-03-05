@@ -26,4 +26,28 @@ export async function uploadVideoFromUrl(
   }
 }
 
+export async function uploadVideoFromBuffer(
+  buffer: Buffer,
+  folder = 'agency-videos'
+): Promise<{ url: string; publicId: string; duration: number | null }> {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { resource_type: 'video', folder },
+      (error, result) => {
+        if (error) {
+          console.error(`[Cloudinary] Video buffer upload failed: ${error.message}`);
+          reject(error);
+          return;
+        }
+        resolve({
+          url: result!.secure_url,
+          publicId: result!.public_id,
+          duration: result!.duration || null,
+        });
+      }
+    );
+    stream.end(buffer);
+  });
+}
+
 export default cloudinary;

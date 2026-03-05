@@ -31,7 +31,7 @@ import { startGrowthAnalyst } from './growth-analyst.agent';
 import { generateCarouselFromStructure, shouldGenerateCarousel } from './carousel-generator.agent';
 import { optimizeForPlatform } from './platform-optimizer.agent';
 import { queueVideoForPost, startVideoProcessor } from './video-generator.agent';
-import { isConfigured as isComfyDeployConfigured } from '../services/comfydeploy.service';
+// Video generation is always available (cloud providers + local ffmpeg fallback)
 
 // Default social service (env vars) — used for backward compat
 const socialService = new SocialService();
@@ -658,15 +658,10 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
         : null;
 
       // 50% of posts are video (every other post) — video-first strategy
+      // Video is ALWAYS available now: cloud providers OR local ffmpeg from AI images
       const isVideo = i % 2 === 1;
-      const comfyConfigured = isComfyDeployConfigured();
-      const postContentType = (isVideo && comfyConfigured) ? 'video' : 'organic';
-      const postStatus = (isVideo && comfyConfigured) ? 'PENDING_VIDEO' as const : 'PENDING' as const;
-
-      if (isVideo && !comfyConfigured) {
-        // Silent fallback: ComfyDeploy not configured, all posts become image
-        console.log(`[Engine] ComfyDeploy not configured, falling back to image for post ${i + 1}`);
-      }
+      const postContentType = isVideo ? 'video' : 'organic';
+      const postStatus = isVideo ? 'PENDING_VIDEO' as const : 'PENDING' as const;
 
       const saved = await prisma.scheduledPost.create({
         data: {

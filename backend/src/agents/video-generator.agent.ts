@@ -1,13 +1,11 @@
 /**
- * Video Generator Agent — Orchestrates text-to-video generation
+ * Video Generator Agent — Orchestrates video generation
  *
- * Dual provider: Comfy Cloud (primary) → ComfyDeploy (fallback)
- * CogVideoX-5B workflow runs on cloud GPU, no local setup needed
+ * Provider priority:
+ * 1. Cloud providers (HuggingFace / Comfy Cloud / ComfyDeploy) — if configured
+ * 2. Local ffmpeg (ALWAYS available) — generates Ken Burns video from AI image
  *
- * 3 entry points:
- * - queueVideoForPost(postId) — called after saving post in pipeline
- * - processCompletedVideo(jobId, provider) — called by webhook or polling
- * - pollPendingVideos() — cron every 2 min, checks PENDING_VIDEO posts
+ * The local ffmpeg fallback means videos are ALWAYS possible, no external API needed.
  */
 
 import cron from 'node-cron';
@@ -16,15 +14,57 @@ import { askGemini } from './gemini';
 import { agentLog } from './agent-logger';
 import { trackAgentExecution } from './agent-performance-tracker';
 import {
-  isConfigured,
+  isConfigured as isCloudConfigured,
   getActiveProvider,
   queueVideoGeneration,
   getRunStatus,
   getVideoOutputUrl,
 } from '../services/comfydeploy.service';
 import { uploadVideoFromUrl } from '../config/cloudinary';
+import { generateImageForPost } from './image-generator.agent';
 
 const VIDEO_TIMEOUT_MINUTES = 15;
+
+/**
+ * Generate video locally using ffmpeg + Pollinations AI image
+ * This is the fallback that ALWAYS works — no external video API needed
+ */
+async function generateVideoLocally(postId: string, topic: string, message: string, category: string): Promise<boolean> {
+  try {
+    await agentLog('VideoGenerator', `Generating video locally via ffmpeg for "${topic}"...`, { type: 'action' });
+
+    // 1. Generate unique AI image via Pollinations
+    const image = await generateImageForPost(topic, category, message);
+    if (!image.url) {
+      throw new Error('Failed to generate image for video');
+    }
+
+    // 2. Convert image to video with Ken Burns effect via ffmpeg
+    const { generateAndUploadVideo } = await import('../services/video-from-image.service');
+    const videoUrl = await generateAndUploadVideo(image.url);
+
+    if (!videoUrl) {
+      throw new Error('Video generation returned no URL');
+    }
+
+    // 3. Update post with video URL
+    await prisma.scheduledPost.update({
+      where: { id: postId },
+      data: {
+        videoUrl,
+        imageUrl: image.url, // Keep image as thumbnail
+        comfyRunId: `local-ffmpeg:${Date.now()}`,
+        status: 'PENDING', // Ready for governor review
+      },
+    });
+
+    await agentLog('VideoGenerator', `Video ready (local ffmpeg) for "${topic}" — ${videoUrl}`, { type: 'result' });
+    return true;
+  } catch (err: any) {
+    await agentLog('VideoGenerator', `Local video generation failed: ${err.message}`, { type: 'error' });
+    return false;
+  }
+}
 
 /**
  * Queue video generation for a post (fire-and-forget from pipeline)
@@ -37,61 +77,71 @@ export async function queueVideoForPost(postId: string): Promise<void> {
       return;
     }
 
-    // Generate visual prompt via LLM — elite video director mindset
     const topicText = post.topic || post.message.substring(0, 100);
-    const promptForLLM = `You are a world-class short-form video director who has generated 500M+ views across Reels, TikTok and YouTube Shorts. You think in HOOKS — the first frame must stop the scroll. You understand retention psychology: pattern interrupts, visual tension, cinematic movement, and emotional escalation.
 
-Your job: convert this social media topic into a PRECISE visual prompt for an AI text-to-video model (5 seconds, no text/UI overlays — pure cinematic footage).
+    // Try cloud providers first (if any configured)
+    if (isCloudConfigured()) {
+      // Generate visual prompt via LLM
+      const promptForLLM = `You are a world-class short-form video director. Convert this social media topic into a PRECISE visual prompt for AI text-to-video (5 seconds, no text overlays — pure cinematic footage).
 
-RULES FOR MAXIMUM RETENTION:
-1. HOOK FRAME (0-1s): Start with an unexpected, visually striking opening — extreme close-up, dramatic reveal, or pattern interrupt. NEVER start with a static wide shot.
-2. MOVEMENT (entire clip): Camera MUST move — slow dolly-in, orbit, crane up, tracking shot. Static = death. Smooth cinematic motion at all times.
-3. LIGHTING: Use dramatic, moody lighting — golden hour, neon contrast, rim lighting, volumetric rays. NEVER flat/overcast lighting.
-4. EMOTION: Every frame must evoke curiosity, aspiration, or awe. Think "I need to watch this again."
-5. CLARITY: One clear subject, one clear action, one clear mood. No clutter, no confusion.
-6. TEXTURE & DETAIL: Hyper-detailed textures — skin pores, water droplets, fabric threads, metal reflections. 8K photorealistic quality.
+RULES:
+1. HOOK FRAME (0-1s): Visually striking opening — extreme close-up, dramatic reveal, pattern interrupt
+2. MOVEMENT: Camera MUST move — dolly-in, orbit, crane up, tracking shot
+3. LIGHTING: Dramatic — golden hour, neon contrast, rim lighting, volumetric rays
+4. One clear subject, one clear action, one clear mood
+5. Hyper-detailed textures, 8K photorealistic quality
 
-BAD PROMPTS (generic, boring, won't retain):
-- "A person using a phone in an office" ← flat, static, zero hook
-- "Beautiful landscape with mountains" ← stock footage energy
-
-GOOD PROMPTS (specific, cinematic, scroll-stopping):
-- "Extreme macro shot of espresso crema swirling in slow motion, golden light refracting through steam, camera slowly pulling back to reveal a hand lifting the cup, shallow depth of field, anamorphic lens flare"
-- "Dramatic low-angle tracking shot following a businessman walking through rain-soaked neon streets at night, reflections shimmering on wet pavement, cinematic 2.39:1 aspect ratio, volumetric fog"
-
-Output ONLY the visual prompt in English. Max 150 words. No titles, no explanations, no quotation marks. Just the raw prompt.
+Output ONLY the visual prompt in English. Max 100 words. No titles, no explanations.
 
 Topic: "${topicText}"
-Post context: "${post.message.substring(0, 200)}"`;
+Post: "${post.message.substring(0, 200)}"`;
 
-    let visualPrompt: string;
-    try {
-      visualPrompt = await askGemini(promptForLLM);
-      visualPrompt = visualPrompt.trim().replace(/^["']|["']$/g, '').substring(0, 500);
-    } catch (llmErr: any) {
-      await agentLog('VideoGenerator', `LLM prompt generation failed: ${llmErr.message}. Falling back to image.`, { type: 'error' });
-      await fallbackToImage(postId);
-      return;
+      let visualPrompt: string;
+      try {
+        visualPrompt = await askGemini(promptForLLM);
+        visualPrompt = visualPrompt.trim().replace(/^["']|["']$/g, '').substring(0, 500);
+      } catch {
+        visualPrompt = `Cinematic close-up shot related to ${topicText}, dramatic lighting, slow camera movement`;
+      }
+
+      try {
+        const result = await queueVideoGeneration({
+          prompt: visualPrompt,
+          negative_prompt: 'blurry, low quality, text overlay, watermark, distorted, ugly, static camera, flat lighting, overexposed, underexposed, stock footage, generic, cartoon, anime, illustration, painting',
+        });
+
+        // Synchronous provider (HuggingFace) — video already ready
+        if (result.videoUrl) {
+          await prisma.scheduledPost.update({
+            where: { id: postId },
+            data: {
+              videoUrl: result.videoUrl,
+              comfyRunId: `${result.provider}:${result.job_id}`,
+              status: 'PENDING',
+            },
+          });
+          await agentLog('VideoGenerator', `Video ready via ${result.provider} for "${topicText}"`, { type: 'result' });
+          return;
+        }
+
+        // Async provider — store tracking ID for polling
+        await prisma.scheduledPost.update({
+          where: { id: postId },
+          data: { comfyRunId: `${result.provider}:${result.job_id}` },
+        });
+        await agentLog('VideoGenerator', `Video queued via ${result.provider} for "${topicText}"`, { type: 'action' });
+        return;
+      } catch (cloudErr: any) {
+        await agentLog('VideoGenerator', `Cloud provider failed: ${cloudErr.message}. Trying local ffmpeg...`, { type: 'error' });
+      }
     }
 
-    // Queue on video provider (Comfy Cloud → ComfyDeploy fallback)
-    try {
-      const result = await queueVideoGeneration({
-        prompt: visualPrompt,
-        negative_prompt: 'blurry, low quality, text overlay, watermark, distorted, ugly, static camera, flat lighting, overexposed, underexposed, stock footage, generic, boring composition, centered subject, snapshot, amateur, grainy, noisy, cartoon, anime, illustration, painting, drawing',
-      });
+    // Fallback: LOCAL video generation via ffmpeg (ALWAYS available)
+    const category = (post as any).contentType === 'video' ? 'autoridade' : 'educativo';
+    const success = await generateVideoLocally(postId, topicText, post.message, category);
 
-      // Store job_id and provider in comfyRunId (format: "provider:job_id")
-      const trackingId = `${result.provider}:${result.job_id}`;
-
-      await prisma.scheduledPost.update({
-        where: { id: postId },
-        data: { comfyRunId: trackingId },
-      });
-
-      await agentLog('VideoGenerator', `Video queued via ${result.provider} for "${topicText}" (job: ${result.job_id})`, { type: 'action' });
-    } catch (queueErr: any) {
-      await agentLog('VideoGenerator', `Video queue failed: ${queueErr.message}. Falling back to image.`, { type: 'error' });
+    if (!success) {
+      await agentLog('VideoGenerator', `All video methods failed for "${topicText}". Falling back to image.`, { type: 'error' });
       await fallbackToImage(postId);
     }
   } catch (err: any) {
@@ -106,7 +156,6 @@ function parseTrackingId(comfyRunId: string): { provider: string; jobId: string 
   if (colonIdx > 0) {
     return { provider: comfyRunId.substring(0, colonIdx), jobId: comfyRunId.substring(colonIdx + 1) };
   }
-  // Legacy format (no provider prefix) — assume comfydeploy
   return { provider: 'comfydeploy', jobId: comfyRunId };
 }
 
@@ -115,9 +164,7 @@ function parseTrackingId(comfyRunId: string): { provider: string; jobId: string 
  */
 export async function processCompletedVideo(comfyRunId: string, outputs?: any): Promise<void> {
   try {
-    const post = await prisma.scheduledPost.findFirst({
-      where: { comfyRunId },
-    });
+    const post = await prisma.scheduledPost.findFirst({ where: { comfyRunId } });
 
     if (!post) {
       console.error(`[VideoGenerator] No post found for tracking ID ${comfyRunId}`);
@@ -126,77 +173,87 @@ export async function processCompletedVideo(comfyRunId: string, outputs?: any): 
 
     const { provider, jobId } = parseTrackingId(comfyRunId);
 
-    // Get video URL from provider
     const videoSourceUrl = await getVideoOutputUrl(jobId, provider, outputs);
 
     if (!videoSourceUrl) {
-      await agentLog('VideoGenerator', `No video URL from ${provider} for job ${jobId}. Falling back to image.`, { type: 'error' });
+      await agentLog('VideoGenerator', `No video URL from ${provider}. Falling back to image.`, { type: 'error' });
       await fallbackToImage(post.id);
       return;
     }
 
-    // Upload to Cloudinary for permanent storage
     let finalVideoUrl: string;
     try {
       const uploaded = await uploadVideoFromUrl(videoSourceUrl, 'agency-videos');
       finalVideoUrl = uploaded.url;
-      await agentLog('VideoGenerator', `Video uploaded to Cloudinary (${provider}): ${finalVideoUrl}`, { type: 'result' });
     } catch (uploadErr: any) {
       await agentLog('VideoGenerator', `Cloudinary upload failed: ${uploadErr.message}. Using source URL.`, { type: 'error' });
       finalVideoUrl = videoSourceUrl;
     }
 
-    // Update post: videoUrl set, status back to PENDING for governor review
     await prisma.scheduledPost.update({
       where: { id: post.id },
-      data: {
-        videoUrl: finalVideoUrl,
-        status: 'PENDING',
-      },
+      data: { videoUrl: finalVideoUrl, status: 'PENDING' },
     });
 
-    await agentLog('VideoGenerator', `Video ready for "${post.topic}" via ${provider}. Moving to governor review.`, { type: 'result' });
+    await agentLog('VideoGenerator', `Video ready for "${post.topic}" via ${provider}.`, { type: 'result' });
   } catch (err: any) {
     console.error(`[VideoGenerator] processCompletedVideo error: ${err.message}`);
   }
 }
 
 /**
- * Poll pending videos every 2 minutes — backup for when webhook doesn't arrive
+ * Poll pending videos every 2 minutes
  */
 export async function pollPendingVideos(): Promise<void> {
   try {
     const pendingVideos = await prisma.scheduledPost.findMany({
-      where: {
-        status: 'PENDING_VIDEO',
-        comfyRunId: { not: null },
-      },
+      where: { status: 'PENDING_VIDEO', comfyRunId: { not: null } },
     });
 
-    if (pendingVideos.length === 0) return;
+    if (pendingVideos.length === 0) {
+      // Also check for PENDING_VIDEO without comfyRunId — needs local generation
+      const stuckVideos = await prisma.scheduledPost.findMany({
+        where: { status: 'PENDING_VIDEO', comfyRunId: null },
+      });
+
+      for (const post of stuckVideos) {
+        const topicText = post.topic || post.message.substring(0, 100);
+        await agentLog('VideoGenerator', `Found stuck PENDING_VIDEO post "${topicText}" — generating locally...`, { type: 'action' });
+        const success = await generateVideoLocally(post.id, topicText, post.message, 'autoridade');
+        if (!success) {
+          await fallbackToImage(post.id);
+        }
+      }
+      return;
+    }
 
     for (const post of pendingVideos) {
       try {
-        // Check timeout (>15 min)
+        // Skip local-ffmpeg jobs (already completed)
+        if (post.comfyRunId?.startsWith('local-ffmpeg:')) continue;
+
         const ageMinutes = (Date.now() - post.createdAt.getTime()) / (1000 * 60);
         if (ageMinutes > VIDEO_TIMEOUT_MINUTES) {
-          await agentLog('VideoGenerator', `Video timeout for "${post.topic}" (${Math.round(ageMinutes)}min). Falling back to image.`, { type: 'error' });
-          await fallbackToImage(post.id);
+          // Timeout — try local generation before falling back to image
+          const topicText = post.topic || post.message.substring(0, 100);
+          await agentLog('VideoGenerator', `Cloud timeout for "${topicText}". Trying local ffmpeg...`, { type: 'error' });
+          const success = await generateVideoLocally(post.id, topicText, post.message, 'autoridade');
+          if (!success) await fallbackToImage(post.id);
           continue;
         }
 
         const { provider, jobId } = parseTrackingId(post.comfyRunId!);
-
-        // Poll status from the correct provider
         const status = await getRunStatus(jobId);
 
         if (status.status === 'completed') {
           await processCompletedVideo(post.comfyRunId!, status.outputs);
         } else if (status.status === 'failed') {
-          await agentLog('VideoGenerator', `${provider} job failed for "${post.topic}". Falling back to image.`, { type: 'error' });
-          await fallbackToImage(post.id);
+          // Cloud failed — try local before giving up
+          const topicText = post.topic || post.message.substring(0, 100);
+          await agentLog('VideoGenerator', `${provider} failed for "${topicText}". Trying local ffmpeg...`, { type: 'error' });
+          const success = await generateVideoLocally(post.id, topicText, post.message, 'autoridade');
+          if (!success) await fallbackToImage(post.id);
         }
-        // 'pending' or 'running' — skip, wait for next poll
       } catch (pollErr: any) {
         console.error(`[VideoGenerator] Poll error for post ${post.id}: ${pollErr.message}`);
       }
@@ -212,18 +269,13 @@ export async function pollPendingVideos(): Promise<void> {
 async function fallbackToImage(postId: string): Promise<void> {
   await prisma.scheduledPost.update({
     where: { id: postId },
-    data: {
-      contentType: 'organic',
-      status: 'PENDING',
-      comfyRunId: null,
-    },
+    data: { contentType: 'organic', status: 'PENDING', comfyRunId: null },
   });
   await agentLog('VideoGenerator', `Post ${postId} reverted to image (fallback).`, { type: 'info' });
 }
 
 /**
  * Start video processor cron (every 2 minutes)
- * Registered in AGENT_FUNCTION_MAP as 'video-processor'
  */
 export function startVideoProcessor(): void {
   const provider = getActiveProvider();
@@ -233,5 +285,5 @@ export function startVideoProcessor(): void {
     });
   });
 
-  console.log(`[VideoProcessor] Video processor started (polling every 2 minutes, provider: ${provider || 'none'})`);
+  console.log(`[VideoProcessor] Started (provider: ${provider || 'local-ffmpeg'}, polling every 2 min)`);
 }
