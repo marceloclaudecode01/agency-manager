@@ -221,14 +221,26 @@ export async function pollPendingVideos(): Promise<void> {
     });
 
     if (pendingVideos.length === 0) {
-      // Also check for PENDING_VIDEO without comfyRunId — needs local generation
+      // Discard old PENDING_VIDEO posts (>1 hour old) — they waste memory
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const discarded = await prisma.scheduledPost.updateMany({
+        where: { status: 'PENDING_VIDEO', comfyRunId: null, createdAt: { lt: oneHourAgo } },
+        data: { contentType: 'organic', status: 'PENDING', comfyRunId: null },
+      });
+      if (discarded.count > 0) {
+        console.log(`[VideoProcessor] Discarded ${discarded.count} old PENDING_VIDEO posts (>1h old) — converted to image posts`);
+      }
+
+      // Process only 1 fresh stuck video per cycle (created within last hour)
       const stuckVideos = await prisma.scheduledPost.findMany({
-        where: { status: 'PENDING_VIDEO', comfyRunId: null },
+        where: { status: 'PENDING_VIDEO', comfyRunId: null, createdAt: { gte: oneHourAgo } },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
       });
 
       for (const post of stuckVideos) {
         const topicText = post.topic || post.message.substring(0, 100);
-        await agentLog('VideoGenerator', `Found stuck PENDING_VIDEO post "${topicText}" — generating locally...`, { type: 'action' });
+        await agentLog('VideoGenerator', `Processing fresh PENDING_VIDEO "${topicText}" — generating locally...`, { type: 'action' });
         const success = await generateVideoLocally(post.id, topicText, post.message, 'autoridade', post.imageUrl || undefined);
         if (!success) {
           await fallbackToImage(post.id);
