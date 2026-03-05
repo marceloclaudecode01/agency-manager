@@ -167,7 +167,8 @@ export function startPostScheduler() {
 
       // Videos bypass daily limit — they always publish
       if (!isVideoPost && postsToday >= MAX_POSTS_PER_DAY) {
-        await agentLog('Scheduler', `Limite diário atingido (${MAX_POSTS_PER_DAY} posts). Aguardando amanhã.`, { type: 'info' });
+        // Silent — only console log to avoid DB spam every 5min
+        console.log(`[Scheduler] Limite diário atingido (${MAX_POSTS_PER_DAY} posts). Aguardando amanhã.`);
         return;
       }
 
@@ -477,9 +478,9 @@ export function startCommentResponder() {
   console.log('[Comments] Comment responder MULTI-PAGE iniciado (verificação a cada 30 minutos)');
 }
 
-// Roda todo dia às 8h: análise de métricas
+// Metrics analysis — weekly on Mondays 08:00 (was daily — saves LLM tokens)
 export function startMetricsAnalyzer() {
-  cron.schedule('0 8 * * *', async () => {
+  cron.schedule('0 8 * * 1', async () => {
     await trackAgentExecution('metrics-collector', async () => {
     try {
       await agentLog('Metrics Analyzer', 'Coletando dados da página no Facebook...', { type: 'action', to: 'Facebook API' });
@@ -833,6 +834,10 @@ export function startTrendingTopicsAgent() {
 
 // Roda todo dia às 10h e 15h: orquestra posts de produtos TikTok Shop
 export function startProductOrchestrator() {
+  // DISABLED — wastes LLM tokens on TikTok product research + copywriting
+  // Re-enable when we have paid LLM tier
+  console.log('[Products] DISABLED — token savings mode');
+  return;
   cron.schedule('0 10,15 * * *', async () => {
     await trackAgentExecution('tiktok-products', async () => {
     await agentLog('Product Orchestrator', '🛍️ Iniciando ciclo de produtos TikTok Shop...', { type: 'action', to: 'TikTok Researcher' });

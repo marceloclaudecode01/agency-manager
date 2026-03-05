@@ -93,8 +93,8 @@ export async function addLeadInteraction(leadId: string, type: string, content: 
 }
 
 export function startLeadCaptureAgent() {
-  // Every 30 minutes
-  cron.schedule('*/30 * * * *', async () => {
+  // Once daily at 11:00 (was every 30min — saves LLM tokens)
+  cron.schedule('0 11 * * *', async () => {
     if (await isSafeModeActive() || await isAgentPaused('Lead Capture')) return;
     try {
       const result = await scanForLeads();

@@ -208,9 +208,8 @@ export async function runShortVideoEngine(): Promise<void> {
 }
 
 export function startShortVideoEngine(): void {
-  // Every 3 hours — 8 image posts/day max
-  cron.schedule('0 */3 * * *', () => {
-    runShortVideoEngine().catch(console.error);
-  });
-  console.log('[ShortVideoEngine] Scheduled: every 3 hours (8 posts/day max)');
+  // DISABLED — duplicates engine posts and wastes LLM tokens
+  // The main autonomous engine (07:05) handles all post creation including videos
+  // Re-enable when we have paid LLM tier with higher limits
+  console.log('[ShortVideoEngine] DISABLED — using main engine for all posts (token savings)');
 }

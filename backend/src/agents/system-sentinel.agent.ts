@@ -181,7 +181,7 @@ export async function runSentinel(): Promise<SentinelReport> {
 }
 
 export function startSystemSentinel() {
-  cron.schedule('*/5 * * * *', async () => {
+  cron.schedule('*/15 * * * *', async () => {
     try {
       await runSentinel();
     } catch (err: any) {

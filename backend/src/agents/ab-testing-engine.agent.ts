@@ -207,7 +207,7 @@ export async function getABTestStats(): Promise<{
 
 // Cron: measure tests every 6h
 export function startABTestingEngine() {
-  cron.schedule('0 */6 * * *', async () => {
+  cron.schedule('0 21 * * *', async () => { // Once daily at 21:00 (was every 6h)
     try {
       const result = await measureABTests();
       if (result.measured > 0) {

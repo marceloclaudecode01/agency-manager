@@ -101,7 +101,7 @@ export async function evolveSystem(): Promise<{ actions: EvolutionAction[]; gove
 }
 
 export function startEvolutionEngine() {
-  cron.schedule('0 */12 * * *', async () => {
+  cron.schedule('0 3 * * 0', async () => { // Weekly on Sunday 03:00 (was every 12h)
     try {
       if (await isSafeModeActive() || await isAgentPaused('Evolution Engine')) return;
       await evolveSystem();

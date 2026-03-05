@@ -126,7 +126,7 @@ export async function evaluateSystem(): Promise<{
 }
 
 export function startStrategicEngine() {
-  cron.schedule('0 */6 * * *', async () => {
+  cron.schedule('0 4 * * *', async () => { // Once daily at 04:00 (was every 6h)
     try {
       if (await isSafeModeActive() || await isAgentPaused('Strategic Engine')) return;
       await evaluateSystem();

@@ -355,7 +355,7 @@ export async function reviewPendingPosts(): Promise<void> {
 }
 
 export function startContentGovernor() {
-  cron.schedule('*/10 * * * *', async () => {
+  cron.schedule('*/30 * * * *', async () => {
     try {
       await reviewPendingPosts();
     } catch (err: any) {
@@ -363,5 +363,5 @@ export function startContentGovernor() {
       await agentLog('Content Governor', `Erro: ${err.message}`, { type: 'error' });
     }
   });
-  console.log('[Governor] Content Governor v2 (Growth Accelerator) iniciado (a cada 10 minutos)');
+  console.log('[Governor] Content Governor v2 (Growth Accelerator) iniciado (a cada 30 minutos)');
 }
