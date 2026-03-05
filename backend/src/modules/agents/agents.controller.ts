@@ -20,6 +20,9 @@ import { replicateContent, replicateAll, getReplicasForPost, getReplicaStats, Re
 import { evaluateSystem } from '../../agents/strategic-engine.agent';
 import { runShortVideoEngine } from '../../agents/short-video-engine.agent';
 import { evolveSystem } from '../../agents/evolution-engine.agent';
+import { queueVideoForPost } from '../../agents/video-generator.agent';
+import { generateImageForPost } from '../../agents/image-generator.agent';
+import { enhanceWithViralMechanics } from '../../agents/viral-mechanics.agent';
 import cloudinary from '../../config/cloudinary';
 import { SocialService } from '../social/social.service';
 import { notificationsService } from '../notifications/notifications.service';
@@ -221,7 +224,7 @@ export class AgentsController {
       const recentPosts = await prisma.scheduledPost.findMany({
         where: { status: 'PUBLISHED' },
         orderBy: { publishedAt: 'desc' },
-        take: 10,
+        take: 100,
         select: { topic: true },
       });
       const recentTopics = recentPosts.map((p) => p.topic).filter(Boolean) as string[];
@@ -232,10 +235,28 @@ export class AgentsController {
       for (let i = 0; i < strategy.postsToCreate; i++) {
         try {
           const topic = strategy.topics[i];
-          const focusType = strategy.focusType[i] || 'entretenimento';
+          const focusType = strategy.focusType[i] || 'educativo';
           const timeStr = strategy.scheduledTimes[i] || '18:00';
 
+          // 1. Generate post content
           const generated = await generatePostFromStrategy(topic, focusType, recentTopics);
+
+          // 2. Viral Mechanics enhancement
+          let viralScore: number | null = null;
+          let viralEnhancements: any = null;
+          try {
+            const enhanced = await enhanceWithViralMechanics(generated.message, topic, focusType);
+            generated.message = enhanced.enhancedMessage;
+            viralScore = enhanced.viralScore;
+            viralEnhancements = { techniques: enhanced.appliedTechniques, hookType: enhanced.hookType, emotionalTrigger: enhanced.emotionalTrigger };
+          } catch {}
+
+          // 3. Generate unique AI image
+          let imageUrl: string | null = null;
+          try {
+            const image = await generateImageForPost(topic, focusType, generated.message);
+            imageUrl = image.url || null;
+          } catch {}
 
           const [hours, minutes] = timeStr.split(':').map(Number);
           const scheduledFor = new Date(today);
@@ -245,15 +266,32 @@ export class AgentsController {
             ? generated.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ')
             : null;
 
+          // 4. 50% of posts are video (every other post)
+          const isVideo = i % 2 === 1;
+          const postContentType = isVideo ? 'video' : 'organic';
+          const postStatus = isVideo ? 'PENDING_VIDEO' : 'APPROVED';
+
           const saved = await prisma.scheduledPost.create({
             data: {
               topic: generated.topic || topic,
               message: generated.message,
               hashtags: hashtagsStr,
-              status: 'APPROVED',
+              imageUrl,
+              status: postStatus,
+              contentType: postContentType,
+              source: 'manual-engine',
               scheduledFor,
+              viralScore,
+              viralEnhancements,
             },
           });
+
+          // 5. Fire-and-forget video generation for video posts
+          if (isVideo) {
+            queueVideoForPost(saved.id).catch((err: any) => {
+              console.error(`[Engine/Manual] Video queue failed for ${saved.id}: ${err.message}`);
+            });
+          }
 
           created.push(saved);
           recentTopics.push(topic);
@@ -271,7 +309,7 @@ export class AgentsController {
             admin.id,
             'TASK_ASSIGNED',
             'Motor autônomo executado',
-            `${created.length} post(s) agendados manualmente: ${topicsList}`
+            `${created.length} post(s) agendados: ${topicsList}`
           );
         }
       }
