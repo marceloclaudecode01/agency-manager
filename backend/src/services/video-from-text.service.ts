@@ -1,15 +1,15 @@
 /**
- * Premium Video Service v3 — Cinematic Ken Burns + Text + Music
+ * Premium Video Service v4 — Multi-Slide Storytelling
  *
- * Pipeline: Image → Ken Burns motion → gradient overlay → text → ambient music → MP4
+ * Pipeline: Post message → 4 slides (hook, context, value, CTA)
+ *           → 1 AI image with varied Ken Burns per slide
+ *           → Semi-transparent text backgrounds for readability
+ *           → Crossfade transitions between slides
+ *           → Ambient music → MP4 1080x1920 vertical (~15s)
  *
- * Uses the established cinematic effects library (Spielberg, Nolan, Apple, etc.)
- * with vertical 1080x1920 format optimized for Reels/TikTok/Shorts.
- *
+ * Uses generateImageForPost() for AI-relevant images (no more Picsum randoms).
  * Music: procedurally generated ambient audio matched to content category.
  * 100% royalty-free (synthesized via ffmpeg, no external files needed).
- *
- * Zero external APIs. Zero tokens. Zero internet (after image download).
  */
 
 import ffmpeg from 'fluent-ffmpeg';
@@ -34,31 +34,44 @@ ffmpeg.setFfmpegPath(resolvedFfmpegPath);
 const VIDEO_WIDTH = 1080;
 const VIDEO_HEIGHT = 1920;
 const VIDEO_FPS = 30;
-const VIDEO_DURATION = 10; // 10 seconds — ideal for Reels
 
-// ─── Cinematic Ken Burns Effects (vertical 1080x1920) ────────
-// 10 premium effects inspired by documentary/commercial filmmaking
+// Multi-slide timing
+const SLIDE_DURATION = 3.5; // seconds per slide
+const CROSSFADE = 0.5;      // crossfade overlap between slides
+const SLIDE_COUNT = 4;
+// Total: 4 slides * 3.5s - 3 crossfades * 0.5s = 12.5s + fade in/out ≈ 15s
+const VIDEO_DURATION = SLIDE_COUNT * SLIDE_DURATION - (SLIDE_COUNT - 1) * CROSSFADE;
+
+// ─── Cinematic Ken Burns Effects (per-slide variations) ──────
+// Each slide uses a different Ken Burns effect for visual variety from a single image
+// Duration param is per-slide (SLIDE_DURATION * FPS frames)
+const SLIDE_FRAMES = Math.round(SLIDE_DURATION * VIDEO_FPS);
+
+function buildSlideEffects(): string[] {
+  return [
+    // Slide 1 (HOOK): Spielberg reveal — dramatic slow zoom in
+    `zoompan=z='min(zoom+0.0015,1.25)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${SLIDE_FRAMES}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+    // Slide 2 (CONTEXT): Documentary tracking — smooth pan left to right
+    `zoompan=z='min(zoom+0.0006,1.12)':x='if(eq(on,1),0,min(x+2.5,iw))':y='ih/2-(ih/zoom/2)':d=${SLIDE_FRAMES}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+    // Slide 3 (VALUE): Apple aspirational — center-out zoom with upward drift
+    `zoompan=z='if(eq(on,1),1.35,max(zoom-0.0015,1))':x='iw/2-(iw/zoom/2)':y='if(eq(on,1),ih/2-(ih/zoom/2),max(y-0.6,0))':d=${SLIDE_FRAMES}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+    // Slide 4 (CTA): Nolan wide reveal — elegant zoom out
+    `zoompan=z='if(eq(on,1),1.3,max(zoom-0.0012,1))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${SLIDE_FRAMES}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+  ];
+}
+
+// Full-video effects for legacy/Video Intelligence usage
 const EFFECTS = [
-  // Spielberg reveal — dramatic slow zoom in, builds tension
-  `zoompan=z='min(zoom+0.0008,1.25)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${VIDEO_DURATION * VIDEO_FPS}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
-  // Nolan wide reveal — elegant zoom out, reveals context
-  `zoompan=z='if(eq(on,1),1.3,max(zoom-0.0008,1))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${VIDEO_DURATION * VIDEO_FPS}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
-  // Documentary tracking — smooth pan left to right
-  `zoompan=z='min(zoom+0.0004,1.12)':x='if(eq(on,1),0,min(x+1.5,iw))':y='ih/2-(ih/zoom/2)':d=${VIDEO_DURATION * VIDEO_FPS}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
-  // Editorial panning — smooth pan right to left
-  `zoompan=z='min(zoom+0.0004,1.12)':x='if(eq(on,1),iw/4,max(x-1.5,0))':y='ih/2-(ih/zoom/2)':d=${VIDEO_DURATION * VIDEO_FPS}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
-  // Macro documentary — intimate top focus zoom
-  `zoompan=z='min(zoom+0.001,1.4)':x='iw/4':y='0':d=${VIDEO_DURATION * VIDEO_FPS}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
-  // Editorial bottom reveal — unexpected focal point
-  `zoompan=z='min(zoom+0.001,1.4)':x='iw/2-(iw/zoom/2)':y='ih-(ih/zoom)':d=${VIDEO_DURATION * VIDEO_FPS}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
-  // Cinematic diagonal drift — top-left to center with zoom
-  `zoompan=z='min(zoom+0.0006,1.2)':x='if(eq(on,1),0,min(x+0.8,iw/2-(iw/zoom/2)))':y='if(eq(on,1),0,min(y+0.8,ih/2-(ih/zoom/2)))':d=${VIDEO_DURATION * VIDEO_FPS}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
-  // Apple aspirational — center-out zoom with upward drift
-  `zoompan=z='if(eq(on,1),1.35,max(zoom-0.001,1))':x='iw/2-(iw/zoom/2)':y='if(eq(on,1),ih/2-(ih/zoom/2),max(y-0.4,0))':d=${VIDEO_DURATION * VIDEO_FPS}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
-  // Red Bull intensity — slow push into center-right
-  `zoompan=z='min(zoom+0.0009,1.3)':x='if(eq(on,1),iw/3,min(x+0.4,iw/2-(iw/zoom/2)))':y='ih/2-(ih/zoom/2)':d=${VIDEO_DURATION * VIDEO_FPS}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
-  // Luxury brand — zoom out from golden ratio point
-  `zoompan=z='if(eq(on,1),1.45,max(zoom-0.0012,1))':x='iw*0.618-(iw/zoom/2)':y='ih*0.382-(ih/zoom/2)':d=${VIDEO_DURATION * VIDEO_FPS}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+  `zoompan=z='min(zoom+0.0008,1.25)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${Math.round(VIDEO_DURATION * VIDEO_FPS)}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+  `zoompan=z='if(eq(on,1),1.3,max(zoom-0.0008,1))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${Math.round(VIDEO_DURATION * VIDEO_FPS)}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+  `zoompan=z='min(zoom+0.0004,1.12)':x='if(eq(on,1),0,min(x+1.5,iw))':y='ih/2-(ih/zoom/2)':d=${Math.round(VIDEO_DURATION * VIDEO_FPS)}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+  `zoompan=z='min(zoom+0.0004,1.12)':x='if(eq(on,1),iw/4,max(x-1.5,0))':y='ih/2-(ih/zoom/2)':d=${Math.round(VIDEO_DURATION * VIDEO_FPS)}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+  `zoompan=z='min(zoom+0.001,1.4)':x='iw/4':y='0':d=${Math.round(VIDEO_DURATION * VIDEO_FPS)}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+  `zoompan=z='min(zoom+0.001,1.4)':x='iw/2-(iw/zoom/2)':y='ih-(ih/zoom)':d=${Math.round(VIDEO_DURATION * VIDEO_FPS)}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+  `zoompan=z='min(zoom+0.0006,1.2)':x='if(eq(on,1),0,min(x+0.8,iw/2-(iw/zoom/2)))':y='if(eq(on,1),0,min(y+0.8,ih/2-(ih/zoom/2)))':d=${Math.round(VIDEO_DURATION * VIDEO_FPS)}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+  `zoompan=z='if(eq(on,1),1.35,max(zoom-0.001,1))':x='iw/2-(iw/zoom/2)':y='if(eq(on,1),ih/2-(ih/zoom/2),max(y-0.4,0))':d=${Math.round(VIDEO_DURATION * VIDEO_FPS)}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+  `zoompan=z='min(zoom+0.0009,1.3)':x='if(eq(on,1),iw/3,min(x+0.4,iw/2-(iw/zoom/2)))':y='ih/2-(ih/zoom/2)':d=${Math.round(VIDEO_DURATION * VIDEO_FPS)}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
+  `zoompan=z='if(eq(on,1),1.45,max(zoom-0.0012,1))':x='iw*0.618-(iw/zoom/2)':y='ih*0.382-(ih/zoom/2)':d=${Math.round(VIDEO_DURATION * VIDEO_FPS)}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${VIDEO_FPS}`,
 ];
 
 let effectIndex = 0;
@@ -77,24 +90,16 @@ export function getEffectByIndex(index: number): string {
 export const EFFECT_COUNT = EFFECTS.length;
 
 // ─── Music Moods by Category ─────────────────────────────────
-// Each mood defines sine wave frequencies that create an ambient chord
-// plus tempo (volume modulation speed) to match energy level.
-// 100% royalty-free — procedurally generated, unique every time.
 
 interface MusicMood {
   name: string;
-  // Frequencies in Hz for sine wave chord (2-4 notes)
   freqs: number[];
-  // Volume levels per note (0-1)
   volumes: number[];
-  // BPM-like pulse speed (lower = calmer)
   pulseHz: number;
-  // Master volume
   master: number;
 }
 
 const MUSIC_MOODS: Record<string, MusicMood> = {
-  // Calm ambient — C major pad (C3 + E3 + G3)
   educativo: {
     name: 'calm-ambient',
     freqs: [130.81, 164.81, 196.00],
@@ -102,7 +107,6 @@ const MUSIC_MOODS: Record<string, MusicMood> = {
     pulseHz: 0.25,
     master: 0.12,
   },
-  // Uplifting — G major (G3 + B3 + D4)
   motivacional: {
     name: 'uplifting',
     freqs: [196.00, 246.94, 293.66],
@@ -110,7 +114,6 @@ const MUSIC_MOODS: Record<string, MusicMood> = {
     pulseHz: 0.5,
     master: 0.13,
   },
-  // Confident deep — C power chord (C2 + G2 + C3)
   autoridade: {
     name: 'confident-deep',
     freqs: [65.41, 98.00, 130.81],
@@ -118,7 +121,6 @@ const MUSIC_MOODS: Record<string, MusicMood> = {
     pulseHz: 0.3,
     master: 0.11,
   },
-  // Energetic — A minor driving (A3 + C4 + E4)
   engajamento: {
     name: 'energetic',
     freqs: [220.00, 261.63, 329.63],
@@ -126,7 +128,6 @@ const MUSIC_MOODS: Record<string, MusicMood> = {
     pulseHz: 0.8,
     master: 0.13,
   },
-  // Dramatic tension — diminished (B2 + D3 + F3)
   provocativo: {
     name: 'dramatic',
     freqs: [123.47, 146.83, 174.61],
@@ -134,7 +135,6 @@ const MUSIC_MOODS: Record<string, MusicMood> = {
     pulseHz: 0.4,
     master: 0.12,
   },
-  // Light friendly — F major (F3 + A3 + C4)
   dica_pratica: {
     name: 'light-friendly',
     freqs: [174.61, 220.00, 261.63],
@@ -144,32 +144,22 @@ const MUSIC_MOODS: Record<string, MusicMood> = {
   },
 };
 
-// Default mood for unknown categories
 const DEFAULT_MOOD: MusicMood = MUSIC_MOODS.educativo;
 
-/**
- * Build ffmpeg audio filter for ambient music synthesis.
- * Creates a warm chord from sine waves with gentle volume pulsing + fade in/out.
- */
-function buildMusicFilter(category: string): string {
+function buildMusicFilter(category: string, duration: number): string {
   const mood = MUSIC_MOODS[category] || DEFAULT_MOOD;
 
-  // Build sine wave generators for each note in the chord
   const sines = mood.freqs
     .map((freq, i) => {
       const vol = mood.volumes[i] || 0.2;
-      // Each sine gets subtle pulse modulation for organic feel
-      // sin(2*PI*pulseHz*t) creates gentle volume breathing
       return `sin(${freq}*2*PI*t)*${vol}*(0.7+0.3*sin(${mood.pulseHz}*2*PI*t+${i * 1.5}))`;
     })
     .join('+');
 
-  // Combine: chord mix * master volume * fade envelope
-  // Fade: 2s in, 2s out
   const fadeIn = `min(t/2,1)`;
-  const fadeOut = `min((${VIDEO_DURATION}-t)/2,1)`;
+  const fadeOut = `min((${duration}-t)/2,1)`;
 
-  return `aevalsrc='(${sines})*${mood.master}*${fadeIn}*${fadeOut}':s=44100:d=${VIDEO_DURATION}`;
+  return `aevalsrc='(${sines})*${mood.master}*${fadeIn}*${fadeOut}':s=44100:d=${duration}`;
 }
 
 // ─── Font Detection ──────────────────────────────────────────
@@ -255,7 +245,64 @@ async function downloadImageToTemp(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
+// ─── AI Image Generation (replaces Picsum) ───────────────────
+
+async function getOrGenerateImage(
+  imageUrl: string | undefined,
+  topic: string,
+  category: string,
+  message: string
+): Promise<string | null> {
+  // If caller provided an image URL, use it directly
+  if (imageUrl) {
+    return downloadImageToTemp(imageUrl);
+  }
+
+  // Generate AI image via Pollinations (image-generator agent)
+  try {
+    const { generateImageForPost } = await import('../agents/image-generator.agent');
+    console.log('[video-v4] Generating AI image for video...');
+    const generated = await generateImageForPost(topic, category, message);
+    if (generated?.url) {
+      const imgPath = await downloadImageToTemp(generated.url);
+      if (imgPath) return imgPath;
+      console.warn('[video-v4] AI image download failed, falling back to Picsum');
+    } else {
+      console.warn('[video-v4] AI image generation returned no URL, falling back to Picsum');
+    }
+  } catch (err: any) {
+    console.warn('[video-v4] AI image generation failed, falling back to Picsum:', err?.message || err);
+  }
+
+  // Emergency fallback — Picsum
+  console.log('[video-v4] Using Picsum fallback image...');
+  const picsum = await downloadImageToTemp(`https://picsum.photos/seed/${Date.now()}/1080/1920`);
+  if (picsum) return picsum;
+
+  // Last resort — generate a solid color image with ffmpeg
+  console.warn('[video-v4] Picsum also failed, generating solid background...');
+  const solidPath = path.join(os.tmpdir(), `agency_solid_${Date.now()}.png`);
+  return new Promise((resolve) => {
+    const { execSync } = require('child_process');
+    try {
+      execSync(`"${resolvedFfmpegPath}" -f lavfi -i "color=c=0x1a1a2e:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:d=1" -frames:v 1 "${solidPath}" -y`, { timeout: 10000 });
+      if (fs.existsSync(solidPath) && fs.statSync(solidPath).size > 100) {
+        resolve(solidPath);
+      } else {
+        resolve(null);
+      }
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 // ─── Public Types ────────────────────────────────────────────
+
+export interface SlideContent {
+  label: string;  // HOOK, CONTEXT, VALUE, CTA
+  text: string;
+}
 
 export interface TextVideoSlides {
   hook: string;
@@ -270,23 +317,152 @@ export interface VideoResult {
   musicMood: string;
   hasImage: boolean;
   effectIndex?: number;
+  slideCount: number;
+  duration: number;
+}
+
+// ─── Slide Extraction ─────────────────────────────────────────
+
+function extractSlides(message: string, topic: string): SlideContent[] {
+  const parts = message.split(/\n\n+|\n/).map(p => p.trim()).filter(p => p.length > 0);
+
+  // Remove hashtag lines from content
+  const contentParts = parts.filter(p => !p.startsWith('#') || p.length > 60);
+
+  if (contentParts.length >= 4) {
+    return [
+      { label: 'HOOK', text: truncate(contentParts[0], 90) },
+      { label: 'CONTEXT', text: truncate(contentParts[1], 100) },
+      { label: 'VALUE', text: truncate(contentParts[Math.floor(contentParts.length / 2)], 100) },
+      { label: 'CTA', text: truncate(contentParts[contentParts.length - 1], 80) },
+    ];
+  }
+
+  if (contentParts.length === 3) {
+    return [
+      { label: 'HOOK', text: truncate(contentParts[0], 90) },
+      { label: 'CONTEXT', text: truncate(contentParts[1], 100) },
+      { label: 'VALUE', text: truncate(contentParts[1], 100) },
+      { label: 'CTA', text: truncate(contentParts[2], 80) },
+    ];
+  }
+
+  if (contentParts.length === 2) {
+    return [
+      { label: 'HOOK', text: truncate(contentParts[0], 90) },
+      { label: 'CONTEXT', text: truncate(contentParts[0], 100) },
+      { label: 'VALUE', text: truncate(contentParts[1], 100) },
+      { label: 'CTA', text: 'Salva e compartilha!' },
+    ];
+  }
+
+  // Single paragraph — split by sentences
+  const sentences = message.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 10);
+  return [
+    { label: 'HOOK', text: truncate(sentences[0] || topic, 90) },
+    { label: 'CONTEXT', text: truncate(sentences[1] || sentences[0] || topic, 100) },
+    { label: 'VALUE', text: truncate(sentences[2] || sentences[1] || topic, 100) },
+    { label: 'CTA', text: sentences.length > 3 ? truncate(sentences[sentences.length - 1], 80) : 'O que voce acha? Comenta ai!' },
+  ];
+}
+
+/** Convert new SlideContent[] to legacy TextVideoSlides for backward compat */
+function slidesToLegacy(slides: SlideContent[]): TextVideoSlides {
+  return {
+    hook: slides[0]?.text || '',
+    value: slides[2]?.text || '',
+    cta: slides[3]?.text || '',
+  };
+}
+
+// ─── Multi-Slide Video Builder ───────────────────────────────
+
+/**
+ * Build ffmpeg complexFilter for multi-slide video:
+ * - 4 streams from same image, each with different Ken Burns
+ * - Semi-transparent dark box behind text for readability
+ * - Crossfade transitions between slides
+ * - Fade in on first slide, fade out on last
+ */
+function buildMultiSlideFilter(
+  slides: SlideContent[],
+  fontArg: string,
+): string[] {
+  const slideEffects = buildSlideEffects();
+  const filters: string[] = [];
+
+  // Generate 4 slide streams from the single input image
+  for (let i = 0; i < SLIDE_COUNT; i++) {
+    const slide = slides[i];
+    const effect = slideEffects[i];
+    const escapedText = escapeDrawtext(wrapText(truncate(slide.text, 90), 18));
+    const labelText = escapeDrawtext(slide.label);
+
+    // Text sizing — hook and CTA get larger text
+    const isEmphasis = i === 0 || i === SLIDE_COUNT - 1;
+    const textLen = escapedText.length;
+    const fontSize = isEmphasis
+      ? (textLen > 70 ? 48 : textLen > 40 ? 56 : 64)
+      : (textLen > 70 ? 40 : textLen > 40 ? 46 : 52);
+    const labelSize = 24;
+
+    // Ken Burns motion on image
+    filters.push(`[0:v]${effect}[motion${i}]`);
+
+    // Darken slightly for readability
+    filters.push(`[motion${i}]colorlevels=rimax=0.50:gimax=0.50:bimax=0.50[dark${i}]`);
+
+    // Semi-transparent dark box behind text (much more readable than shadow-only)
+    // Box covers middle 40% of frame height
+    filters.push(
+      `[dark${i}]drawbox=x=0:y=ih*0.30:w=iw:h=ih*0.42:color=black@0.50:t=fill[box${i}]`
+    );
+
+    // Label text — small, top of box area
+    filters.push(
+      `[box${i}]drawtext=${fontArg}text='${labelText}':fontcolor=0xffffff:fontsize=${labelSize}:x=(w-text_w)/2:y=h*0.33:alpha=0.7[lbl${i}]`
+    );
+
+    // Main text — centered in box area, with fade in
+    const fadeIn = `if(lt(t\\,0.5)\\,t*2\\,1)`;
+    filters.push(
+      `[lbl${i}]drawtext=${fontArg}text='${escapedText}':fontcolor=0xffffff:fontsize=${fontSize}:x=(w-text_w)/2:y=(h*0.5)-text_h/2:alpha='${fadeIn}'[slide${i}]`
+    );
+  }
+
+  // Crossfade chain: slide0 xfade slide1 → xfade slide2 → xfade slide3
+  // xfade offset = slide_duration - crossfade_duration (in seconds from start of that segment)
+  const xfadeOffset = SLIDE_DURATION - CROSSFADE;
+
+  filters.push(
+    `[slide0][slide1]xfade=transition=fade:duration=${CROSSFADE}:offset=${xfadeOffset}[xf01]`
+  );
+  filters.push(
+    `[xf01][slide2]xfade=transition=fade:duration=${CROSSFADE}:offset=${xfadeOffset * 2 - CROSSFADE}[xf012]`
+  );
+  filters.push(
+    `[xf012][slide3]xfade=transition=fade:duration=${CROSSFADE}:offset=${xfadeOffset * 3 - CROSSFADE * 2}[vout]`
+  );
+
+  // Audio: low-pass for warmth
+  filters.push(`[1:a]lowpass=f=3000,volume=1[aout]`);
+
+  return filters;
 }
 
 // ─── Main Video Generator ────────────────────────────────────
 
 /**
- * Generate premium cinematic video:
- * Image → Ken Burns cinematic motion → gradient overlay → text + shadow → ambient music
+ * Generate premium multi-slide cinematic video:
+ * Post → 4 slides → AI image with varied Ken Burns → crossfade → ambient music → MP4
  *
- * ALWAYS requires an image. The video-generator agent is responsible for
- * generating an AI image (via Pollinations) when none exists.
- * If imageUrl is not provided here, uses Picsum as emergency fallback.
+ * Uses generateImageForPost() for AI-relevant images when no imageUrl provided.
  *
  * @param message Post message text
  * @param topic Post topic
  * @param category Content category (for music mood matching)
- * @param imageUrl Image URL for Ken Burns background (REQUIRED for quality)
- * @param smartEffectIndex Override effect index (from Video Intelligence)
+ * @param imageUrl Image URL for Ken Burns background
+ * @param smartEffectIndex Override effect index (from Video Intelligence) — used for single-effect fallback
  */
 export async function generatePremiumVideo(
   message: string,
@@ -296,70 +472,43 @@ export async function generatePremiumVideo(
   smartEffectIndex?: number
 ): Promise<VideoResult> {
   const slides = extractSlides(message, topic);
-  // Use smart index from Video Intelligence, or round-robin fallback
-  const effectData = smartEffectIndex !== undefined
-    ? { effect: EFFECTS[smartEffectIndex % EFFECTS.length], index: smartEffectIndex % EFFECTS.length }
-    : getNextEffect();
+  const legacySlides = slidesToLegacy(slides);
   const mood = MUSIC_MOODS[category] || DEFAULT_MOOD;
   const videoPath = path.join(os.tmpdir(), `agency_premium_${Date.now()}.mp4`);
   const font = getFontPath();
-
-  // ALWAYS need an image — emergency fallback to Picsum if none provided
-  const finalImageUrl = imageUrl || `https://picsum.photos/seed/${Date.now()}/1080/1920`;
-  const bgImagePath = await downloadImageToTemp(finalImageUrl);
-
-  if (!bgImagePath) {
-    throw new Error('Failed to download background image for video');
-  }
-
-  const hookText = escapeDrawtext(wrapText(truncate(slides.hook, 100), 18));
-  const topicText = escapeDrawtext(truncate(topic, 35).toUpperCase());
-  const ctaText = escapeDrawtext(wrapText(truncate(slides.cta, 80), 20));
-
-  // Font sizes — adaptive
-  const hookLen = hookText.length;
-  const hookFS = hookLen > 80 ? 48 : hookLen > 50 ? 56 : 64;
-  const ctaFS = ctaText.length > 60 ? 38 : 44;
-
-  // Font arg for drawtext
   const fontArg = font ? `fontfile=${font.ffmpeg}:` : '';
 
-  // Build music filter
-  const musicFilter = buildMusicFilter(category);
+  // Get or generate AI image
+  const bgImagePath = await getOrGenerateImage(imageUrl, topic, category, message);
+
+  if (!bgImagePath) {
+    throw new Error('Failed to obtain background image for video');
+  }
+
+  // Build music filter with correct duration
+  const musicFilter = buildMusicFilter(category, VIDEO_DURATION);
+
+  // Build multi-slide filter chain
+  const filterChain = buildMultiSlideFilter(slides, fontArg);
 
   return new Promise((resolve, reject) => {
     ffmpeg()
-      // Input 0: Background image (looped for video duration)
+      // Input 0: Background image (looped for total video duration)
       .input(bgImagePath)
-      .inputOptions(['-loop', '1', '-t', String(VIDEO_DURATION)])
+      .inputOptions(['-loop', '1', '-t', String(SLIDE_DURATION)])
       // Input 1: Procedural ambient music
       .input(musicFilter)
       .inputOptions(['-f', 'lavfi'])
-      .complexFilter([
-        // [0] Image → Ken Burns cinematic motion (zoom/pan)
-        `[0:v]${effectData.effect}[motion]`,
-        // Darken image for text readability (keep visual richness)
-        `[motion]colorlevels=rimax=0.55:gimax=0.55:bimax=0.55[dark]`,
-        // Topic label — small, top center
-        `[dark]drawtext=${fontArg}text='${topicText}':fontcolor=0xffffff:fontsize=26:x=(w-text_w)/2:y=160:alpha=0.6[t1]`,
-        // Hook text shadow — offset 3px for depth
-        `[t1]drawtext=${fontArg}text='${hookText}':fontcolor=0x000000:fontsize=${hookFS}:x=(w-text_w)/2+3:y=(h*0.38)-text_h/2+3:alpha='if(lt(t\\,1)\\,t*0.4\\,0.4)'[shadow]`,
-        // Hook text — large, white, centered, fade in 1s
-        `[shadow]drawtext=${fontArg}text='${hookText}':fontcolor=0xffffff:fontsize=${hookFS}:x=(w-text_w)/2:y=(h*0.38)-text_h/2:alpha='if(lt(t\\,1)\\,t\\,1)'[t2]`,
-        // CTA — bottom area, fade in after 5s
-        `[t2]drawtext=${fontArg}text='${ctaText}':fontcolor=0xffffff:fontsize=${ctaFS}:x=(w-text_w)/2:y=h*0.78:alpha='if(lt(t\\,5)\\,0\\,if(lt(t\\,6)\\,t-5\\,1))'[vout]`,
-        // Audio: low-pass for warmth
-        `[1:a]lowpass=f=3000,volume=1[aout]`,
-      ], ['vout', 'aout'])
+      .complexFilter(filterChain, ['vout', 'aout'])
       .outputOptions([
         '-c:v', 'libx264',
         '-c:a', 'aac',
-        '-b:a', '128k',
+        '-b:a', '192k',
         '-t', String(VIDEO_DURATION),
         '-pix_fmt', 'yuv420p',
         '-movflags', '+faststart',
-        '-preset', 'fast',
-        '-crf', '23',
+        '-preset', 'medium',
+        '-crf', '18',
         '-shortest',
       ])
       .output(videoPath)
@@ -368,7 +517,19 @@ export async function generatePremiumVideo(
         try {
           const size = fs.statSync(videoPath).size;
           if (size < 5000) { reject(new Error(`Video too small: ${size} bytes`)); return; }
-          resolve({ videoPath, slides, effect: 'ken-burns', musicMood: mood.name, hasImage: true, effectIndex: effectData.index });
+          const effectData = smartEffectIndex !== undefined
+            ? { index: smartEffectIndex % EFFECTS.length }
+            : { index: getNextEffect().index };
+          resolve({
+            videoPath,
+            slides: legacySlides,
+            effect: 'multi-slide-ken-burns',
+            musicMood: mood.name,
+            hasImage: true,
+            effectIndex: effectData.index,
+            slideCount: SLIDE_COUNT,
+            duration: VIDEO_DURATION,
+          });
         } catch (e) { reject(e); }
       })
       .on('error', (err: Error) => {
@@ -430,33 +591,4 @@ export async function generateTextVideoFromSlides(
   const msg = `${videoSlides.hook}\n\n${videoSlides.value}\n\n${videoSlides.cta}`;
   const result = await generatePremiumVideo(msg, topic, 'educativo', imageUrl);
   return { videoPath: result.videoPath, slides: result.slides };
-}
-
-// ─── Text Extraction ─────────────────────────────────────────
-
-function extractSlides(message: string, topic: string): TextVideoSlides {
-  const parts = message.split(/\n\n+|\n/).map(p => p.trim()).filter(p => p.length > 0);
-
-  if (parts.length >= 3) {
-    return {
-      hook: parts[0].length > 120 ? parts[0].substring(0, 117) + '...' : parts[0],
-      value: parts[Math.floor(parts.length / 2)].substring(0, 150),
-      cta: parts[parts.length - 1].substring(0, 100),
-    };
-  }
-
-  if (parts.length === 2) {
-    return {
-      hook: parts[0].substring(0, 120),
-      value: parts[1].substring(0, 150),
-      cta: 'Salva e compartilha!',
-    };
-  }
-
-  const sentences = message.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 10);
-  return {
-    hook: (sentences[0] || topic).substring(0, 120),
-    value: (sentences[1] || sentences[0] || topic).substring(0, 150),
-    cta: sentences.length > 2 ? sentences[sentences.length - 1].substring(0, 100) : 'O que voce acha? Comenta ai!',
-  };
 }

@@ -109,7 +109,7 @@ async function generateVideoLocally(
         imageSource: existingImageUrl ? 'existing' : 'ai-generated',
         hookLength: result.slides.hook.length,
         ctaLength: result.slides.cta.length,
-        videoDuration: 10,
+        videoDuration: result.duration || 12.5,
         fileSize: 0, // already uploaded, size unknown
       });
     } catch { /* non-blocking */ }

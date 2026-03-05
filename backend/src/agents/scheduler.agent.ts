@@ -213,9 +213,15 @@ export function startPostScheduler() {
 
       let publishResult: any;
 
-      // Publish: video if videoUrl, image if imageUrl, text-only otherwise
+      // Publish: video as Reel (native vertical), image, or text-only
       if (post.contentType === 'video' && post.videoUrl) {
-        publishResult = await postSocialService.publishVideoPost(fullMessage, post.videoUrl);
+        try {
+          publishResult = await postSocialService.publishReelPost(fullMessage, post.videoUrl);
+          console.log(`[Scheduler] Published as Reel: ${post.topic}`);
+        } catch (reelErr: any) {
+          console.warn(`[Scheduler] Reel API failed (${reelErr.message}), falling back to /videos`);
+          publishResult = await postSocialService.publishVideoPost(fullMessage, post.videoUrl);
+        }
       } else if (post.imageUrl) {
         publishResult = await postSocialService.publishMediaPost(fullMessage, post.imageUrl, { mediaType: 'image' });
       } else {

@@ -321,6 +321,43 @@ export class SocialService {
     });
   }
 
+  /**
+   * Publish as Facebook Reel (vertical video, native Reel experience).
+   * Uses 2-phase upload: start → finish with file_url (Cloudinary URL).
+   * Falls back to publishVideoPost() if Reel API fails.
+   */
+  async publishReelPost(message: string, videoUrl: string, options?: PublishOptions): Promise<any> {
+    const token = await this.getPageToken();
+    const finalDescription = this.buildMessageWithLink(message, options?.linkUrl);
+
+    // Phase 1: Start upload
+    const { data: startData } = await fbApi.post(`${GRAPH_API}/${this.pageId}/video_reels`, null, {
+      params: { upload_phase: 'start' },
+      headers: authHeaders(token),
+    });
+
+    const videoId = startData.video_id;
+    if (!videoId) {
+      throw new Error('Reel start phase returned no video_id');
+    }
+
+    // Phase 2: Finish upload with file_url
+    const finishParams: Record<string, any> = {
+      upload_phase: 'finish',
+      video_id: videoId,
+      file_url: videoUrl,
+      description: finalDescription,
+      video_state: 'PUBLISHED',
+    };
+
+    const { data } = await fbApi.post(`${GRAPH_API}/${this.pageId}/video_reels`, null, {
+      params: finishParams,
+      headers: authHeaders(token),
+    });
+
+    return { ...data, video_id: videoId };
+  }
+
   async publishVideoFromFile(message: string, filePath: string) {
     const token = await this.getPageToken();
 
