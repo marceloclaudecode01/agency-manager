@@ -53,7 +53,7 @@ export async function buildDailyStrategy(clientCtx?: ClientContext): Promise<Dai
   const recentPosts = await prisma.scheduledPost.findMany({
     where: recentWhere,
     orderBy: { publishedAt: 'desc' },
-    take: 50,
+    take: 100,
     select: { topic: true, message: true, contentType: true },
   });
 
@@ -135,8 +135,10 @@ Hoje é ${dayOfWeek}, ${dateStr}.
 
 ${metricsContext}
 
-TEMAS JÁ PUBLICADOS RECENTEMENTE (últimos 50 posts — é PROIBIDO repetir qualquer um destes temas ou variações semelhantes):
+TEMAS JÁ PUBLICADOS RECENTEMENTE (últimos 100 posts — é ABSOLUTAMENTE PROIBIDO repetir qualquer um destes temas, ângulos, variações ou abordagens semelhantes):
 ${recentTopics || 'nenhum ainda'}
+
+REGRA ANTI-REPETIÇÃO HARD: Se um tema recente fala de "produtividade", NÃO crie outro sobre produtividade com ângulo diferente — mude COMPLETAMENTE de assunto. Cada tema deve ser de um UNIVERSO diferente dos anteriores.
 
 ${trendingContext}
 ${growthContext}
@@ -161,7 +163,7 @@ Retorne APENAS um JSON válido neste formato exato:
 
 Regras:
 - postsToCreate: entre 2 e 4 (se engajamento baixo, criar mais; se alto, manter qualidade)
-- topics: temas COMPLETAMENTE DIFERENTES dos 50 recentes listados acima. NÃO repita tema, ângulo, ou variação semelhante. PROIBIDO temas de entretenimento/filmes/séries.
+- topics: temas de UNIVERSOS COMPLETAMENTE DIFERENTES dos 100 recentes. Cada tema deve abordar um ASSUNTO NOVO que nunca apareceu. NÃO repita tema, ângulo, variação, sinônimo ou abordagem similar. PROIBIDO temas de entretenimento/filmes/séries. VARIE entre áreas como: tecnologia, psicologia, economia, saúde, comunicação, liderança, criatividade, ciência, tendências, produtividade, inteligência artificial, neurociência, marketing, finanças, cultura, inovação — NUNCA 2 temas da mesma área no mesmo dia.
 - scheduledTimes: horários entre 08:00 e 22:00, com pelo menos 2h de intervalo
 - focusType: "educativo" | "engajamento" | "autoridade" | "bastidores"
 - pilar: qual dos 4 pilares temáticos cada post aborda (cada post deve ter pilar diferente)
@@ -186,5 +188,63 @@ Regras:
     strategy.focusType = strategy.focusType.slice(0, strategy.postsToCreate);
   }
 
+  // HARD DEDUP: reject topics that are too similar to recent ones
+  const recentTopicsList = recentPosts.map((p) => p.topic).filter(Boolean) as string[];
+  const validatedTopics: string[] = [];
+
+  for (const topic of strategy.topics) {
+    if (!isTopicTooSimilar(topic, [...recentTopicsList, ...validatedTopics])) {
+      validatedTopics.push(topic);
+    } else {
+      // Topic is too similar — try to regenerate just this one
+      try {
+        const replacement = await askGemini(
+          `Gere UM único tema COMPLETAMENTE NOVO e DIFERENTE para um post de Facebook.
+O tema NÃO pode ser parecido com NENHUM destes (proibidos): ${[...recentTopicsList, ...validatedTopics].slice(-30).join(', ')}
+O tema deve ser sobre: ${strategy.focusType[validatedTopics.length] || 'educativo'}
+${clientCtx ? `Nicho: ${clientCtx.niche}` : ''}
+Retorne APENAS o tema em uma linha, sem aspas, sem explicação.`
+        );
+        const cleaned = replacement.trim().replace(/^["']|["']$/g, '');
+        validatedTopics.push(cleaned || topic);
+      } catch {
+        validatedTopics.push(topic); // Keep original if regeneration fails
+      }
+    }
+  }
+
+  strategy.topics = validatedTopics;
   return strategy;
+}
+
+/**
+ * Hard check: is a new topic too similar to recent ones?
+ * Uses keyword overlap — if >40% of meaningful words match, it's too similar
+ */
+function isTopicTooSimilar(newTopic: string, recentTopics: string[]): boolean {
+  const stopWords = new Set(['de', 'do', 'da', 'dos', 'das', 'em', 'no', 'na', 'nos', 'nas',
+    'um', 'uma', 'uns', 'umas', 'o', 'a', 'os', 'as', 'para', 'por', 'com', 'como',
+    'que', 'e', 'ou', 'se', 'the', 'of', 'and', 'to', 'in', 'for', 'is', 'on', 'seu', 'sua']);
+
+  const getWords = (text: string) =>
+    new Set(text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w)));
+
+  const newWords = getWords(newTopic);
+  if (newWords.size === 0) return false;
+
+  for (const recent of recentTopics) {
+    const recentWords = getWords(recent);
+    if (recentWords.size === 0) continue;
+
+    let overlap = 0;
+    for (const w of newWords) {
+      if (recentWords.has(w)) overlap++;
+    }
+
+    const similarity = overlap / Math.min(newWords.size, recentWords.size);
+    if (similarity >= 0.4) return true;
+  }
+
+  return false;
 }

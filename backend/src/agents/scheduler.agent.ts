@@ -572,13 +572,13 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
 
   await agentLog('Content Strategist', `${label} Estratégia pronta: ${strategy.postsToCreate} posts — ${strategy.reasoning}`, { type: 'result', to: 'Autonomous Engine', payload: { postsToCreate: strategy.postsToCreate, topics: strategy.topics } });
 
-  // Get recent topics for THIS client (anti-duplication per client)
+  // Get recent topics for THIS client (anti-duplication per client) — expanded window
   const recentWhere: any = { status: 'PUBLISHED' };
   if (clientCtx) recentWhere.clientId = clientCtx.clientId;
   const recentPosts = await prisma.scheduledPost.findMany({
     where: recentWhere,
     orderBy: { publishedAt: 'desc' },
-    take: 30,
+    take: 100,
     select: { topic: true },
   });
   const recentTopics = recentPosts.map((p) => p.topic).filter(Boolean) as string[];
@@ -638,13 +638,13 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
         }
       }
 
-      // Generate image for every post
+      // Generate UNIQUE AI image for every post (Pollinations.ai + Gemini prompt)
       let imageUrl: string | null = null;
       try {
-        await agentLog('Autonomous Engine', `${label} Gerando imagem para "${topic}"...`, { type: 'communication', to: 'Image Generator' });
-        const image = await generateImageForPost(topic, focusType);
+        await agentLog('Autonomous Engine', `${label} Gerando imagem AI única para "${topic}"...`, { type: 'communication', to: 'Image Generator' });
+        const image = await generateImageForPost(topic, focusType, generated.message, clientCtx?.clientId);
         imageUrl = image.url || null;
-        await agentLog('Image Generator', `${label} Imagem gerada para "${topic}"`, { type: 'result', to: 'Autonomous Engine' });
+        await agentLog('Image Generator', `${label} Imagem AI única gerada (${image.source}) para "${topic}"`, { type: 'result', to: 'Autonomous Engine' });
       } catch (imgErr: any) {
         await agentLog('Image Generator', `${label} ⚠️ Falha ao gerar imagem: ${imgErr.message}. Post será publicado sem imagem.`, { type: 'error' });
       }
