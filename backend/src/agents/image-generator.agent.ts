@@ -24,34 +24,42 @@ async function generateUniqueImagePrompt(
   const recentStr = (recentUsedPrompts || recentPrompts).slice(-20).join('\n- ');
 
   const raw = await askGemini(
-    `You are an expert visual director for social media. Generate a UNIQUE image description for an AI image generator.
+    `You are the Creative Director of a billion-dollar brand agency (think Nike, Apple, Red Bull level). Generate a PREMIUM image prompt for AI image generation.
+
+YOUR MINDSET: Every image must stop the scroll. Think Super Bowl ad quality, not generic stock photos.
 
 TOPIC: "${topic}"
 CATEGORY: ${category}
 ${postMessage ? `POST CONTENT: "${postMessage.substring(0, 300)}"` : ''}
 
-RECENTLY USED IMAGE DESCRIPTIONS (DO NOT repeat or create similar ones):
+RECENTLY USED (DO NOT repeat or create anything similar):
 - ${recentStr || 'none yet'}
 
-RULES:
-- Return ONLY the image prompt in English, nothing else
-- Be SPECIFIC and UNIQUE — describe exact scene, lighting, colors, composition
-- Professional social media quality, modern design
-- NO text, NO logos, NO watermarks in the image
-- Square format (1:1 aspect ratio)
-- Each prompt must be COMPLETELY DIFFERENT from recent ones
-- Vary styles: photography, illustration, 3D render, flat design, abstract, minimalist
-- Vary color palettes: warm, cool, neon, pastel, monochrome, earth tones
-- Vary subjects: people, objects, landscapes, abstract shapes, data visualizations
-- Max 150 characters
+CREATIVE DIRECTION:
+- CINEMATIC QUALITY: Every frame looks like it belongs in a Netflix documentary or Apple keynote
+- EMOTIONAL IMPACT: The image must trigger an instant emotional reaction — awe, curiosity, desire, inspiration
+- VISUAL STORYTELLING: One image tells a complete story, no text needed
+- BOLD COMPOSITION: Rule of thirds, leading lines, dramatic negative space, golden ratio
+- PREMIUM LIGHTING: Golden hour, studio rim lighting, volumetric god rays, neon contrast, cinematic color grading
+- TEXTURE OBSESSION: Hyper-detailed surfaces — you can feel the materials through the screen
 
-Example outputs:
-- "aerial view of colorful sticky notes on dark wood desk, warm morning light, shallow depth of field"
-- "3D render of glowing blue neural network connections on black background, futuristic tech feel"
-- "minimalist flat illustration of person climbing mountain of books, sunset gradient background"
-- "close-up of hands typing on laptop with holographic data charts floating above, purple neon glow"
+STYLE ROTATION (vary each time):
+- Cinematic photography (shallow DOF, anamorphic lens flare)
+- Hyper-realistic 3D render (Octane, Unreal Engine 5 quality)
+- Editorial magazine photography (Vogue, GQ, National Geographic level)
+- Dramatic aerial/drone perspective
+- Intimate macro photography with bokeh
+- Futuristic concept art (Blade Runner, cyberpunk aesthetics)
+- Clean minimalist with single bold color accent
 
-Generate ONE unique prompt now:`
+ABSOLUTE RULES:
+- NO text, NO logos, NO watermarks, NO UI elements
+- NO generic stock photo vibes — every image must feel CRAFTED
+- Square format (1:1), 8K quality description
+- Max 180 characters — every word must earn its place
+- Return ONLY the prompt in English, nothing else
+
+Generate ONE premium prompt now:`
   );
 
   return raw.trim().replace(/^["']|["']$/g, '').substring(0, 200);
@@ -149,13 +157,29 @@ export async function generateImageForPost(
     }
   }
 
-  // 3. Fallback prompt if Gemini fails
+  // 3. Fallback prompt if Gemini fails — still premium quality
   if (!imagePrompt) {
-    const styles = ['minimalist', '3D render', 'watercolor', 'neon', 'vintage photo', 'flat illustration', 'cinematic'];
-    const subjects = ['workspace', 'technology', 'nature', 'abstract shapes', 'cityscape', 'people collaborating', 'data visualization'];
+    const styles = [
+      'cinematic close-up with shallow depth of field and golden hour rim lighting',
+      'hyper-realistic 3D render with dramatic volumetric lighting, Octane quality',
+      'editorial magazine photography with bold color grading and studio lighting',
+      'dramatic aerial perspective with leading lines and atmospheric haze',
+      'futuristic concept art with neon accents and cyberpunk atmosphere',
+      'intimate macro shot with creamy bokeh and single bold color accent',
+      'clean minimalist composition with dramatic shadows and negative space',
+    ];
+    const subjects = [
+      'modern workspace with premium materials',
+      'cutting-edge technology in action',
+      'powerful human silhouette against dramatic sky',
+      'abstract geometric shapes with metallic textures',
+      'urban cityscape at blue hour',
+      'dynamic motion-blur scene with energy',
+      'luxury lifestyle moment with rich textures',
+    ];
     const style = styles[Math.floor(Math.random() * styles.length)];
     const subject = subjects[Math.floor(Math.random() * subjects.length)];
-    imagePrompt = `${style} of ${subject} related to ${topic}, professional social media quality, square format`;
+    imagePrompt = `${style}, ${subject} related to ${topic}, 8K photorealistic quality`;
   }
 
   // 4. Track prompt usage

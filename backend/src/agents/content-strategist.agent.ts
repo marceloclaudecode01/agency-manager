@@ -116,58 +116,64 @@ O conteúdo deve posicionar esta página como AUTORIDADE ABSOLUTA.
   const dateStr = today.toLocaleDateString('pt-BR');
 
   const prompt = `
-Você é um estrategista de conteúdo de NÍVEL MUNDIAL focado em CRESCIMENTO EXPLOSIVO de página no Facebook.
-Você opera como os melhores estrategistas das empresas bilionárias — cada post é uma arma de crescimento.
+Voce e o VP de Estrategia de Conteudo de uma holding que gerencia marcas bilionarias (Nike, Apple, Nubank, Red Bull, Tesla).
+Sua missao: cada dia de conteudo e uma CAMPANHA ESTRATEGICA — nao posts isolados, mas pecas interconectadas que constroem imperio de marca.
 
-OBJETIVO: Crescer seguidores, alcance e engajamento de forma AGRESSIVA e consistente. Cada post deve ser uma BOMBA de valor.
+MENTALIDADE BILIONARIA DE CONTEUDO:
+- Cada post e um ATIVO que gera retorno composto — nao e descartavel, e investimento
+- DOMINAR O FEED e o objetivo — quando alguem abre o Facebook, seu conteudo deve ser o mais inteligente que essa pessoa ve hoje
+- Qualidade > frequencia — 3 posts extraordinarios vencem 10 mediocres
+- DIVERSIDADE RADICAL de temas — marcas bilionarias nunca sao previsiveis
 
 ${nicheContext}
 ${brandCtx}
 
 REGRAS ABSOLUTAS:
-- NÃO sugerir temas sobre filmes, séries, streaming, TV online ou entretenimento genérico.
-- Focar em: dicas práticas, tendências, conhecimento útil, provocações inteligentes, insights poderosos.
-- Cada post deve ter potencial VIRAL — algo que as pessoas queiram compartilhar.
-- Cada post DEVE se encaixar em um dos 4 PILARES TEMÁTICOS definidos nas brand guidelines.
-- ROTAÇÃO OBRIGATÓRIA: cada post do dia deve cobrir um pilar DIFERENTE. NÃO repetir pilar no mesmo dia.
+- NAO sugerir temas sobre filmes, series, streaming, TV online ou entretenimento generico
+- Focar em: insights contraintuitivos, tendencias de fronteira, provocacoes intelectuais, frameworks acionaveis, dados surpreendentes
+- Cada post deve passar no teste: "Uma pessoa inteligente compartilharia isso para parecer mais inteligente?" — se sim, publica
+- Cada post DEVE se encaixar em um dos 4 PILARES TEMATICOS definidos nas brand guidelines
+- ROTACAO OBRIGATORIA: cada post do dia deve cobrir um pilar DIFERENTE. NAO repetir pilar no mesmo dia
 
-Hoje é ${dayOfWeek}, ${dateStr}.
+Hoje e ${dayOfWeek}, ${dateStr}.
 
 ${metricsContext}
 
-TEMAS JÁ PUBLICADOS RECENTEMENTE (últimos 100 posts — é ABSOLUTAMENTE PROIBIDO repetir qualquer um destes temas, ângulos, variações ou abordagens semelhantes):
+TEMAS JA PUBLICADOS RECENTEMENTE (ultimos 100 posts — ABSOLUTAMENTE PROIBIDO repetir qualquer um, incluindo variacoes, sinonimos ou angulos similares):
 ${recentTopics || 'nenhum ainda'}
 
-REGRA ANTI-REPETIÇÃO HARD: Se um tema recente fala de "produtividade", NÃO crie outro sobre produtividade com ângulo diferente — mude COMPLETAMENTE de assunto. Cada tema deve ser de um UNIVERSO diferente dos anteriores.
+REGRA ANTI-REPETICAO NUCLEAR: Se um tema recente menciona "produtividade", NAO crie nada sobre produtividade, eficiencia, gestao de tempo ou performance pessoal — mude de UNIVERSO. Cada tema deve ser de uma GALAXIA completamente diferente. Pense: se alguem lesse todos os posts em sequencia, NUNCA deveria sentir que ja viu algo parecido.
 
 ${trendingContext}
 ${growthContext}
 
-DISTRIBUIÇÃO DE CONTEÚDO (seguir rigorosamente):
-- 40% autoridade (dados, análises, tendências, estudos de caso, posicionamento como referência)
-- 30% engajamento/viral (perguntas provocativas, debates, enquetes, conteúdo compartilhável)
-- 20% educativo/comunidade (dicas, tutoriais, checklists, "como fazer")
-- 10% bastidores/venda (humanização, processo, oferta sutil, CTA direto)
+DISTRIBUICAO DE CONTEUDO (framework das marcas bilionarias):
+- 40% autoridade (dados exclusivos, analises nivel McKinsey, tendencias de fronteira, posicionamento como a voz mais inteligente do nicho)
+- 30% engajamento/viral (teses provocativas, debates que dividem, perguntas impossíveis de ignorar, conteudo que OBRIGA compartilhamento)
+- 20% educativo (frameworks aplicaveis, modelos mentais poderosos, tecnicas que 99% ignoram, "curso gratis em formato de post")
+- 10% bastidores/conexao (vulnerabilidade estrategica, bastidores reais, historias com licoes nao-obvias)
 
-Com base nesses dados, crie a estratégia de conteúdo para HOJE.
+CRITERIO DE QUALIDADE: Se um tema nao faria voce parar o scroll se visse no SEU feed, descarte e gere outro.
 
-Retorne APENAS um JSON válido neste formato exato:
+Com base nesses dados, crie a estrategia de conteudo para HOJE.
+
+Retorne APENAS um JSON valido neste formato exato:
 {
   "postsToCreate": 3,
   "topics": ["tema viral 1", "tema viral 2", "tema viral 3"],
   "scheduledTimes": ["09:00", "14:00", "19:00"],
   "focusType": ["educativo", "engajamento", "autoridade"],
-  "pilpilar": ["Liderança & Estratégia", "Tecnologia & Inovação", "Performance & Resultados"],
-  "reasoning": "Justificativa breve da estratégia"
+  "pilar": ["Lideranca & Estrategia", "Tecnologia & Inovacao", "Performance & Resultados"],
+  "reasoning": "Justificativa breve da estrategia"
 }
 
 Regras:
-- postsToCreate: entre 2 e 4 (se engajamento baixo, criar mais; se alto, manter qualidade)
-- topics: temas de UNIVERSOS COMPLETAMENTE DIFERENTES dos 100 recentes. Cada tema deve abordar um ASSUNTO NOVO que nunca apareceu. NÃO repita tema, ângulo, variação, sinônimo ou abordagem similar. PROIBIDO temas de entretenimento/filmes/séries. VARIE entre áreas como: tecnologia, psicologia, economia, saúde, comunicação, liderança, criatividade, ciência, tendências, produtividade, inteligência artificial, neurociência, marketing, finanças, cultura, inovação — NUNCA 2 temas da mesma área no mesmo dia.
-- scheduledTimes: horários entre 08:00 e 22:00, com pelo menos 2h de intervalo
+- postsToCreate: entre 2 e 4 (qualidade acima de tudo — so crie 4 se todos forem 9+/10 em potencial)
+- topics: temas de UNIVERSOS COMPLETAMENTE DIFERENTES dos 100 recentes. Cada tema deve ser um ASSUNTO INEDITO. PROIBIDO entretenimento/filmes/series. VARIE radicalmente entre: tecnologia de fronteira, psicologia comportamental, economia global, neurociencia aplicada, comunicacao estrategica, lideranca nao-convencional, criatividade e inovacao, ciencia surpreendente, tendencias emergentes, inteligencia artificial, marketing de elite, financas pessoais, cultura e sociedade, filosofia pratica, design thinking, biohacking — NUNCA 2 temas da mesma area no mesmo dia.
+- scheduledTimes: horarios entre 08:00 e 22:00, com pelo menos 2h de intervalo
 - focusType: "educativo" | "engajamento" | "autoridade" | "bastidores"
-- pilar: qual dos 4 pilares temáticos cada post aborda (cada post deve ter pilar diferente)
-- reasoning: 1-2 frases explicando a escolha estratégica
+- pilar: qual dos 4 pilares tematicos cada post aborda (cada post DEVE ter pilar diferente)
+- reasoning: 1-2 frases justificando a estrategia como um VP apresentaria ao board
 `;
 
   const raw = await askGemini(prompt);

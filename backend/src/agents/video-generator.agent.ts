@@ -29,19 +29,26 @@ const VIDEO_TIMEOUT_MINUTES = 15;
  * Generate video locally using ffmpeg + Pollinations AI image
  * This is the fallback that ALWAYS works — no external video API needed
  */
-async function generateVideoLocally(postId: string, topic: string, message: string, category: string): Promise<boolean> {
+async function generateVideoLocally(postId: string, topic: string, message: string, category: string, existingImageUrl?: string): Promise<boolean> {
   try {
     await agentLog('VideoGenerator', `Generating video locally via ffmpeg for "${topic}"...`, { type: 'action' });
 
-    // 1. Generate unique AI image via Pollinations
-    const image = await generateImageForPost(topic, category, message);
-    if (!image.url) {
-      throw new Error('Failed to generate image for video');
+    // 1. Use existing image if available, otherwise generate new one
+    let imageUrl: string;
+    if (existingImageUrl) {
+      imageUrl = existingImageUrl;
+      await agentLog('VideoGenerator', `Using existing image for video: ${imageUrl.substring(0, 80)}...`, { type: 'info' });
+    } else {
+      const image = await generateImageForPost(topic, category, message);
+      if (!image.url) {
+        throw new Error('Failed to generate image for video');
+      }
+      imageUrl = image.url;
     }
 
     // 2. Convert image to video with Ken Burns effect via ffmpeg
     const { generateAndUploadVideo } = await import('../services/video-from-image.service');
-    const videoUrl = await generateAndUploadVideo(image.url);
+    const videoUrl = await generateAndUploadVideo(imageUrl);
 
     if (!videoUrl) {
       throw new Error('Video generation returned no URL');
@@ -52,7 +59,7 @@ async function generateVideoLocally(postId: string, topic: string, message: stri
       where: { id: postId },
       data: {
         videoUrl,
-        imageUrl: image.url, // Keep image as thumbnail
+        imageUrl: imageUrl, // Keep image as thumbnail
         comfyRunId: `local-ffmpeg:${Date.now()}`,
         status: 'PENDING', // Ready for governor review
       },
@@ -82,16 +89,19 @@ export async function queueVideoForPost(postId: string): Promise<void> {
     // Try cloud providers first (if any configured)
     if (isCloudConfigured()) {
       // Generate visual prompt via LLM
-      const promptForLLM = `You are a world-class short-form video director. Convert this social media topic into a PRECISE visual prompt for AI text-to-video (5 seconds, no text overlays — pure cinematic footage).
+      const promptForLLM = `You are the Senior Video Director at a billion-dollar creative agency. Your work is indistinguishable from Super Bowl commercials, Apple product reveals, and Netflix documentary cinematography.
 
-RULES:
-1. HOOK FRAME (0-1s): Visually striking opening — extreme close-up, dramatic reveal, pattern interrupt
-2. MOVEMENT: Camera MUST move — dolly-in, orbit, crane up, tracking shot
-3. LIGHTING: Dramatic — golden hour, neon contrast, rim lighting, volumetric rays
-4. One clear subject, one clear action, one clear mood
-5. Hyper-detailed textures, 8K photorealistic quality
+Convert this social media topic into a CINEMATIC visual prompt for AI text-to-video (5 seconds, zero text overlays — pure visual storytelling).
 
-Output ONLY the visual prompt in English. Max 100 words. No titles, no explanations.
+BILLION-DOLLAR CREATIVE PRINCIPLES:
+1. HOOK FRAME (0-1s): The opening frame must be so visually arresting that scrolling becomes physically impossible. Think: extreme macro revealing unexpected texture, dramatic silhouette against volumetric light, slow-motion reveal of something mesmerizing.
+2. CAMERA LANGUAGE: Every movement tells a story — Spielberg dolly-in for intimacy, Kubrick symmetry for power, Fincher tracking shot for tension, Malick golden hour crane for transcendence. NEVER static.
+3. LIGHTING AS CHARACTER: Light IS the story. Rembrandt triangle for drama, rim lighting for mystery, volumetric god rays for epic scale, practical neon for modernity, chiaroscuro for sophistication.
+4. EMOTION OVER INFORMATION: The viewer must FEEL something in 5 seconds — awe, desire, curiosity, inspiration, wonder. One subject, one action, one overwhelming mood.
+5. PREMIUM TEXTURE: Every surface is tangible — you can feel the brushed metal, the fabric weave, the water droplet, the skin pore. 8K IMAX quality.
+6. COLOR STORY: Deliberate palette — teal/orange for cinematic, desaturated with single color pop for editorial, warm amber for luxury, cool blue for tech, rich earth tones for authenticity.
+
+Output ONLY the visual prompt in English. Max 120 words. No titles, no explanations.
 
 Topic: "${topicText}"
 Post: "${post.message.substring(0, 200)}"`;
@@ -107,7 +117,7 @@ Post: "${post.message.substring(0, 200)}"`;
       try {
         const result = await queueVideoGeneration({
           prompt: visualPrompt,
-          negative_prompt: 'blurry, low quality, text overlay, watermark, distorted, ugly, static camera, flat lighting, overexposed, underexposed, stock footage, generic, cartoon, anime, illustration, painting',
+          negative_prompt: 'blurry, low quality, text overlay, watermark, distorted, ugly, static camera, flat lighting, overexposed, underexposed, stock footage look, generic corporate, amateur, cartoon, anime, illustration, painting, cheap graphics, lens distortion, chromatic aberration, motion sickness, jerky camera, inconsistent lighting, visible crew, boom mic, poorly composited, green screen artifacts',
         });
 
         // Synchronous provider (HuggingFace) — video already ready
@@ -138,7 +148,7 @@ Post: "${post.message.substring(0, 200)}"`;
 
     // Fallback: LOCAL video generation via ffmpeg (ALWAYS available)
     const category = (post as any).contentType === 'video' ? 'autoridade' : 'educativo';
-    const success = await generateVideoLocally(postId, topicText, post.message, category);
+    const success = await generateVideoLocally(postId, topicText, post.message, category, post.imageUrl || undefined);
 
     if (!success) {
       await agentLog('VideoGenerator', `All video methods failed for "${topicText}". Falling back to image.`, { type: 'error' });
@@ -219,7 +229,7 @@ export async function pollPendingVideos(): Promise<void> {
       for (const post of stuckVideos) {
         const topicText = post.topic || post.message.substring(0, 100);
         await agentLog('VideoGenerator', `Found stuck PENDING_VIDEO post "${topicText}" — generating locally...`, { type: 'action' });
-        const success = await generateVideoLocally(post.id, topicText, post.message, 'autoridade');
+        const success = await generateVideoLocally(post.id, topicText, post.message, 'autoridade', post.imageUrl || undefined);
         if (!success) {
           await fallbackToImage(post.id);
         }
