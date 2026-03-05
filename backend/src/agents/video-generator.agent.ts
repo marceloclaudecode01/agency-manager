@@ -32,11 +32,36 @@ const VIDEO_TIMEOUT_MINUTES = 15;
  */
 async function generateVideoLocally(postId: string, topic: string, message: string, category: string, existingImageUrl?: string): Promise<boolean> {
   try {
-    await agentLog('VideoGenerator', `Generating text video for "${topic}"...`, { type: 'action' });
+    await agentLog('VideoGenerator', `Generating premium vertical video for "${topic}"...`, { type: 'action' });
 
-    // 1. Generate text-based animated video from post content
+    // 1. Check if atomizer already created video slides for this post
+    let videoUrl: string;
     const { generateAndUploadTextVideo } = await import('../services/video-from-text.service');
-    const videoUrl = await generateAndUploadTextVideo(message, topic);
+
+    try {
+      const videoReplica = await prisma.contentReplica.findFirst({
+        where: { originalPostId: postId, format: 'video_script' },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (videoReplica?.metadata) {
+        // Use pre-built slides from atomizer (zero extra processing)
+        const { generateTextVideoFromSlides } = await import('../services/video-from-text.service');
+        const slides = videoReplica.metadata as any;
+        const { videoPath } = await generateTextVideoFromSlides(slides, topic);
+        const { uploadVideoFromUrl } = await import('../config/cloudinary');
+        const uploaded = await uploadVideoFromUrl(videoPath, 'agency-videos');
+        videoUrl = uploaded.url;
+        const fs = await import('fs');
+        try { fs.unlinkSync(videoPath); } catch {}
+        await agentLog('VideoGenerator', `Used atomized video slides for "${topic}"`, { type: 'info' });
+      } else {
+        videoUrl = await generateAndUploadTextVideo(message, topic);
+      }
+    } catch {
+      // Fallback: generate from raw message
+      videoUrl = await generateAndUploadTextVideo(message, topic);
+    }
 
     if (!videoUrl) {
       throw new Error('Video generation returned no URL');

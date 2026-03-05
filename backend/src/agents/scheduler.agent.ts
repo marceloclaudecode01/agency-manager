@@ -31,6 +31,7 @@ import { startGrowthAnalyst } from './growth-analyst.agent';
 import { generateCarouselFromStructure, shouldGenerateCarousel } from './carousel-generator.agent';
 import { optimizeForPlatform } from './platform-optimizer.agent';
 import { queueVideoForPost, startVideoProcessor } from './video-generator.agent';
+import { atomizePost } from '../services/content-atomizer.service';
 // Video generation is always available (cloud providers + local ffmpeg fallback)
 
 // Default social service (env vars) — used for backward compat
@@ -691,6 +692,66 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
       scheduledIds.push(saved.id);
       recentTopics.push(topic);
       await agentLog('Autonomous Engine', `${label} 📅 Post ${i + 1}/${strategy.postsToCreate} agendado: "${topic}" para as ${timeStr}`, { type: 'action', to: 'Scheduler' });
+
+      // Content Atomization: 1 post → 5 formats (ZERO tokens)
+      // Generates: carousel, video slides, thread, ad copy — all from existing text
+      try {
+        const atomized = atomizePost(generated.message, topic, generated.structure || null);
+
+        // Save carousel replica
+        await prisma.contentReplica.create({
+          data: {
+            originalPostId: saved.id,
+            format: 'carousel',
+            platform: 'instagram',
+            content: atomized.carousel.caption,
+            slides: atomized.carousel.slides as any,
+            metadata: { slideCount: atomized.carousel.slides.length },
+            status: 'READY',
+          },
+        });
+
+        // Save thread replica (publishable as multiple Facebook posts)
+        await prisma.contentReplica.create({
+          data: {
+            originalPostId: saved.id,
+            format: 'thread',
+            platform: 'facebook',
+            content: atomized.thread.posts.join('\n\n'),
+            metadata: { postCount: atomized.thread.posts.length, posts: atomized.thread.posts },
+            status: 'READY',
+          },
+        });
+
+        // Save ad copy replica
+        await prisma.contentReplica.create({
+          data: {
+            originalPostId: saved.id,
+            format: 'ad_copy',
+            platform: 'facebook',
+            content: atomized.adCopy.primaryText,
+            metadata: atomized.adCopy as any,
+            status: 'READY',
+          },
+        });
+
+        // Save video script replica (slides for video generation)
+        await prisma.contentReplica.create({
+          data: {
+            originalPostId: saved.id,
+            format: 'video_script',
+            platform: 'facebook',
+            content: `${atomized.video.hook} | ${atomized.video.value} | ${atomized.video.cta}`,
+            metadata: atomized.video as any,
+            status: 'READY',
+          },
+        });
+
+        await agentLog('Content Atomizer', `${label} 1→5 atomizado: carousel + thread + ad + video para "${topic}" (0 tokens)`, { type: 'result' });
+      } catch (atomErr: any) {
+        // Non-blocking — atomization failure doesn't affect main post
+        console.error(`[Atomizer] Failed for post ${saved.id}: ${atomErr.message}`);
+      }
 
       // A/B Testing: create variant B for non-video posts
       if (postContentType !== 'video') {

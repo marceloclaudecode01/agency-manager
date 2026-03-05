@@ -1,9 +1,10 @@
 /**
- * Test Text Video — Simula a criação de vídeo com texto animado
- * Uso: npx tsx src/scripts/test-text-video.ts
+ * Test Text Video v2 — Premium vertical videos (1080x1920)
+ * Usage: npx tsx src/scripts/test-text-video.ts
  */
 
-import { generateTextVideo } from '../services/video-from-text.service';
+import { generateTextVideo, generateTextVideoFromSlides } from '../services/video-from-text.service';
+import { atomizePost } from '../services/content-atomizer.service';
 import * as fs from 'fs';
 
 const TEST_POSTS = [
@@ -22,11 +23,13 @@ const TEST_POSTS = [
 ];
 
 async function main() {
-  console.log('\n=== TEST TEXT VIDEO (Reels/TikTok style) ===\n');
+  console.log('\n=== TEST VIDEO v2 (Vertical 1080x1920, Premium) ===\n');
 
+  // Test 1: Direct from message text
+  console.log('--- Mode 1: Direct from message ---\n');
   for (let i = 0; i < TEST_POSTS.length; i++) {
     const post = TEST_POSTS[i];
-    console.log(`--- Video ${i + 1}: "${post.topic}" ---`);
+    console.log(`Video ${i + 1}: "${post.topic}"`);
 
     try {
       const start = Date.now();
@@ -34,20 +37,36 @@ async function main() {
       const elapsed = ((Date.now() - start) / 1000).toFixed(1);
       const sizeKB = (fs.statSync(videoPath).size / 1024).toFixed(0);
 
-      console.log(`[OK] Video gerado em ${elapsed}s (${sizeKB}KB)`);
-      console.log(`     Hook: "${slides.hook.substring(0, 60)}..."`);
-      console.log(`     Value: "${slides.value.substring(0, 60)}..."`);
-      console.log(`     CTA: "${slides.cta.substring(0, 60)}"`);
-      console.log(`     -> ${videoPath}`);
-      console.log('');
+      console.log(`  [OK] ${elapsed}s, ${sizeKB}KB`);
+      console.log(`  Hook: "${slides.hook.substring(0, 60)}..."`);
+      console.log(`  -> ${videoPath}\n`);
     } catch (err: any) {
-      console.log(`[FAIL] ${err.message}`);
-      console.log('');
+      console.log(`  [FAIL] ${err.message}\n`);
     }
   }
 
-  console.log('=== DONE ===\n');
-  console.log('Abra os videos com VLC ou qualquer player para verificar qualidade.\n');
+  // Test 2: From atomizer video slides
+  console.log('--- Mode 2: From atomizer slides (zero-token pipeline) ---\n');
+  const post = TEST_POSTS[0];
+  const atomized = atomizePost(post.message, post.topic);
+
+  console.log(`Video from atomized slides: "${post.topic}"`);
+  console.log(`  Slides: Hook="${atomized.video.hook.substring(0, 40)}..." Value="${atomized.video.value.substring(0, 40)}..." CTA="${atomized.video.cta.substring(0, 40)}"`);
+
+  try {
+    const start = Date.now();
+    const { videoPath } = await generateTextVideoFromSlides(atomized.video, post.topic);
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    const sizeKB = (fs.statSync(videoPath).size / 1024).toFixed(0);
+
+    console.log(`  [OK] ${elapsed}s, ${sizeKB}KB`);
+    console.log(`  -> ${videoPath}\n`);
+  } catch (err: any) {
+    console.log(`  [FAIL] ${err.message}\n`);
+  }
+
+  console.log('=== DONE ===');
+  console.log('Abra os videos com VLC para verificar qualidade (formato vertical 1080x1920).\n');
 }
 
 main().catch(console.error);
