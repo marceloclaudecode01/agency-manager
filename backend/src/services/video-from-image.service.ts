@@ -14,8 +14,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-// Set ffmpeg path
-ffmpeg.setFfmpegPath(ffmpegStatic as string);
+// Fix Windows paths with spaces (fluent-ffmpeg uses spawn without shell)
+const rawPath = ffmpegStatic as string;
+let ffmpegPath = rawPath;
+if (process.platform === 'win32' && rawPath.includes(' ')) {
+  const tmp = path.join(os.tmpdir(), 'ffmpeg_agency.exe');
+  if (!fs.existsSync(tmp)) { try { fs.copyFileSync(rawPath, tmp); } catch {} }
+  if (fs.existsSync(tmp)) ffmpegPath = tmp;
+}
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 const VIDEO_DURATION = 6; // seconds
 const VIDEO_FPS = 30;
