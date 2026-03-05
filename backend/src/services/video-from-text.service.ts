@@ -18,7 +18,18 @@ import * as path from 'path';
 import * as os from 'os';
 import { VideoFormat } from './content-atomizer.service';
 
-ffmpeg.setFfmpegPath(ffmpegStatic as string);
+// On Windows, paths with spaces break fluent-ffmpeg's spawn call.
+// Copy ffmpeg binary to temp dir (which uses 8.3 short names without spaces).
+const rawFfmpegPath = ffmpegStatic as string;
+let resolvedFfmpegPath = rawFfmpegPath;
+if (process.platform === 'win32' && rawFfmpegPath.includes(' ')) {
+  const tempFfmpeg = path.join(os.tmpdir(), 'ffmpeg_agency.exe');
+  if (!fs.existsSync(tempFfmpeg)) {
+    try { fs.copyFileSync(rawFfmpegPath, tempFfmpeg); } catch { /* use original */ }
+  }
+  if (fs.existsSync(tempFfmpeg)) resolvedFfmpegPath = tempFfmpeg;
+}
+ffmpeg.setFfmpegPath(resolvedFfmpegPath);
 
 // Vertical 9:16 for Reels/TikTok/Shorts
 const VIDEO_WIDTH = 1080;
@@ -91,8 +102,8 @@ function escapeForDrawtext(text: string): string {
  */
 function getFontArg(): string {
   const fontCandidates = [
-    { check: 'C:\\Windows\\Fonts\\arialbd.ttf', ffmpeg: 'C\\\\:/Windows/Fonts/arialbd.ttf' },
-    { check: 'C:\\Windows\\Fonts\\arial.ttf', ffmpeg: 'C\\\\:/Windows/Fonts/arial.ttf' },
+    { check: 'C:/Windows/Fonts/arialbd.ttf', ffmpeg: 'C\\\\:/Windows/Fonts/arialbd.ttf' },
+    { check: 'C:/Windows/Fonts/arial.ttf', ffmpeg: 'C\\\\:/Windows/Fonts/arial.ttf' },
     { check: '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', ffmpeg: '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf' },
     { check: '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', ffmpeg: '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf' },
   ];
@@ -181,8 +192,13 @@ export async function generateTextVideo(
     // Slide indicator: [ ] [ ] [*]
     `drawtext=${fontArg}text='.   .   o':fontcolor=0x${scheme.accent}:fontsize=32:x=(w-text_w)/2:y=h-200:alpha='if(lt(t\\,${s3Start})\\,0\\,1)'`,
 
-    // ─── PROGRESS BAR (bottom, fills over total duration) ───
-    `drawbox=x=0:y=h-8:w=w*(t/${TOTAL_DURATION}):h=8:color=0x${scheme.accent}@0.9:t=fill`,
+    // ─── PROGRESS INDICATOR (bottom accent line per slide) ───
+    // Slide 1 bar
+    `drawtext=${fontArg}text='━━━━━━━━━━━━━━━━━━━━':fontcolor=0x${scheme.accent}:fontsize=24:x=40:y=h-80:alpha='if(lt(t\\,${s1End})\\,0.8\\,0.2)'`,
+    // Slide 2 bar
+    `drawtext=${fontArg}text='━━━━━━━━━━━━━━━━━━━━':fontcolor=0x${scheme.accent}:fontsize=24:x=(w/2)-100:y=h-80:alpha='if(lt(t\\,${s2Start})\\,0.2\\,if(lt(t\\,${s2End})\\,0.8\\,0.2))'`,
+    // Slide 3 bar
+    `drawtext=${fontArg}text='━━━━━━━━━━━━━━━━━━━━':fontcolor=0x${scheme.accent}:fontsize=24:x=w-300:y=h-80:alpha='if(lt(t\\,${s3Start})\\,0.2\\,0.8)'`,
   ];
 
   return new Promise((resolve, reject) => {
