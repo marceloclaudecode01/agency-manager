@@ -26,46 +26,34 @@ import { generateImageForPost } from './image-generator.agent';
 const VIDEO_TIMEOUT_MINUTES = 15;
 
 /**
- * Generate video locally using ffmpeg + Pollinations AI image
- * This is the fallback that ALWAYS works — no external video API needed
+ * Generate video locally using ffmpeg text-based slides (Reels/TikTok style)
+ * Creates animated text videos from the post content — no internet needed.
+ * The post message is split into Hook → Value → CTA slides with fade transitions.
  */
 async function generateVideoLocally(postId: string, topic: string, message: string, category: string, existingImageUrl?: string): Promise<boolean> {
   try {
-    await agentLog('VideoGenerator', `Generating video locally via ffmpeg for "${topic}"...`, { type: 'action' });
+    await agentLog('VideoGenerator', `Generating text video for "${topic}"...`, { type: 'action' });
 
-    // 1. Use existing image if available, otherwise generate new one
-    let imageUrl: string;
-    if (existingImageUrl) {
-      imageUrl = existingImageUrl;
-      await agentLog('VideoGenerator', `Using existing image for video: ${imageUrl.substring(0, 80)}...`, { type: 'info' });
-    } else {
-      const image = await generateImageForPost(topic, category, message);
-      if (!image.url) {
-        throw new Error('Failed to generate image for video');
-      }
-      imageUrl = image.url;
-    }
-
-    // 2. Convert image to video with Ken Burns effect via ffmpeg
-    const { generateAndUploadVideo } = await import('../services/video-from-image.service');
-    const videoUrl = await generateAndUploadVideo(imageUrl);
+    // 1. Generate text-based animated video from post content
+    const { generateAndUploadTextVideo } = await import('../services/video-from-text.service');
+    const videoUrl = await generateAndUploadTextVideo(message, topic);
 
     if (!videoUrl) {
       throw new Error('Video generation returned no URL');
     }
 
-    // 3. Update post with video URL
+    // 2. Update post with video URL
     await prisma.scheduledPost.update({
       where: { id: postId },
       data: {
         videoUrl,
-        imageUrl: imageUrl, // Keep image as thumbnail
+        imageUrl: existingImageUrl || null, // Keep image as thumbnail if available
         comfyRunId: `local-ffmpeg:${Date.now()}`,
         status: 'PENDING', // Ready for governor review
       },
     });
 
-    await agentLog('VideoGenerator', `Video ready (local ffmpeg) for "${topic}" — ${videoUrl}`, { type: 'result' });
+    await agentLog('VideoGenerator', `Text video ready for "${topic}" — ${videoUrl}`, { type: 'result' });
     return true;
   } catch (err: any) {
     await agentLog('VideoGenerator', `Local video generation failed: ${err.message}`, { type: 'error' });
