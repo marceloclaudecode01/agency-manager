@@ -93,6 +93,18 @@ export async function learnFromPerformance(): Promise<{ analyzed: number; saved:
     }
   }
 
+  // Evolve Video Intelligence weights based on new performance data
+  try {
+    const { evolveVideoWeights } = await import('../services/video-intelligence.service');
+    const evolution = await evolveVideoWeights();
+    if (evolution.effectsUpdated > 0 || evolution.moodsUpdated > 0) {
+      await agentLog('Performance Learner', `Video Intelligence evolved (gen ${evolution.generation}): ${evolution.effectsUpdated} effects, ${evolution.moodsUpdated} moods. Top: ${evolution.topEffect} + ${evolution.topMood}`, { type: 'result' });
+    }
+  } catch (evolveErr: any) {
+    // Non-blocking — video intelligence is optional
+    console.error(`[Learner] Video intelligence evolution failed: ${evolveErr.message}`);
+  }
+
   await agentLog('Performance Learner', `Análise concluída: ${toAnalyze.length} posts analisados, ${saved} registros salvos`, {
     type: 'result',
     payload: { analyzed: toAnalyze.length, saved },

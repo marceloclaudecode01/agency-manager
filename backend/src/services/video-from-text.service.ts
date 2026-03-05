@@ -62,11 +62,19 @@ const EFFECTS = [
 ];
 
 let effectIndex = 0;
-function getNextEffect(): string {
-  const effect = EFFECTS[effectIndex % EFFECTS.length];
+function getNextEffect(): { effect: string; index: number } {
+  const idx = effectIndex % EFFECTS.length;
   effectIndex++;
-  return effect;
+  return { effect: EFFECTS[idx], index: idx };
 }
+
+/** Get effect by specific index (used by Video Intelligence) */
+export function getEffectByIndex(index: number): string {
+  return EFFECTS[index % EFFECTS.length];
+}
+
+/** Total number of effects available */
+export const EFFECT_COUNT = EFFECTS.length;
 
 // ─── Music Moods by Category ─────────────────────────────────
 // Each mood defines sine wave frequencies that create an ambient chord
@@ -261,6 +269,7 @@ export interface VideoResult {
   effect: string;
   musicMood: string;
   hasImage: boolean;
+  effectIndex?: number;
 }
 
 // ─── Main Video Generator ────────────────────────────────────
@@ -277,15 +286,20 @@ export interface VideoResult {
  * @param topic Post topic
  * @param category Content category (for music mood matching)
  * @param imageUrl Image URL for Ken Burns background (REQUIRED for quality)
+ * @param smartEffectIndex Override effect index (from Video Intelligence)
  */
 export async function generatePremiumVideo(
   message: string,
   topic: string,
   category: string = 'educativo',
-  imageUrl?: string
+  imageUrl?: string,
+  smartEffectIndex?: number
 ): Promise<VideoResult> {
   const slides = extractSlides(message, topic);
-  const effect = getNextEffect();
+  // Use smart index from Video Intelligence, or round-robin fallback
+  const effectData = smartEffectIndex !== undefined
+    ? { effect: EFFECTS[smartEffectIndex % EFFECTS.length], index: smartEffectIndex % EFFECTS.length }
+    : getNextEffect();
   const mood = MUSIC_MOODS[category] || DEFAULT_MOOD;
   const videoPath = path.join(os.tmpdir(), `agency_premium_${Date.now()}.mp4`);
   const font = getFontPath();
@@ -323,7 +337,7 @@ export async function generatePremiumVideo(
       .inputOptions(['-f', 'lavfi'])
       .complexFilter([
         // [0] Image → Ken Burns cinematic motion (zoom/pan)
-        `[0:v]${effect}[motion]`,
+        `[0:v]${effectData.effect}[motion]`,
         // Darken image for text readability (keep visual richness)
         `[motion]colorlevels=rimax=0.55:gimax=0.55:bimax=0.55[dark]`,
         // Topic label — small, top center
@@ -354,7 +368,7 @@ export async function generatePremiumVideo(
         try {
           const size = fs.statSync(videoPath).size;
           if (size < 5000) { reject(new Error(`Video too small: ${size} bytes`)); return; }
-          resolve({ videoPath, slides, effect: 'ken-burns', musicMood: mood.name, hasImage: true });
+          resolve({ videoPath, slides, effect: 'ken-burns', musicMood: mood.name, hasImage: true, effectIndex: effectData.index });
         } catch (e) { reject(e); }
       })
       .on('error', (err: Error) => {

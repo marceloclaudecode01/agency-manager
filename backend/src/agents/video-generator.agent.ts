@@ -28,6 +28,7 @@ import {
 } from '../services/comfydeploy.service';
 import { uploadVideoFromUrl } from '../config/cloudinary';
 import { generateImageForPost } from './image-generator.agent';
+import { getSmartEffectIndex, getSmartMusicMood, recordVideoCreation } from '../services/video-intelligence.service';
 
 const VIDEO_TIMEOUT_MINUTES = 15;
 
@@ -60,13 +61,32 @@ async function generateVideoLocally(
       }
     }
 
-    await agentLog('VideoGenerator', `Generating cinematic video for "${topic}" [${category}]...`, { type: 'action' });
+    // Smart selection from Video Intelligence (learns from engagement data)
+    let smartEffect: { index: number; name: string } | null = null;
+    try {
+      smartEffect = await getSmartEffectIndex();
+    } catch { /* fallback to round-robin */ }
 
-    const { generateAndUploadPremiumVideo } = await import('../services/video-from-text.service');
-    const videoUrl = await generateAndUploadPremiumVideo(message, topic, category, imageUrl);
+    await agentLog('VideoGenerator', `Generating cinematic video for "${topic}" [${category}] effect=${smartEffect?.name || 'round-robin'}...`, { type: 'action' });
+
+    const { generatePremiumVideo } = await import('../services/video-from-text.service');
+    const result = await generatePremiumVideo(message, topic, category, imageUrl, smartEffect?.index);
+
+    if (!result.videoPath) {
+      throw new Error('Video generation returned no path');
+    }
+
+    // Upload to Cloudinary
+    const { uploadVideoFromUrl: upload } = await import('../config/cloudinary');
+    const uploaded = await upload(result.videoPath, 'agency-videos');
+    const videoUrl = uploaded.url;
+
+    // Clean up local file
+    const fs = await import('fs');
+    try { fs.unlinkSync(result.videoPath); } catch {}
 
     if (!videoUrl) {
-      throw new Error('Video generation returned no URL');
+      throw new Error('Video upload returned no URL');
     }
 
     await prisma.scheduledPost.update({
@@ -79,8 +99,22 @@ async function generateVideoLocally(
       },
     });
 
-    const mode = existingImageUrl ? 'Ken Burns + image' : 'dark bg';
-    await agentLog('VideoGenerator', `Video ready for "${topic}" (${mode}, ${category} mood) — ${videoUrl}`, { type: 'result' });
+    // Record metadata for Video Intelligence learning
+    try {
+      await recordVideoCreation(postId, {
+        effectIndex: result.effectIndex || 0,
+        effectName: smartEffect?.name || 'round-robin',
+        musicMood: result.musicMood,
+        category,
+        imageSource: existingImageUrl ? 'existing' : 'ai-generated',
+        hookLength: result.slides.hook.length,
+        ctaLength: result.slides.cta.length,
+        videoDuration: 10,
+        fileSize: 0, // already uploaded, size unknown
+      });
+    } catch { /* non-blocking */ }
+
+    await agentLog('VideoGenerator', `Video ready for "${topic}" (${smartEffect?.name || 'effect'}, ${result.musicMood} mood) — ${videoUrl}`, { type: 'result' });
     return true;
   } catch (err: any) {
     await agentLog('VideoGenerator', `Local video generation failed: ${err.message}`, { type: 'error' });
