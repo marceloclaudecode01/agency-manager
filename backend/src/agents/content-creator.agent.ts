@@ -1,5 +1,6 @@
 import { askGemini } from './gemini';
 import { getBrandContext } from './brand-brain.agent';
+import { getSmartHashtags } from '../services/hashtag-intelligence.service';
 
 const PAGE_CONTEXT = `
 Voce e o Head of Content de uma agencia que atende marcas bilionarias (pense Nike, Apple, Nubank, Red Bull).
@@ -91,7 +92,19 @@ Regras:
   const raw = await askGemini(prompt);
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Invalid response from Gemini');
-  return JSON.parse(jsonMatch[0]);
+  const parsed: GeneratedPost = JSON.parse(jsonMatch[0]);
+
+  // Override LLM hashtags with Smart Hashtag Intelligence (data-driven)
+  try {
+    const smartTags = await getSmartHashtags(topic, parsed.contentCategory || 'educativo', 5);
+    if (smartTags.length > 0) {
+      parsed.hashtags = smartTags;
+    }
+  } catch {
+    // Fallback: keep LLM-generated hashtags if intelligence fails
+  }
+
+  return parsed;
 }
 
 export async function generatePostFromStrategy(
@@ -185,7 +198,19 @@ Regras:
   const raw = await askGemini(prompt);
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Invalid response from Gemini');
-  return JSON.parse(jsonMatch[0]);
+  const parsed: GeneratedPost = JSON.parse(jsonMatch[0]);
+
+  // Override LLM hashtags with Smart Hashtag Intelligence (data-driven)
+  try {
+    const smartTags = await getSmartHashtags(topic, focusType, 5, nicheOverride);
+    if (smartTags.length > 0) {
+      parsed.hashtags = smartTags;
+    }
+  } catch {
+    // Fallback: keep LLM-generated hashtags if intelligence fails
+  }
+
+  return parsed;
 }
 
 export async function generateWeeklyPlan(focus: string): Promise<GeneratedPost[]> {

@@ -32,6 +32,7 @@ import { generateCarouselFromStructure, shouldGenerateCarousel } from './carouse
 import { optimizeForPlatform } from './platform-optimizer.agent';
 import { queueVideoForPost, startVideoProcessor } from './video-generator.agent';
 import { atomizePost } from '../services/content-atomizer.service';
+import { recordHashtagUsage } from '../services/hashtag-intelligence.service';
 // Video generation is always available (cloud providers + local ffmpeg fallback)
 
 // Default social service (env vars) — used for backward compat
@@ -692,6 +693,13 @@ async function generatePostsForClient(clientCtx?: { clientId: string; clientName
       scheduledIds.push(saved.id);
       recentTopics.push(topic);
       await agentLog('Autonomous Engine', `${label} 📅 Post ${i + 1}/${strategy.postsToCreate} agendado: "${topic}" para as ${timeStr}`, { type: 'action', to: 'Scheduler' });
+
+      // Hashtag Intelligence: record usage for learning
+      try {
+        if (generated.hashtags && generated.hashtags.length > 0) {
+          await recordHashtagUsage(saved.id, generated.hashtags, focusType);
+        }
+      } catch { /* non-blocking */ }
 
       // Content Atomization: 1 post → 5 formats (ZERO tokens)
       // Generates: carousel, video slides, thread, ad copy — all from existing text

@@ -105,6 +105,18 @@ export async function learnFromPerformance(): Promise<{ analyzed: number; saved:
     console.error(`[Learner] Video intelligence evolution failed: ${evolveErr.message}`);
   }
 
+  // Evolve Hashtag Intelligence weights based on new performance data
+  try {
+    const { evolveHashtagWeights } = await import('../services/hashtag-intelligence.service');
+    const hashtagEvolution = await evolveHashtagWeights();
+    if (hashtagEvolution.hashtagsUpdated > 0) {
+      await agentLog('Performance Learner', `Hashtag Intelligence evolved (gen ${hashtagEvolution.generation}): ${hashtagEvolution.hashtagsUpdated} hashtags updated, ${hashtagEvolution.newDiscovered} new. Top: ${hashtagEvolution.topHashtags.join(', ')}`, { type: 'result' });
+    }
+  } catch (hashtagErr: any) {
+    // Non-blocking — hashtag intelligence is optional
+    console.error(`[Learner] Hashtag intelligence evolution failed: ${hashtagErr.message}`);
+  }
+
   await agentLog('Performance Learner', `Análise concluída: ${toAnalyze.length} posts analisados, ${saved} registros salvos`, {
     type: 'result',
     payload: { analyzed: toAnalyze.length, saved },
