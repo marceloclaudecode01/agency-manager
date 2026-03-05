@@ -188,22 +188,60 @@ export async function generateImageForPost(
     recentPrompts = recentPrompts.slice(-MAX_RECENT_PROMPTS);
   }
 
-  // 5. Build Pollinations URL (unique seed ensures unique generation)
+  // 5. Try multiple image providers until one works
   const seed = Date.now() + Math.floor(Math.random() * 100000);
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1080&height=1080&nologo=true&model=flux&seed=${seed}`;
 
-  // 6. Verify image is accessible (with timeout)
-  try {
-    const resp = await axios.head(url, { timeout: 15000 });
-    if (resp.status >= 200 && resp.status < 400) {
-      return { url, source: 'pollinations-ai' };
+  const providers = [
+    {
+      name: 'pollinations-flux',
+      url: `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1080&height=1080&nologo=true&model=flux&seed=${seed}`,
+    },
+    {
+      name: 'pollinations-turbo',
+      url: `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1080&height=1080&nologo=true&model=turbo&seed=${seed + 1}`,
+    },
+    {
+      name: 'pollinations-default',
+      url: `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1080&height=1080&nologo=true&seed=${seed + 2}`,
+    },
+  ];
+
+  // 6. Try each provider — verify image is actually accessible
+  for (const provider of providers) {
+    try {
+      // Pre-warm
+      try {
+        await axios.head(provider.url, { timeout: 8000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+      } catch {}
+
+      // Try to actually download (verify it works)
+      const resp = await axios.get(provider.url, {
+        responseType: 'arraybuffer',
+        timeout: 30000,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AgencyBot/1.0)' },
+        validateStatus: (s) => s >= 200 && s < 300,
+      });
+
+      if (resp.data.length > 5000) {
+        return { url: provider.url, source: provider.name };
+      }
+    } catch {
+      // Provider down — try next
     }
-  } catch {
-    // Pollinations might take time — URL is still valid, it generates on first GET
-    // Return it anyway since Facebook will fetch it when publishing
   }
 
-  return { url, source: 'pollinations-ai' };
+  // 7. All AI providers failed — use Picsum (high-quality real photos, always online)
+  // Picsum serves random professional photos — not AI generated but always available
+  const picsum = `https://picsum.photos/seed/${seed}/1080/1080`;
+  try {
+    const resp = await axios.head(picsum, { timeout: 10000, maxRedirects: 3 });
+    if (resp.status >= 200 && resp.status < 400) {
+      return { url: picsum, source: 'picsum-fallback' };
+    }
+  } catch {}
+
+  // 8. Last resort — return Pollinations URL anyway (may work later when published)
+  return { url: providers[0].url, source: 'pollinations-unverified' };
 }
 
 /**

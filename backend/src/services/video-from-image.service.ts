@@ -82,8 +82,10 @@ function getFallbackImageUrls(originalUrl: string): string[] {
   return [
     // Pollinations with different model
     `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&model=turbo&seed=${seed}`,
-    // Pollinations text endpoint (sometimes works when image endpoint is down)
+    // Pollinations default model
     `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed + 1}`,
+    // Picsum — high-quality real photos, always online (emergency fallback)
+    `https://picsum.photos/seed/${seed}/1080/1080`,
   ];
 }
 
