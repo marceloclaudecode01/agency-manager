@@ -63,57 +63,95 @@ function wait(ms: number): Promise<void> {
 }
 
 /**
- * Download image from URL to temp file with retry logic.
- * Pollinations generates images on-demand — first request triggers generation
- * which can take 30-60s. We pre-warm, then retry with increasing delays.
+ * Extract prompt text from a Pollinations URL for fallback providers
+ */
+function extractPromptFromUrl(url: string): string {
+  try {
+    const match = url.match(/\/prompt\/(.+?)(\?|$)/);
+    if (match) return decodeURIComponent(match[1]);
+  } catch {}
+  return 'cinematic professional photograph, dramatic lighting, 8K quality';
+}
+
+/**
+ * Build fallback image URLs from alternative free providers
+ */
+function getFallbackImageUrls(originalUrl: string): string[] {
+  const prompt = extractPromptFromUrl(originalUrl);
+  const seed = Date.now();
+  return [
+    // Pollinations with different model
+    `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&model=turbo&seed=${seed}`,
+    // Pollinations text endpoint (sometimes works when image endpoint is down)
+    `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed + 1}`,
+  ];
+}
+
+/**
+ * Download image from URL to temp file with retry logic and fallback providers.
+ * Tries original URL first, then falls back to alternative providers if down.
  */
 async function downloadImage(url: string): Promise<string> {
   const tmpFile = path.join(os.tmpdir(), `agency_img_${Date.now()}.jpg`);
-  const MAX_RETRIES = 4;
-  const RETRY_DELAYS = [0, 15000, 20000, 30000]; // 0s, 15s, 20s, 30s
+  const urlsToTry = [url, ...getFallbackImageUrls(url)];
 
-  // Pre-warm: fire a HEAD request to trigger Pollinations image generation
-  try {
-    await axios.head(url, { timeout: 5000, headers: { 'User-Agent': 'Mozilla/5.0' } });
-  } catch {
-    // Expected — Pollinations may not support HEAD or it may timeout while generating
-  }
+  for (const currentUrl of urlsToTry) {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAYS = [0, 10000, 15000];
+    const isOriginal = currentUrl === url;
 
-  // Wait for image generation to start
-  await wait(10000);
-
-  let lastError: any;
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      const delay = RETRY_DELAYS[attempt] || 20000;
-      console.log(`[VideoFromImage] Retry ${attempt}/${MAX_RETRIES - 1}, waiting ${delay / 1000}s...`);
-      await wait(delay);
+    if (!isOriginal) {
+      console.log(`[VideoFromImage] Trying fallback URL: ${currentUrl.substring(0, 100)}...`);
     }
 
+    // Pre-warm: fire a HEAD request to trigger image generation
     try {
-      const response = await axios.get(url, {
-        responseType: 'arraybuffer',
-        timeout: 90000, // 90s timeout — Pollinations can be slow
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AgencyBot/1.0)' },
-        maxRedirects: 5,
-        validateStatus: (status) => status >= 200 && status < 300,
-      });
+      await axios.head(currentUrl, { timeout: 5000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    } catch {
+      // Expected — provider may not support HEAD or may timeout while generating
+    }
 
-      // Verify we got actual image data (not an error page)
-      if (response.data.length < 5000) {
-        throw new Error(`Response too small (${response.data.length} bytes) — likely not an image`);
+    // Wait for generation (shorter for fallbacks)
+    await wait(isOriginal ? 8000 : 5000);
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        const delay = RETRY_DELAYS[attempt] || 10000;
+        console.log(`[VideoFromImage] Retry ${attempt}/${MAX_RETRIES - 1}, waiting ${delay / 1000}s...`);
+        await wait(delay);
       }
 
-      fs.writeFileSync(tmpFile, response.data);
-      return tmpFile;
-    } catch (err: any) {
-      lastError = err;
-      const status = err.response?.status || 'network';
-      console.log(`[VideoFromImage] Download attempt ${attempt + 1} failed: ${status} — ${err.message}`);
+      try {
+        const response = await axios.get(currentUrl, {
+          responseType: 'arraybuffer',
+          timeout: 60000,
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AgencyBot/1.0)' },
+          maxRedirects: 5,
+          validateStatus: (status) => status >= 200 && status < 300,
+        });
+
+        // Verify we got actual image data (not an error page)
+        if (response.data.length < 5000) {
+          throw new Error(`Response too small (${response.data.length} bytes) — likely not an image`);
+        }
+
+        fs.writeFileSync(tmpFile, response.data);
+        console.log(`[VideoFromImage] Image downloaded successfully (${(response.data.length / 1024).toFixed(0)}KB)`);
+        return tmpFile;
+      } catch (err: any) {
+        const status = err.response?.status || 'network';
+        console.log(`[VideoFromImage] Download attempt ${attempt + 1} failed: ${status} — ${err.message}`);
+
+        // If server error (5xx), skip remaining retries for this URL — try next provider
+        if (err.response?.status >= 500 && attempt >= 1) {
+          console.log(`[VideoFromImage] Server error — skipping to next provider`);
+          break;
+        }
+      }
     }
   }
 
-  throw new Error(`Failed to download image after ${MAX_RETRIES} attempts: ${lastError?.message}`);
+  throw new Error(`Failed to download image from all providers after retries`);
 }
 
 /**
