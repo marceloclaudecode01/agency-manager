@@ -2,9 +2,7 @@ import { pauseAgent, resumeAgent, activateSafeMode, deactivateSafeMode, getSafeM
 import { runSentinel } from '../../../agents/system-sentinel.agent';
 import { agentLog } from '../../../agents/agent-logger';
 import prisma from '../../../config/database';
-import { generatePostFromStrategy } from '../../../agents/content-creator.agent';
-import { buildDailyStrategy } from '../../../agents/content-strategist.agent';
-import { enhanceWithViralMechanics } from '../../../agents/viral-mechanics.agent';
+import { askGemini } from '../../../agents/gemini';
 import { optimizeForPlatform } from '../../../agents/platform-optimizer.agent';
 import { generateImageForPost } from '../../../agents/image-generator.agent';
 import { SocialService } from '../../social/social.service';
@@ -68,6 +66,79 @@ const AGENT_ALIASES: Record<string, string> = {
 function resolveAgent(input: string): string {
   const lower = input.toLowerCase().trim();
   return AGENT_ALIASES[lower] || lower;
+}
+
+// ─── Simplified post generation: 1 LLM call + DB fallback ───
+
+interface GeneratedPost {
+  topic: string;
+  message: string;
+  hashtags: string[];
+  source: 'llm' | 'fallback';
+}
+
+async function generatePost(niche?: string, clientNotes?: string, clientName?: string): Promise<GeneratedPost> {
+  // Fetch recent successful posts for context + fallback
+  const recentPosts = await prisma.scheduledPost.findMany({
+    where: { status: 'PUBLISHED' },
+    orderBy: { publishedAt: 'desc' },
+    take: 5,
+    select: { topic: true, message: true, hashtags: true },
+  });
+
+  const recentTopicsStr = recentPosts.map(p => p.topic).filter(Boolean).join(', ');
+
+  const nicheInfo = niche && niche !== 'geral' ? `Nicho: ${niche}.` : '';
+  const notesInfo = clientNotes ? `Notas do cliente: ${clientNotes}.` : '';
+  const avoidInfo = recentTopicsStr ? `Evite repetir estes temas recentes: ${recentTopicsStr}.` : '';
+
+  const prompt = `Gere um post completo para Facebook de uma página profissional.
+${nicheInfo} ${notesInfo} ${avoidInfo}
+Regras:
+- Mensagem envolvente, entre 100-300 caracteres
+- Tom profissional mas acessível
+- Inclua call-to-action sutil
+- Use técnicas de viralidade (pergunta, curiosidade, ou dado impactante)
+- NÃO inclua links no post
+Responda EXATAMENTE neste formato JSON (sem markdown, sem \`\`\`):
+{"topic":"tema do post","message":"texto completo do post","hashtags":["hashtag1","hashtag2","hashtag3","hashtag4","hashtag5"]}`;
+
+  try {
+    const raw = await askGemini(prompt);
+    // Extract JSON from response (handle potential markdown wrapping)
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON in LLM response');
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!parsed.message || !parsed.topic) throw new Error('Missing fields in LLM response');
+    return {
+      topic: parsed.topic,
+      message: parsed.message,
+      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
+      source: 'llm',
+    };
+  } catch (llmError: any) {
+    await agentLog('Easyorios', `LLM falhou (${llmError.message}), usando fallback de posts anteriores`, { type: 'info' });
+
+    // Fallback: reuse best recent post with variation
+    if (recentPosts.length > 0) {
+      const base = recentPosts[0];
+      const hashtagsArr = base.hashtags ? base.hashtags.split(/\s+/).map((h: string) => h.replace('#', '')).filter(Boolean) : [];
+      return {
+        topic: base.topic || 'post-reciclado',
+        message: base.message || 'Confira nossas novidades! Acompanhe nossa página para mais conteúdo.',
+        hashtags: hashtagsArr,
+        source: 'fallback',
+      };
+    }
+
+    // Ultimate fallback: generic post
+    return {
+      topic: niche || 'novidades',
+      message: `Acompanhe nossa página para as melhores dicas e novidades${niche ? ` sobre ${niche}` : ''}! Deixe seu comentário e compartilhe com quem precisa saber.`,
+      hashtags: ['dicas', 'novidades', niche || 'conteudo', 'digital', 'brasil'],
+      source: 'fallback',
+    };
+  }
 }
 
 interface CommandDef {
@@ -232,9 +303,9 @@ const COMMANDS: CommandDef[] = [
       /(?:manda|faz|faca|faça)\s+(?:um\s+)?(?:post|publicacao|publicação)\s+(?:agora|now|ja|já)/i,
       /(?:quero|preciso|pode|vamos)\s+(?:publicar?|postar?)\s+(?:(?:um\s+)?(?:post\s+)?)?(?:agora|now|ja|já)/i,
     ],
-    execute: async (match) => {
+    execute: async () => {
       try {
-        await agentLog('Easyorios', 'Comando: publicar agora — acionando pipeline completo', { type: 'action' });
+        await agentLog('Easyorios', 'Comando: publicar agora — pipeline simplificado', { type: 'action' });
 
         // Get a client (prefer first active with page config)
         const client = await prisma.client.findFirst({
@@ -242,54 +313,26 @@ const COMMANDS: CommandDef[] = [
           select: { id: true, name: true, niche: true, notes: true, facebookPageId: true, facebookAccessToken: true },
         });
 
-        // Build strategy for 1 post
-        const strategy = await buildDailyStrategy(client ? {
-          clientId: client.id, clientName: client.name, niche: client.niche || 'geral', notes: client.notes || undefined,
-        } : undefined);
+        // 1 LLM call + fallback
+        const generated = await generatePost(client?.niche || undefined, client?.notes || undefined, client?.name || undefined);
 
-        const topic = strategy.topics[0];
-        const focusType = strategy.focusType[0] || 'educativo';
+        // Platform optimizer (rules only, never fails)
+        const optimized = optimizeForPlatform(generated.message, generated.hashtags, 'facebook');
 
-        // Get recent topics for anti-duplication
-        const recentPosts = await prisma.scheduledPost.findMany({
-          where: { status: 'PUBLISHED', ...(client ? { clientId: client.id } : {}) },
-          orderBy: { publishedAt: 'desc' }, take: 30, select: { topic: true },
-        });
-        const recentTopics = recentPosts.map(p => p.topic).filter(Boolean) as string[];
-
-        // Generate post
-        let generated = await generatePostFromStrategy(topic, focusType, recentTopics, client?.niche || undefined, client?.notes || undefined);
-
-        // Viral Mechanics
-        try {
-          const enhanced = await enhanceWithViralMechanics(generated.message, topic, focusType);
-          generated.message = enhanced.enhancedMessage;
-        } catch {}
-
-        // Platform Optimizer
-        try {
-          const optimized = optimizeForPlatform(generated.message, generated.hashtags || [], 'facebook');
-          generated.message = optimized.message;
-          generated.hashtags = optimized.hashtags;
-        } catch {}
-
-        // Generate image
+        // Generate image (optional, non-blocking)
         let imageUrl: string | null = null;
         try {
-          const img = await generateImageForPost(topic, focusType);
+          const img = await generateImageForPost(generated.topic, 'educativo');
           imageUrl = img.url || null;
         } catch {}
 
-        const hashtagsStr = generated.hashtags?.map((h: string) => `#${h.replace('#', '')}`).join(' ') || null;
-        const fullMessage = hashtagsStr ? `${generated.message}\n\n${hashtagsStr}` : generated.message;
+        const hashtagsStr = optimized.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ') || null;
+        const fullMessage = hashtagsStr ? `${optimized.message}\n\n${hashtagsStr}` : optimized.message;
 
         // Build SocialService for this client
-        let socialService: SocialService;
-        if (client?.facebookPageId && client?.facebookAccessToken) {
-          socialService = new SocialService({ pageId: client.facebookPageId, accessToken: client.facebookAccessToken });
-        } else {
-          socialService = new SocialService();
-        }
+        const socialService = (client?.facebookPageId && client?.facebookAccessToken)
+          ? new SocialService({ pageId: client.facebookPageId, accessToken: client.facebookAccessToken })
+          : new SocialService();
 
         // Publish directly
         const publishResult = imageUrl
@@ -299,8 +342,8 @@ const COMMANDS: CommandDef[] = [
         // Save to DB as PUBLISHED
         await prisma.scheduledPost.create({
           data: {
-            topic: generated.topic || topic,
-            message: generated.message,
+            topic: generated.topic,
+            message: optimized.message,
             hashtags: hashtagsStr,
             imageUrl,
             status: 'PUBLISHED',
@@ -309,18 +352,18 @@ const COMMANDS: CommandDef[] = [
             source: 'easyorios-command',
             contentType: 'organic',
             governorDecision: 'APPROVE',
-            governorReason: 'Publicação direta via Easyorios',
+            governorReason: `Publicação direta via Easyorios (${generated.source})`,
             metaPostId: publishResult?.id || null,
             ...(client ? { clientId: client.id } : {}),
           },
         });
 
-        await agentLog('Easyorios', `Post publicado AGORA: "${topic}" (${client?.name || 'default'})`, { type: 'result' });
+        await agentLog('Easyorios', `[Easyorios] Post publicado AGORA: "${generated.topic}" (${client?.name || 'default'}, source=${generated.source})`, { type: 'result' });
         return {
           command: 'publish_now',
           success: true,
-          message: `Post publicado com sucesso AGORA!\n📝 Tema: "${topic}"\n📄 Tipo: ${focusType}\n📱 Página: ${client?.name || 'padrão'}\n🆔 FB ID: ${publishResult?.id || 'N/A'}`,
-          data: { topic, focusType, fbPostId: publishResult?.id, client: client?.name },
+          message: `Post publicado com sucesso AGORA!\n📝 Tema: "${generated.topic}"\n📱 Página: ${client?.name || 'padrão'}\n🆔 FB ID: ${publishResult?.id || 'N/A'}\n🔧 Fonte: ${generated.source}`,
+          data: { topic: generated.topic, fbPostId: publishResult?.id, client: client?.name, source: generated.source },
         };
       } catch (e: any) {
         await agentLog('Easyorios', `Falha ao publicar agora: ${e.message}`, { type: 'error' });
@@ -352,51 +395,31 @@ const COMMANDS: CommandDef[] = [
           select: { id: true, name: true, niche: true, notes: true },
         });
 
-        const strategy = await buildDailyStrategy(client ? {
-          clientId: client.id, clientName: client.name, niche: client.niche || 'geral', notes: client.notes || undefined,
-        } : undefined);
+        // 1 LLM call + fallback
+        const generated = await generatePost(client?.niche || undefined, client?.notes || undefined, client?.name || undefined);
 
-        const topic = strategy.topics[0];
-        const focusType = strategy.focusType[0] || 'educativo';
+        // Platform optimizer (rules only, never fails)
+        const optimized = optimizeForPlatform(generated.message, generated.hashtags, 'facebook');
 
-        const recentPosts = await prisma.scheduledPost.findMany({
-          where: { status: 'PUBLISHED', ...(client ? { clientId: client.id } : {}) },
-          orderBy: { publishedAt: 'desc' }, take: 30, select: { topic: true },
-        });
-        const recentTopics = recentPosts.map(p => p.topic).filter(Boolean) as string[];
-
-        let generated = await generatePostFromStrategy(topic, focusType, recentTopics, client?.niche || undefined, client?.notes || undefined);
-
-        try {
-          const enhanced = await enhanceWithViralMechanics(generated.message, topic, focusType);
-          generated.message = enhanced.enhancedMessage;
-        } catch {}
-
-        try {
-          const optimized = optimizeForPlatform(generated.message, generated.hashtags || [], 'facebook');
-          generated.message = optimized.message;
-          generated.hashtags = optimized.hashtags;
-        } catch {}
-
+        // Generate image (optional, non-blocking)
         let imageUrl: string | null = null;
         try {
-          const img = await generateImageForPost(topic, focusType);
+          const img = await generateImageForPost(generated.topic, 'educativo');
           imageUrl = img.url || null;
         } catch {}
 
-        const hashtagsStr = generated.hashtags?.map((h: string) => `#${h.replace('#', '')}`).join(' ') || null;
+        const hashtagsStr = optimized.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ') || null;
 
         const scheduledFor = new Date();
         scheduledFor.setHours(hours, minutes, 0, 0);
-        // If time already passed today, schedule for tomorrow
         if (scheduledFor.getTime() < Date.now()) {
           scheduledFor.setDate(scheduledFor.getDate() + 1);
         }
 
         const saved = await prisma.scheduledPost.create({
           data: {
-            topic: generated.topic || topic,
-            message: generated.message,
+            topic: generated.topic,
+            message: optimized.message,
             hashtags: hashtagsStr,
             imageUrl,
             status: 'APPROVED',
@@ -404,19 +427,19 @@ const COMMANDS: CommandDef[] = [
             source: 'easyorios-command',
             contentType: 'organic',
             governorDecision: 'APPROVE',
-            governorReason: 'Agendado via Easyorios',
+            governorReason: `Agendado via Easyorios (${generated.source})`,
             ...(client ? { clientId: client.id } : {}),
           },
         });
 
         const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
         const dateStr = scheduledFor.toLocaleDateString('pt-BR');
-        await agentLog('Easyorios', `Post agendado para ${timeStr} (${dateStr}): "${topic}"`, { type: 'result' });
+        await agentLog('Easyorios', `Post agendado para ${timeStr} (${dateStr}): "${generated.topic}" (source=${generated.source})`, { type: 'result' });
         return {
           command: 'schedule_post',
           success: true,
-          message: `Post agendado com sucesso!\n📝 Tema: "${topic}"\n📄 Tipo: ${focusType}\n⏰ Horário: ${timeStr} (${dateStr})\n📱 Página: ${client?.name || 'padrão'}\n🆔 ID: ${saved.id}`,
-          data: { topic, focusType, scheduledFor: scheduledFor.toISOString(), postId: saved.id },
+          message: `Post agendado com sucesso!\n📝 Tema: "${generated.topic}"\n⏰ Horário: ${timeStr} (${dateStr})\n📱 Página: ${client?.name || 'padrão'}\n🆔 ID: ${saved.id}\n🔧 Fonte: ${generated.source}`,
+          data: { topic: generated.topic, scheduledFor: scheduledFor.toISOString(), postId: saved.id, source: generated.source },
         };
       } catch (e: any) {
         await agentLog('Easyorios', `Falha ao agendar post: ${e.message}`, { type: 'error' });
@@ -508,42 +531,23 @@ const COMMANDS: CommandDef[] = [
           return { command: 'publish_for_client', success: false, message: `Cliente "${client.name}" não tem page config (pageId/token).` };
         }
 
-        await agentLog('Easyorios', `Comando: publicar agora para ${client.name}`, { type: 'action' });
+        await agentLog('Easyorios', `Comando: publicar agora para ${client.name} — pipeline simplificado`, { type: 'action' });
 
-        const strategy = await buildDailyStrategy({
-          clientId: client.id, clientName: client.name, niche: client.niche || 'geral', notes: client.notes || undefined,
-        });
+        // 1 LLM call + fallback
+        const generated = await generatePost(client.niche || undefined, client.notes || undefined, client.name);
 
-        const topic = strategy.topics[0];
-        const focusType = strategy.focusType[0] || 'educativo';
+        // Platform optimizer (rules only, never fails)
+        const optimized = optimizeForPlatform(generated.message, generated.hashtags, 'facebook');
 
-        const recentPosts = await prisma.scheduledPost.findMany({
-          where: { status: 'PUBLISHED', clientId: client.id },
-          orderBy: { publishedAt: 'desc' }, take: 30, select: { topic: true },
-        });
-        const recentTopics = recentPosts.map(p => p.topic).filter(Boolean) as string[];
-
-        let generated = await generatePostFromStrategy(topic, focusType, recentTopics, client.niche || undefined, client.notes || undefined);
-
-        try {
-          const enhanced = await enhanceWithViralMechanics(generated.message, topic, focusType);
-          generated.message = enhanced.enhancedMessage;
-        } catch {}
-
-        try {
-          const optimized = optimizeForPlatform(generated.message, generated.hashtags || [], 'facebook');
-          generated.message = optimized.message;
-          generated.hashtags = optimized.hashtags;
-        } catch {}
-
+        // Generate image (optional, non-blocking)
         let imageUrl: string | null = null;
         try {
-          const img = await generateImageForPost(topic, focusType);
+          const img = await generateImageForPost(generated.topic, 'educativo');
           imageUrl = img.url || null;
         } catch {}
 
-        const hashtagsStr = generated.hashtags?.map((h: string) => `#${h.replace('#', '')}`).join(' ') || null;
-        const fullMessage = hashtagsStr ? `${generated.message}\n\n${hashtagsStr}` : generated.message;
+        const hashtagsStr = optimized.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ') || null;
+        const fullMessage = hashtagsStr ? `${optimized.message}\n\n${hashtagsStr}` : optimized.message;
 
         const socialService = new SocialService({ pageId: client.facebookPageId, accessToken: client.facebookAccessToken });
         const publishResult = imageUrl
@@ -552,8 +556,8 @@ const COMMANDS: CommandDef[] = [
 
         await prisma.scheduledPost.create({
           data: {
-            topic: generated.topic || topic,
-            message: generated.message,
+            topic: generated.topic,
+            message: optimized.message,
             hashtags: hashtagsStr,
             imageUrl,
             status: 'PUBLISHED',
@@ -562,18 +566,18 @@ const COMMANDS: CommandDef[] = [
             source: 'easyorios-command',
             contentType: 'organic',
             governorDecision: 'APPROVE',
-            governorReason: `Publicação direta via Easyorios para ${client.name}`,
+            governorReason: `Publicação direta via Easyorios para ${client.name} (${generated.source})`,
             metaPostId: publishResult?.id || null,
             clientId: client.id,
           },
         });
 
-        await agentLog('Easyorios', `Post publicado AGORA para ${client.name}: "${topic}"`, { type: 'result' });
+        await agentLog('Easyorios', `[Easyorios] Post publicado AGORA para ${client.name}: "${generated.topic}" (source=${generated.source})`, { type: 'result' });
         return {
           command: 'publish_for_client',
           success: true,
-          message: `Post publicado para ${client.name}!\n📝 Tema: "${topic}"\n📄 Tipo: ${focusType}\n🆔 FB ID: ${publishResult?.id || 'N/A'}`,
-          data: { topic, client: client.name, fbPostId: publishResult?.id },
+          message: `Post publicado para ${client.name}!\n📝 Tema: "${generated.topic}"\n🆔 FB ID: ${publishResult?.id || 'N/A'}\n🔧 Fonte: ${generated.source}`,
+          data: { topic: generated.topic, client: client.name, fbPostId: publishResult?.id, source: generated.source },
         };
       } catch (e: any) {
         await agentLog('Easyorios', `Falha ao publicar para cliente: ${e.message}`, { type: 'error' });
