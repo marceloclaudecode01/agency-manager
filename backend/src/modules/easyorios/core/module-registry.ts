@@ -34,7 +34,7 @@ class ModuleRegistry {
                 message: `Permissao insuficiente. Requer role ${cmd.requiredRole}.`,
               };
             }
-            return cmd.execute(match, userId);
+            return cmd.execute(match, userId, userRole);
           }
         }
       }

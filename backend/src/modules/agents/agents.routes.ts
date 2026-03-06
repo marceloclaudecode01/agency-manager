@@ -102,10 +102,10 @@ router.post('/aggressive-mode', requireRole('ADMIN'), validate(aggressiveModeSch
 // Epic 1: Reputation Monitor
 router.get('/reputation', requireRole('ADMIN', 'MANAGER'), (req, res) => controller.getReputationStatus(req as any, res));
 
-// Orion Strategic
-router.get('/orion/strategic-state', (req, res) => controller.getStrategicState(req as any, res));
-router.post('/orion/evaluate', requireRole('ADMIN'), (req, res) => controller.runStrategicEvaluation(req as any, res));
-router.post('/orion/evolve', requireRole('ADMIN'), (req, res) => controller.runEvolution(req as any, res));
+// Strategic AI (Easyorios)
+router.get('/strategic/state', (req, res) => controller.getStrategicState(req as any, res));
+router.post('/strategic/evaluate', requireRole('ADMIN'), (req, res) => controller.runStrategicEvaluation(req as any, res));
+router.post('/strategic/evolve', requireRole('ADMIN'), (req, res) => controller.runEvolution(req as any, res));
 
 // Short Video Engine trigger
 router.post('/video/run', requireRole('ADMIN'), (req, res) => controller.runVideoEngineNow(req as any, res));

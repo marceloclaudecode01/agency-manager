@@ -765,7 +765,7 @@ Retorne APENAS JSON válido:
       const agent = await prisma.agent.create({
         data: { name, function: fn, description, cronExpression, autonomyLevel: autonomyLevel || 5, status: status || 'active' },
       });
-      await agentLog('Orion', `Agent created: "${name}" (${fn})`, { type: 'action' });
+      await agentLog('Easyorios', `Agent created: "${name}" (${fn})`, { type: 'action' });
       return ApiResponse.created(res, agent, 'Agent created');
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);
@@ -778,7 +778,7 @@ Retorne APENAS JSON válido:
       const { status } = req.body;
       if (!['active', 'paused', 'error'].includes(status)) return ApiResponse.error(res, 'Invalid status', 400);
       const agent = await prisma.agent.update({ where: { id }, data: { status } });
-      await agentLog('Orion', `Agent "${agent.name}" status → ${status}`, { type: 'action' });
+      await agentLog('Easyorios', `Agent "${agent.name}" status → ${status}`, { type: 'action' });
       return ApiResponse.success(res, agent, `Agent ${agent.name} is now ${status}`);
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);
@@ -789,14 +789,14 @@ Retorne APENAS JSON válido:
     try {
       const id = req.params.id as string;
       const agent = await prisma.agent.delete({ where: { id } });
-      await agentLog('Orion', `Agent deleted: "${agent.name}"`, { type: 'action' });
+      await agentLog('Easyorios', `Agent deleted: "${agent.name}"`, { type: 'action' });
       return ApiResponse.success(res, null, `Agent ${agent.name} deleted`);
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500);
     }
   }
 
-  // Orion Strategic State
+  // Easyorios Strategic State
   async getStrategicState(_req: AuthRequest, res: Response) {
     try {
       const totalAgents = await prisma.agent.count();

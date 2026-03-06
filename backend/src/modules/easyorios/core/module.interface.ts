@@ -10,7 +10,7 @@ export interface CommandDefinition {
   description: string;
   patterns: RegExp[];
   requiredRole: 'ADMIN' | 'MANAGER' | 'MEMBER';
-  execute: (match: RegExpMatchArray, userId: string) => Promise<CommandResult>;
+  execute: (match: RegExpMatchArray, userId: string, userRole?: string) => Promise<CommandResult>;
 }
 
 export interface QuickAction {

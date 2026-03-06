@@ -77,7 +77,7 @@ export function useCommandCenter() {
         api.get('/agents/campaigns'),
         api.get('/agents/token/status'),
         api.get('/agents/performance'),
-        api.get('/agents/orion/strategic-state'),
+        api.get('/agents/strategic/state'),
       ]);
 
       if (statusRes.status === 'fulfilled') setSystemStatus(statusRes.value.data.data);
@@ -153,13 +153,13 @@ export function useCommandCenter() {
   }, [fetchAll]);
 
   const runStrategicEvaluate = useCallback(async () => {
-    const res = await api.post('/agents/orion/evaluate');
+    const res = await api.post('/agents/strategic/evaluate');
     await fetchAll();
     return res.data.data;
   }, [fetchAll]);
 
   const runStrategicEvolve = useCallback(async () => {
-    const res = await api.post('/agents/orion/evolve');
+    const res = await api.post('/agents/strategic/evolve');
     await fetchAll();
     return res.data.data;
   }, [fetchAll]);

@@ -440,7 +440,7 @@ function AlertsPanel({ systemStatus, totalErrors, engineStatus }: { systemStatus
 }
 
 // ═══════════════════════════════════════════════════════════════
-// STRATEGIC STATE PANEL (Orion Brain)
+// STRATEGIC STATE PANEL (Easyorios Brain)
 // ═══════════════════════════════════════════════════════════════
 function StrategicPanel({ state, onEvaluate, onEvolve }: {
   state: any;
@@ -486,7 +486,7 @@ function StrategicPanel({ state, onEvaluate, onEvolve }: {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Brain className="w-4 h-4 text-primary-300" />
-          <h2 className="text-sm font-heading font-semibold text-text-primary">Orion Strategic</h2>
+          <h2 className="text-sm font-heading font-semibold text-text-primary">Easyorios Strategic</h2>
           <Badge variant={state.status === 'STRATEGIC_CYCLE_ACTIVE' ? 'success' : 'warning'} className="text-xs">
             {state.status === 'STRATEGIC_CYCLE_ACTIVE' ? 'ACTIVE' : 'AWAITING'}
           </Badge>

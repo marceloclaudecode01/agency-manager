@@ -1,13 +1,20 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, User, CheckCircle, XCircle, Mic, MicOff } from 'lucide-react';
+import { Send, Sparkles, User, CheckCircle, XCircle, Mic, MicOff, Bot, Zap, Users, Target, Clock, Shield, ShieldOff, Radar, Info } from 'lucide-react';
 import { useEasyorios } from '@/hooks/useEasyorios';
 import { AlertBar } from '@/components/easyorios/AlertBar';
 import { ModuleWidget } from '@/components/easyorios/ModuleWidget';
 
+const COMMAND_ACTIONS = [
+  { label: 'Safe Mode ON', prompt: 'ativar safe mode', icon: Shield, color: 'text-red-400 border-red-500/30' },
+  { label: 'Safe Mode OFF', prompt: 'desativar safe mode', icon: ShieldOff, color: 'text-green-400 border-green-500/30' },
+  { label: 'Sentinel Scan', prompt: 'rodar sentinel', icon: Radar, color: 'text-blue-400 border-blue-500/30' },
+  { label: 'Status Sistema', prompt: 'status do sistema', icon: Info, color: 'text-yellow-400 border-yellow-500/30' },
+];
+
 export default function EasyoriosPage() {
-  const { messages, loading, modules, quickActions, alerts, sendMessage, fetchMeta } = useEasyorios();
+  const { messages, loading, modules, quickActions, alerts, agents, dashboard, sendMessage, fetchMeta } = useEasyorios();
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -60,6 +67,9 @@ export default function EasyoriosPage() {
     }
   };
 
+  const statusDot = (s: string) =>
+    s === 'active' ? 'bg-green-500' : s === 'error' ? 'bg-red-500' : 'bg-zinc-500';
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] gap-4 p-4">
       {/* Header */}
@@ -75,6 +85,26 @@ export default function EasyoriosPage() {
         </div>
         <span className="ml-2 h-2 w-2 rounded-full bg-green-500 animate-pulse" />
       </div>
+
+      {/* Stat Cards */}
+      {dashboard && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: 'Agentes', value: dashboard.totalAgents, icon: Bot, color: 'text-blue-400' },
+            { label: 'Posts Hoje', value: dashboard.postsToday, icon: Zap, color: 'text-green-400' },
+            { label: 'Leads', value: dashboard.totalLeads, icon: Users, color: 'text-purple-400' },
+            { label: 'Campanhas', value: dashboard.activeCampaigns, icon: Target, color: 'text-orange-400' },
+          ].map((card) => (
+            <div key={card.label} className="bg-surface border border-border rounded-xl p-3 flex items-center gap-3">
+              <card.icon size={20} className={card.color} />
+              <div>
+                <p className="text-xl font-bold text-text-primary">{card.value}</p>
+                <p className="text-xs text-text-secondary">{card.label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Alerts */}
       <AlertBar alerts={alerts} />
@@ -94,6 +124,21 @@ export default function EasyoriosPage() {
           ))}
         </div>
       )}
+
+      {/* Command Actions */}
+      <div className="flex gap-2 flex-wrap">
+        {COMMAND_ACTIONS.map((action) => (
+          <button
+            key={action.label}
+            onClick={() => sendMessage(action.prompt)}
+            disabled={loading}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border bg-surface hover:bg-surface-hover transition-colors disabled:opacity-50 ${action.color}`}
+          >
+            <action.icon size={14} />
+            {action.label}
+          </button>
+        ))}
+      </div>
 
       {/* Main Content: Chat + Sidebar */}
       <div className="flex-1 flex gap-4 min-h-0">
@@ -174,9 +219,44 @@ export default function EasyoriosPage() {
           </form>
         </div>
 
-        {/* Sidebar: Modules */}
-        <div className="flex-[1] flex flex-col gap-3 min-h-0 hidden lg:flex">
+        {/* Sidebar: Modules + Agent Inventory */}
+        <div className="flex-[2] flex flex-col gap-3 min-h-0 hidden lg:flex">
           <ModuleWidget modules={modules} />
+
+          {/* Agent Inventory */}
+          <div className="flex-1 border border-border rounded-xl bg-surface flex flex-col min-h-0">
+            <div className="p-3 border-b border-border flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-text-primary">Inventario de Agentes</h2>
+              <span className="text-xs text-text-secondary">{agents.length} agentes</span>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-surface">
+                  <tr className="text-left text-text-secondary border-b border-border">
+                    <th className="px-3 py-2">Nome</th>
+                    <th className="px-3 py-2 hidden xl:table-cell">Especialidade</th>
+                    <th className="px-3 py-2">Schedule</th>
+                    <th className="px-3 py-2 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agents.map((agent) => (
+                    <tr key={agent.function} className="border-b border-border/50 hover:bg-surface-hover">
+                      <td className="px-3 py-2 text-text-primary font-medium">{agent.name}</td>
+                      <td className="px-3 py-2 text-text-secondary hidden xl:table-cell">{agent.specialty}</td>
+                      <td className="px-3 py-2 text-text-secondary flex items-center gap-1">
+                        <Clock size={10} />
+                        {agent.schedule}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`inline-block h-2 w-2 rounded-full ${statusDot(agent.status)}`} title={agent.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>

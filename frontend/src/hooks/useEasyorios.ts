@@ -36,25 +36,52 @@ interface ModuleAlert {
   createdAt: string;
 }
 
+interface Agent {
+  name: string;
+  function: string;
+  specialty: string;
+  schedule: string;
+  autonomyLevel: string;
+  lastRun: string | null;
+  status: 'active' | 'idle' | 'error';
+}
+
+interface DashboardData {
+  totalAgents: number;
+  postsToday: number;
+  totalLeads: number;
+  activeCampaigns: number;
+  safeMode: string;
+  agentActions24h: number;
+  postsPending: number;
+  totalRevenue: number;
+}
+
 export function useEasyorios() {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Ola! Sou o Easyorios, seu assistente pessoal universal. Tenho modulos de marketing, notas, lembretes e to-dos. Como posso ajudar?' },
+    { role: 'assistant', content: 'Ola! Sou o Easyorios, o cerebro da sua agencia de marketing digital. Gerencio seus agentes autonomos, publicacoes, clientes e metricas. Tambem cuido das suas financas pessoais, lembretes, to-dos, pesquisas web, comunicacao via Telegram e dispositivos smart home. Pergunte qualquer coisa!' },
   ]);
   const [loading, setLoading] = useState(false);
   const [modules, setModules] = useState<ModuleInfo[]>([]);
   const [quickActions, setQuickActions] = useState<QuickAction[]>([]);
   const [alerts, setAlerts] = useState<ModuleAlert[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
 
   const fetchMeta = useCallback(async () => {
     try {
-      const [modRes, qaRes, alertRes] = await Promise.allSettled([
+      const [modRes, qaRes, alertRes, invRes, dashRes] = await Promise.allSettled([
         api.get('/easyorios/modules'),
         api.get('/easyorios/quick-actions'),
         api.get('/easyorios/alerts'),
+        api.get('/easyorios/inventory'),
+        api.get('/easyorios/dashboard'),
       ]);
       if (modRes.status === 'fulfilled') setModules(modRes.value.data.data.modules);
       if (qaRes.status === 'fulfilled') setQuickActions(qaRes.value.data.data.actions);
       if (alertRes.status === 'fulfilled') setAlerts(alertRes.value.data.data.alerts);
+      if (invRes.status === 'fulfilled') setAgents(invRes.value.data.data.agents || []);
+      if (dashRes.status === 'fulfilled') setDashboard(dashRes.value.data.data || null);
     } catch {}
   }, []);
 
@@ -93,6 +120,8 @@ export function useEasyorios() {
     modules,
     quickActions,
     alerts,
+    agents,
+    dashboard,
     sendMessage,
     fetchMeta,
   };

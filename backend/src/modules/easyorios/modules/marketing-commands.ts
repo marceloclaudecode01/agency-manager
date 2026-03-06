@@ -1,13 +1,13 @@
-import { pauseAgent, resumeAgent, activateSafeMode, deactivateSafeMode, getSafeModeStatus } from '../../agents/safe-mode';
-import { runSentinel } from '../../agents/system-sentinel.agent';
-import { agentLog } from '../../agents/agent-logger';
-import prisma from '../../config/database';
-import { generatePostFromStrategy } from '../../agents/content-creator.agent';
-import { buildDailyStrategy } from '../../agents/content-strategist.agent';
-import { enhanceWithViralMechanics } from '../../agents/viral-mechanics.agent';
-import { optimizeForPlatform } from '../../agents/platform-optimizer.agent';
-import { generateImageForPost } from '../../agents/image-generator.agent';
-import { SocialService } from '../social/social.service';
+import { pauseAgent, resumeAgent, activateSafeMode, deactivateSafeMode, getSafeModeStatus } from '../../../agents/safe-mode';
+import { runSentinel } from '../../../agents/system-sentinel.agent';
+import { agentLog } from '../../../agents/agent-logger';
+import prisma from '../../../config/database';
+import { generatePostFromStrategy } from '../../../agents/content-creator.agent';
+import { buildDailyStrategy } from '../../../agents/content-strategist.agent';
+import { enhanceWithViralMechanics } from '../../../agents/viral-mechanics.agent';
+import { optimizeForPlatform } from '../../../agents/platform-optimizer.agent';
+import { generateImageForPost } from '../../../agents/image-generator.agent';
+import { SocialService } from '../../social/social.service';
 
 export interface CommandResult {
   command: string;
@@ -95,7 +95,7 @@ const COMMANDS: CommandDef[] = [
         } else {
           await pauseAgent(agentFunction); // legacy fallback
         }
-        await agentLog('Orion', `Comando: pausar agente "${agent?.name || agentFunction}"`, { type: 'action' });
+        await agentLog('Easyorios', `Comando: pausar agente "${agent?.name || agentFunction}"`, { type: 'action' });
         return { command: 'pause_agent', success: true, message: `Agente "${agent?.name || agentFunction}" pausado com sucesso.` };
       } catch (e: any) {
         return { command: 'pause_agent', success: false, message: `Falha ao pausar "${agentFunction}": ${e.message}` };
@@ -119,7 +119,7 @@ const COMMANDS: CommandDef[] = [
         } else {
           await resumeAgent(agentFunction); // legacy fallback
         }
-        await agentLog('Orion', `Comando: retomar agente "${agent?.name || agentFunction}"`, { type: 'action' });
+        await agentLog('Easyorios', `Comando: retomar agente "${agent?.name || agentFunction}"`, { type: 'action' });
         return { command: 'resume_agent', success: true, message: `Agente "${agent?.name || agentFunction}" retomado com sucesso.` };
       } catch (e: any) {
         return { command: 'resume_agent', success: false, message: `Falha ao retomar "${agentFunction}": ${e.message}` };
@@ -134,8 +134,8 @@ const COMMANDS: CommandDef[] = [
     ],
     execute: async () => {
       try {
-        await activateSafeMode('Ativado via Orion chat', 'Orion');
-        await agentLog('Orion', 'Comando: ativar safe mode', { type: 'action' });
+        await activateSafeMode('Ativado via Easyorios chat', 'Easyorios');
+        await agentLog('Easyorios', 'Comando: ativar safe mode', { type: 'action' });
         return { command: 'safe_mode_on', success: true, message: 'Safe Mode ATIVADO. Todos os agentes autônomos estão pausados.' };
       } catch (e: any) {
         return { command: 'safe_mode_on', success: false, message: `Falha ao ativar safe mode: ${e.message}` };
@@ -151,7 +151,7 @@ const COMMANDS: CommandDef[] = [
     execute: async () => {
       try {
         await deactivateSafeMode();
-        await agentLog('Orion', 'Comando: desativar safe mode', { type: 'action' });
+        await agentLog('Easyorios', 'Comando: desativar safe mode', { type: 'action' });
         return { command: 'safe_mode_off', success: true, message: 'Safe Mode DESATIVADO. Agentes voltaram ao normal.' };
       } catch (e: any) {
         return { command: 'safe_mode_off', success: false, message: `Falha ao desativar safe mode: ${e.message}` };
@@ -168,7 +168,7 @@ const COMMANDS: CommandDef[] = [
     execute: async () => {
       try {
         const report = await runSentinel();
-        await agentLog('Orion', 'Comando: executar sentinel scan', { type: 'action' });
+        await agentLog('Easyorios', 'Comando: executar sentinel scan', { type: 'action' });
         return { command: 'run_sentinel', success: true, message: 'Sentinel scan concluído.', data: report };
       } catch (e: any) {
         return { command: 'run_sentinel', success: false, message: `Falha ao executar sentinel: ${e.message}` };
@@ -189,9 +189,9 @@ const COMMANDS: CommandDef[] = [
       try {
         await prisma.scheduledPost.update({
           where: { id: postId },
-          data: { governorDecision: newDecision, governorReason: `Override manual via Orion`, governorReviewedAt: new Date() },
+          data: { governorDecision: newDecision, governorReason: `Override manual via Easyorios`, governorReviewedAt: new Date() },
         });
-        await agentLog('Orion', `Comando: override post #${postId} → ${newDecision}`, { type: 'action' });
+        await agentLog('Easyorios', `Comando: override post #${postId} → ${newDecision}`, { type: 'action' });
         return { command: 'override_post', success: true, message: `Post #${postId} marcado como ${newDecision}.` };
       } catch (e: any) {
         return { command: 'override_post', success: false, message: `Falha ao alterar post #${postId}: ${e.message}` };
@@ -210,7 +210,7 @@ const COMMANDS: CommandDef[] = [
         const safeStatus = await getSafeModeStatus();
         const pausedFromDB = await prisma.agent.findMany({ where: { status: 'paused' } }).catch(() => []);
         const paused = pausedFromDB.map((a: any) => a.name);
-        await agentLog('Orion', 'Comando: consultar status do sistema', { type: 'action' });
+        await agentLog('Easyorios', 'Comando: consultar status do sistema', { type: 'action' });
         return {
           command: 'get_status',
           success: true,
@@ -233,7 +233,7 @@ const COMMANDS: CommandDef[] = [
     ],
     execute: async (match) => {
       try {
-        await agentLog('Orion', 'Comando: publicar agora — acionando pipeline completo', { type: 'action' });
+        await agentLog('Easyorios', 'Comando: publicar agora — acionando pipeline completo', { type: 'action' });
 
         // Get a client (prefer first active with page config)
         const client = await prisma.client.findFirst({
@@ -305,16 +305,16 @@ const COMMANDS: CommandDef[] = [
             status: 'PUBLISHED',
             publishedAt: new Date(),
             scheduledFor: new Date(),
-            source: 'orion-command',
+            source: 'easyorios-command',
             contentType: 'organic',
             governorDecision: 'APPROVE',
-            governorReason: 'Publicação direta via Orion',
+            governorReason: 'Publicação direta via Easyorios',
             metaPostId: publishResult?.id || null,
             ...(client ? { clientId: client.id } : {}),
           },
         });
 
-        await agentLog('Orion', `Post publicado AGORA: "${topic}" (${client?.name || 'default'})`, { type: 'result' });
+        await agentLog('Easyorios', `Post publicado AGORA: "${topic}" (${client?.name || 'default'})`, { type: 'result' });
         return {
           command: 'publish_now',
           success: true,
@@ -322,7 +322,7 @@ const COMMANDS: CommandDef[] = [
           data: { topic, focusType, fbPostId: publishResult?.id, client: client?.name },
         };
       } catch (e: any) {
-        await agentLog('Orion', `Falha ao publicar agora: ${e.message}`, { type: 'error' });
+        await agentLog('Easyorios', `Falha ao publicar agora: ${e.message}`, { type: 'error' });
         return { command: 'publish_now', success: false, message: `Falha ao publicar: ${e.message}` };
       }
     },
@@ -344,7 +344,7 @@ const COMMANDS: CommandDef[] = [
           return { command: 'schedule_post', success: false, message: 'Horário inválido. Use formato HH:MM (ex: 14:30).' };
         }
 
-        await agentLog('Orion', `Comando: agendar post para ${hours}:${String(minutes).padStart(2, '0')}`, { type: 'action' });
+        await agentLog('Easyorios', `Comando: agendar post para ${hours}:${String(minutes).padStart(2, '0')}`, { type: 'action' });
 
         const client = await prisma.client.findFirst({
           where: { isActive: true, status: 'ACTIVE', facebookPageId: { not: null }, facebookAccessToken: { not: null } },
@@ -400,17 +400,17 @@ const COMMANDS: CommandDef[] = [
             imageUrl,
             status: 'APPROVED',
             scheduledFor,
-            source: 'orion-command',
+            source: 'easyorios-command',
             contentType: 'organic',
             governorDecision: 'APPROVE',
-            governorReason: 'Agendado via Orion',
+            governorReason: 'Agendado via Easyorios',
             ...(client ? { clientId: client.id } : {}),
           },
         });
 
         const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
         const dateStr = scheduledFor.toLocaleDateString('pt-BR');
-        await agentLog('Orion', `Post agendado para ${timeStr} (${dateStr}): "${topic}"`, { type: 'result' });
+        await agentLog('Easyorios', `Post agendado para ${timeStr} (${dateStr}): "${topic}"`, { type: 'result' });
         return {
           command: 'schedule_post',
           success: true,
@@ -418,7 +418,7 @@ const COMMANDS: CommandDef[] = [
           data: { topic, focusType, scheduledFor: scheduledFor.toISOString(), postId: saved.id },
         };
       } catch (e: any) {
-        await agentLog('Orion', `Falha ao agendar post: ${e.message}`, { type: 'error' });
+        await agentLog('Easyorios', `Falha ao agendar post: ${e.message}`, { type: 'error' });
         return { command: 'schedule_post', success: false, message: `Falha ao agendar: ${e.message}` };
       }
     },
@@ -466,7 +466,7 @@ const COMMANDS: CommandDef[] = [
         });
 
         const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-        await agentLog('Orion', `Post "${post.topic}" reagendado para ${timeStr}`, { type: 'action' });
+        await agentLog('Easyorios', `Post "${post.topic}" reagendado para ${timeStr}`, { type: 'action' });
         return {
           command: 'reschedule_post',
           success: true,
@@ -507,7 +507,7 @@ const COMMANDS: CommandDef[] = [
           return { command: 'publish_for_client', success: false, message: `Cliente "${client.name}" não tem page config (pageId/token).` };
         }
 
-        await agentLog('Orion', `Comando: publicar agora para ${client.name}`, { type: 'action' });
+        await agentLog('Easyorios', `Comando: publicar agora para ${client.name}`, { type: 'action' });
 
         const strategy = await buildDailyStrategy({
           clientId: client.id, clientName: client.name, niche: client.niche || 'geral', notes: client.notes || undefined,
@@ -558,16 +558,16 @@ const COMMANDS: CommandDef[] = [
             status: 'PUBLISHED',
             publishedAt: new Date(),
             scheduledFor: new Date(),
-            source: 'orion-command',
+            source: 'easyorios-command',
             contentType: 'organic',
             governorDecision: 'APPROVE',
-            governorReason: `Publicação direta via Orion para ${client.name}`,
+            governorReason: `Publicação direta via Easyorios para ${client.name}`,
             metaPostId: publishResult?.id || null,
             clientId: client.id,
           },
         });
 
-        await agentLog('Orion', `Post publicado AGORA para ${client.name}: "${topic}"`, { type: 'result' });
+        await agentLog('Easyorios', `Post publicado AGORA para ${client.name}: "${topic}"`, { type: 'result' });
         return {
           command: 'publish_for_client',
           success: true,
@@ -575,7 +575,7 @@ const COMMANDS: CommandDef[] = [
           data: { topic, client: client.name, fbPostId: publishResult?.id },
         };
       } catch (e: any) {
-        await agentLog('Orion', `Falha ao publicar para cliente: ${e.message}`, { type: 'error' });
+        await agentLog('Easyorios', `Falha ao publicar para cliente: ${e.message}`, { type: 'error' });
         return { command: 'publish_for_client', success: false, message: `Falha: ${e.message}` };
       }
     },

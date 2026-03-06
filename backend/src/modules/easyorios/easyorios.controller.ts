@@ -3,6 +3,7 @@ import { AuthRequest } from '../../types';
 import { ApiResponse } from '../../utils/api-response';
 import { getEasyoriosResponse, getModulesInfo } from './easyorios-brain.service';
 import { registry } from './core/module-registry';
+import { getAgentInventory, getDashboardData } from './modules/marketing.module';
 
 export async function sendMessage(req: AuthRequest, res: Response) {
   try {
@@ -77,5 +78,25 @@ export async function getBriefing(req: AuthRequest, res: Response) {
   } catch (error: any) {
     console.error('[Easyorios] Briefing error:', error.message);
     return ApiResponse.error(res, 'Erro ao gerar briefing');
+  }
+}
+
+export async function getDashboard(_req: AuthRequest, res: Response) {
+  try {
+    const data = await getDashboardData();
+    return ApiResponse.success(res, data);
+  } catch (error: any) {
+    console.error('[Easyorios] Dashboard error:', error.message);
+    return ApiResponse.error(res, 'Erro ao carregar dashboard');
+  }
+}
+
+export async function getInventory(_req: AuthRequest, res: Response) {
+  try {
+    const agents = await getAgentInventory();
+    return ApiResponse.success(res, { agents });
+  } catch (error: any) {
+    console.error('[Easyorios] Inventory error:', error.message);
+    return ApiResponse.error(res, 'Erro ao carregar inventario');
   }
 }
