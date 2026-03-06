@@ -87,6 +87,8 @@ model User {
   personalTransactions   PersonalTransaction[]
   communicationChannels  CommunicationChannel[]
   communicationMessages  CommunicationMessage[]
+  smartDevices           SmartDevice[]
+  conversationTasks      ConversationTask[]
 
   @@map("users")
 }
@@ -834,4 +836,54 @@ model CommunicationMessage {
   @@index([channelId, createdAt])
   @@index([userId])
   @@map("communication_messages")
+}
+
+// ─── Easyorios: Smart Home Module ───
+
+model SmartDevice {
+  id          String   @id @default(cuid())
+  userId      String
+  entityId    String   // Home Assistant entity_id (e.g. "light.sala")
+  name        String   // friendly name
+  type        String   // "light" | "switch" | "climate" | "sensor" | "cover" | "media_player"
+  room        String?  // "sala" | "quarto" | "cozinha" etc
+  isActive    Boolean  @default(true)
+  metadata    Json?    // { icon, manufacturer, model, etc }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entityId])
+  @@index([userId, type])
+  @@map("smart_devices")
+}
+
+model SmartScene {
+  id          String   @id @default(cuid())
+  name        String   // "boa noite" | "cinema" | "trabalho"
+  actions     Json     // [{ entityId, service, data }]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@map("smart_scenes")
+}
+
+// ─── Easyorios: Multi-Turn Task Engine ───
+
+model ConversationTask {
+  id          String    @id @default(cuid())
+  userId      String
+  type        String    // "plan_week" | "budget_review" | "custom"
+  status      String    @default("active") // "active" | "completed" | "cancelled"
+  steps       Json      // [{ step, prompt, moduleId, completed, result }]
+  currentStep Int       @default(0)
+  context     Json?     // accumulated context from previous steps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("conversation_tasks")
 }

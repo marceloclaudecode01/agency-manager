@@ -1,6 +1,8 @@
 import { askGemini } from '../../agents/gemini';
 import { registry } from './core/module-registry';
 import { CommandResult, ModuleContext } from './core/module.interface';
+import { executeClassifiedIntent } from './core/intent-classifier';
+import { matchTaskTemplate, executeFullTask } from './core/task-engine';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -40,6 +42,12 @@ ${contextBlock}
 COMANDOS DISPONIVEIS:
 ${commandList}
 
+TAREFAS MULTI-ETAPA DISPONIVEIS:
+- "planeja minha semana" — briefing + financas + lembretes + to-dos + marketing
+- "rotina da manha" — briefing + lembretes + status casa + noticias
+- "revisao financeira" — resumo financeiro + transacoes + briefing
+- "rotina da noite" — to-dos + financas + posts pendentes
+
 Personalidade:
 - Assistente pessoal proativo e inteligente
 - Usa dados reais para embasar respostas
@@ -60,7 +68,18 @@ export async function getEasyoriosResponse(
   userId: string,
   userRole?: string,
 ): Promise<{ response: string; commandResult?: CommandResult }> {
-  // Try command execution first
+  // 1. Check multi-turn task templates first
+  const taskTemplate = matchTaskTemplate(userMessage);
+  if (taskTemplate) {
+    try {
+      const taskResult = await executeFullTask(userId, taskTemplate, userRole);
+      return { response: taskResult.message, commandResult: taskResult };
+    } catch (e: any) {
+      console.error('[Easyorios] Task engine error:', e.message);
+    }
+  }
+
+  // 2. Try regex command matching (fast path)
   let commandResult: CommandResult | null = null;
   try {
     commandResult = await registry.routeCommand(userMessage, userId, userRole);
@@ -68,7 +87,16 @@ export async function getEasyoriosResponse(
     console.error('[Easyorios] Command error:', e.message);
   }
 
-  // Gather contexts from all modules
+  // 3. If no regex match, try LLM intent classification (slow path)
+  if (!commandResult) {
+    try {
+      commandResult = await executeClassifiedIntent(userMessage, userId, userRole);
+    } catch (e: any) {
+      console.error('[Easyorios] Intent classifier error:', e.message);
+    }
+  }
+
+  // 4. Gather contexts from all modules
   const contexts = await gatherModuleContexts(userId);
   const moduleNames = registry.getAllModules().map(m => m.name);
 
