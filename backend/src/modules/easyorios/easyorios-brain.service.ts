@@ -93,14 +93,21 @@ export async function getEasyoriosResponse(
   let commandResult: CommandResult | null = null;
   try {
     commandResult = await registry.routeCommand(userMessage, userId, userRole);
+    if (commandResult) {
+      console.log(`[Easyorios] Regex match: ${commandResult.command} (success=${commandResult.success})`);
+    }
   } catch (e: any) {
     console.error('[Easyorios] Command error:', e.message);
   }
 
   // 3. If no regex match, try LLM intent classification (slow path)
   if (!commandResult) {
+    console.log(`[Easyorios] No regex match for: "${userMessage.slice(0, 60)}" — trying intent classifier`);
     try {
       commandResult = await executeClassifiedIntent(userMessage, userId, userRole);
+      if (commandResult) {
+        console.log(`[Easyorios] Intent classified: ${commandResult.command} (success=${commandResult.success})`);
+      }
     } catch (e: any) {
       console.error('[Easyorios] Intent classifier error:', e.message);
     }

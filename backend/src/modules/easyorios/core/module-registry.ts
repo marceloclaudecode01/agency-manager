@@ -24,10 +24,12 @@ class ModuleRegistry {
         for (const pattern of cmd.patterns) {
           const match = message.match(pattern);
           if (match) {
+            console.log(`[Registry] Matched: ${mod.id}.${cmd.name} (pattern: ${pattern}) role=${userRole}`);
             const ROLE_HIERARCHY: Record<string, number> = { ADMIN: 3, MANAGER: 2, MEMBER: 1 };
             const requiredLevel = ROLE_HIERARCHY[cmd.requiredRole] || 1;
             const userLevel = ROLE_HIERARCHY[userRole || 'MEMBER'] || 1;
             if (userLevel < requiredLevel) {
+              console.log(`[Registry] Role blocked: need ${cmd.requiredRole} (${requiredLevel}), have ${userRole} (${userLevel})`);
               return {
                 command: cmd.name,
                 success: false,

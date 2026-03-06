@@ -227,9 +227,10 @@ const COMMANDS: CommandDef[] = [
     name: 'publish_now',
     requiredRole: 'ADMIN',
     patterns: [
-      /(?:publicar?|postar?|publish)\s+(?:agora|now|ja|já|imediato|imediatamente)/i,
-      /(?:criar?|create|gerar?|generate)\s+(?:e\s+)?(?:publicar?|postar?)\s+(?:agora|now|ja|já)/i,
+      /(?:publicar?|postar?|publish)\s+(?:(?:um\s+)?(?:post\s+|publicacao\s+|publicação\s+)?)?(?:agora|now|ja|já|imediato|imediatamente)/i,
+      /(?:criar?|create|gerar?|generate)\s+(?:e\s+)?(?:publicar?|postar?)\s+(?:(?:um\s+)?(?:post\s+)?)?(?:agora|now|ja|já)/i,
       /(?:manda|faz|faca|faça)\s+(?:um\s+)?(?:post|publicacao|publicação)\s+(?:agora|now|ja|já)/i,
+      /(?:quero|preciso|pode|vamos)\s+(?:publicar?|postar?)\s+(?:(?:um\s+)?(?:post\s+)?)?(?:agora|now|ja|já)/i,
     ],
     execute: async (match) => {
       try {

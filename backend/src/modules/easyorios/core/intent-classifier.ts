@@ -114,7 +114,7 @@ export async function executeClassifiedIntent(
   paramValues.forEach((v, i) => { fakeMatch[i + 1] = v; });
 
   try {
-    return await cmd.execute(fakeMatch, userId);
+    return await cmd.execute(fakeMatch, userId, userRole);
   } catch (e: any) {
     return { command: cmd.name, success: false, message: `Erro ao executar: ${e.message}` };
   }
