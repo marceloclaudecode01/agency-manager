@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, User, CheckCircle, XCircle } from 'lucide-react';
+import { Send, Sparkles, User, CheckCircle, XCircle, Mic, MicOff } from 'lucide-react';
 import { useEasyorios } from '@/hooks/useEasyorios';
 import { AlertBar } from '@/components/easyorios/AlertBar';
 import { ModuleWidget } from '@/components/easyorios/ModuleWidget';
@@ -9,7 +9,38 @@ import { ModuleWidget } from '@/components/easyorios/ModuleWidget';
 export default function EasyoriosPage() {
   const { messages, loading, modules, quickActions, alerts, sendMessage, fetchMeta } = useEasyorios();
   const [input, setInput] = useState('');
+  const [isListening, setIsListening] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  const toggleVoice = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'pt-BR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInput(prev => prev ? `${prev} ${transcript}` : transcript);
+      setIsListening(false);
+    };
+
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
 
   useEffect(() => {
     fetchMeta();
@@ -120,10 +151,18 @@ export default function EasyoriosPage() {
               <input
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                placeholder="Pergunte algo ao Easyorios..."
-                className="flex-1 rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/50"
+                placeholder={isListening ? 'Ouvindo...' : 'Pergunte algo ao Easyorios...'}
+                className={`flex-1 rounded-xl border bg-background px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/50 ${isListening ? 'border-red-500 animate-pulse' : 'border-border'}`}
                 disabled={loading}
               />
+              <button
+                type="button"
+                onClick={toggleVoice}
+                className={`rounded-xl px-3 py-2.5 transition-colors ${isListening ? 'bg-red-500 text-white' : 'bg-surface-hover text-text-secondary hover:text-text-primary'}`}
+                title={isListening ? 'Parar' : 'Falar'}
+              >
+                {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+              </button>
               <button
                 type="submit"
                 disabled={loading || !input.trim()}
