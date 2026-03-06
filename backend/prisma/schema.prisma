@@ -79,11 +79,12 @@ model User {
   notifications    Notification[]
 
   // Easyorios relations
-  reminders          Reminder[]
-  personalNotes      PersonalNote[]
-  personalTodos      PersonalTodo[]
-  conversationMemory ConversationMemory[]
-  easyoriosAlerts    EasyoriosAlert[]
+  reminders              Reminder[]
+  personalNotes          PersonalNote[]
+  personalTodos          PersonalTodo[]
+  conversationMemory     ConversationMemory[]
+  easyoriosAlerts        EasyoriosAlert[]
+  personalTransactions   PersonalTransaction[]
 
   @@map("users")
 }
@@ -760,4 +761,37 @@ model EasyoriosAlert {
 
   @@index([userId, read])
   @@map("easyorios_alerts")
+}
+
+// ─── Easyorios: Finance Module ───
+
+model PersonalTransaction {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // "income" | "expense"
+  amount      Float
+  description String
+  category    String?  // "alimentacao" | "transporte" | "lazer" | "moradia" | "saude" | "educacao" | "outro"
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([userId, type])
+  @@map("personal_transactions")
+}
+
+// ─── Easyorios: Web Search Module ───
+
+model SearchCache {
+  id        String   @id @default(cuid())
+  query     String
+  result    String   @db.Text
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([query])
+  @@index([expiresAt])
+  @@map("search_cache")
 }
