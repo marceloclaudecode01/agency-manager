@@ -24,9 +24,12 @@ import agentsGrowthRoutes from './modules/agents/agents-growth.routes';
 import productsRoutes from './modules/products/products.routes';
 import chatRoutes from './modules/chat/chat.routes';
 import aiChatRoutes from './modules/ai-chat/ai-chat.routes';
+import easyoriosRoutes from './modules/easyorios/easyorios.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
 import { startAllAgents } from './agents/scheduler.agent';
 import { setAgentLoggerIo } from './agents/agent-logger';
+import { bootstrapEasyorios } from './modules/easyorios/core/bootstrap';
+import { startProactiveEngine } from './modules/easyorios/core/proactive-engine';
 
 console.log('[Boot] Modules imported successfully');
 
@@ -94,6 +97,7 @@ app.use('/api/agents/growth', agentsGrowthRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/ai-chat', aiChatRoutes);
+app.use('/api/easyorios', easyoriosRoutes);
 app.use('/api/notifications', notificationsRoutes);
 
 // Health check
@@ -170,6 +174,8 @@ console.log('[Boot] About to listen on port', PORT);
 httpServer.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`Server running on http://localhost:${PORT}`);
   setAgentLoggerIo(io);
+  bootstrapEasyorios();
+  startProactiveEngine(io);
   startAllAgents();
 });
 

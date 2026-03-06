@@ -78,6 +78,13 @@ model User {
   receivedMessages Message[]      @relation("ReceivedMessages")
   notifications    Notification[]
 
+  // Easyorios relations
+  reminders          Reminder[]
+  personalNotes      PersonalNote[]
+  personalTodos      PersonalTodo[]
+  conversationMemory ConversationMemory[]
+  easyoriosAlerts    EasyoriosAlert[]
+
   @@map("users")
 }
 
@@ -675,4 +682,82 @@ model ContentCampaign {
   updatedAt    DateTime @updatedAt
 
   @@map("content_campaigns")
+}
+
+// ─── Easyorios: Personal Assistant Models ───
+
+model Reminder {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String
+  dueAt     DateTime
+  recurring String?   // "daily" | "weekly" | "monthly" | null
+  completed Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, completed])
+  @@index([dueAt])
+  @@map("reminders")
+}
+
+model PersonalNote {
+  id        String   @id @default(cuid())
+  userId    String
+  content   String
+  tags      String?  // comma-separated tags
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("personal_notes")
+}
+
+model PersonalTodo {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  completed Boolean  @default(false)
+  priority  String?  // "HIGH" | "MEDIUM" | "LOW"
+  dueAt     DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, completed])
+  @@map("personal_todos")
+}
+
+model ConversationMemory {
+  id        String   @id @default(cuid())
+  userId    String
+  fact      String   // extracted fact from conversation
+  category  String?  // "preference" | "fact" | "context"
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("conversation_memories")
+}
+
+model EasyoriosAlert {
+  id        String   @id @default(cuid())
+  userId    String
+  moduleId  String
+  title     String
+  message   String
+  severity  String   @default("info") // "info" | "warning" | "critical"
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("easyorios_alerts")
 }
