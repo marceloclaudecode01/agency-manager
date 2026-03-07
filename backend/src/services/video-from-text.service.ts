@@ -314,6 +314,64 @@ async function getOrGenerateImage(
   });
 }
 
+// ─── Railway Simple Video (no libavfilter needed) ────────────
+// Uses only basic ffmpeg: image loop → h264 mp4. No filters at all.
+// Works with any ffmpeg build including minimal/essentials.
+
+function generateSimpleVideo(
+  bgImagePath: string,
+  videoPath: string,
+  legacySlides: TextVideoSlides,
+  mood: MusicMood,
+  smartEffectIndex?: number,
+): Promise<VideoResult> {
+  return new Promise((resolve, reject) => {
+    // Railway ffmpeg-static has NO libavfilter — cannot use ANY -vf filters
+    // (scale, pad, zoompan, drawtext are ALL libavfilter)
+    // Use only raw codec flags: -s for size, -r for fps
+    ffmpeg()
+      .input(bgImagePath)
+      .inputOptions(['-loop', '1', '-t', String(VIDEO_DURATION)])
+      .outputOptions([
+        '-c:v', 'libx264',
+        '-an',
+        '-t', String(VIDEO_DURATION),
+        '-s', `${VIDEO_WIDTH}x${VIDEO_HEIGHT}`,
+        '-r', String(VIDEO_FPS),
+        '-pix_fmt', 'yuv420p',
+        '-movflags', '+faststart',
+        '-preset', 'fast',
+        '-crf', '23',
+      ])
+      .output(videoPath)
+      .on('end', () => {
+        try { fs.unlinkSync(bgImagePath); } catch {}
+        try {
+          const size = fs.statSync(videoPath).size;
+          if (size < 5000) { reject(new Error(`Video too small: ${size} bytes`)); return; }
+          const effectData = smartEffectIndex !== undefined
+            ? { index: smartEffectIndex % EFFECTS.length }
+            : { index: getNextEffect().index };
+          resolve({
+            videoPath,
+            slides: legacySlides,
+            effect: 'simple-image-loop',
+            musicMood: mood.name,
+            hasImage: true,
+            effectIndex: effectData.index,
+            slideCount: 1,
+            duration: VIDEO_DURATION,
+          });
+        } catch (e) { reject(e); }
+      })
+      .on('error', (err: Error) => {
+        try { fs.unlinkSync(bgImagePath); } catch {}
+        reject(err);
+      })
+      .run();
+  });
+}
+
 // ─── Public Types ────────────────────────────────────────────
 
 export interface SlideContent {
@@ -502,39 +560,33 @@ export async function generatePremiumVideo(
     throw new Error('Failed to obtain background image for video');
   }
 
-  // Build multi-slide filter chain
+  // Railway ffmpeg-static has NO libavfilter (no zoompan, drawtext, xfade, etc.)
+  // Use simple image-to-video (image loop) on Railway, full premium on local
+  if (IS_RAILWAY) {
+    return generateSimpleVideo(bgImagePath, videoPath, legacySlides, mood, smartEffectIndex);
+  }
+
+  // Full premium pipeline (local dev with full ffmpeg)
   const filterChain = buildMultiSlideFilter(slides, fontArg);
-
-  // On Railway, lavfi is not available — generate video without audio
-  // Facebook accepts silent videos perfectly fine
-  const useLavfi = !IS_RAILWAY;
-  const musicFilter = useLavfi ? buildMusicFilter(category, VIDEO_DURATION) : null;
-
-  // Remove audio filter reference if no lavfi (filter references [1:a] from music input)
-  const finalFilterChain = useLavfi ? filterChain : filterChain.filter(f => !f.includes('[1:a]'));
-  const outputLabels = useLavfi ? ['vout', 'aout'] : ['vout'];
+  const musicFilter = buildMusicFilter(category, VIDEO_DURATION);
 
   return new Promise((resolve, reject) => {
-    const cmd = ffmpeg()
-      // Input 0: Background image (looped for total video duration)
+    ffmpeg()
       .input(bgImagePath)
-      .inputOptions(['-loop', '1', '-t', String(SLIDE_DURATION)]);
-
-    // Input 1: Procedural ambient music (only when lavfi available)
-    if (useLavfi && musicFilter) {
-      cmd.input(musicFilter).inputOptions(['-f', 'lavfi']);
-    }
-
-    cmd.complexFilter(finalFilterChain, outputLabels)
+      .inputOptions(['-loop', '1', '-t', String(SLIDE_DURATION)])
+      .input(musicFilter)
+      .inputOptions(['-f', 'lavfi'])
+      .complexFilter(filterChain, ['vout', 'aout'])
       .outputOptions([
         '-c:v', 'libx264',
-        ...(useLavfi ? ['-c:a', 'aac', '-b:a', '192k'] : ['-an']),
+        '-c:a', 'aac',
+        '-b:a', '192k',
         '-t', String(VIDEO_DURATION),
         '-pix_fmt', 'yuv420p',
         '-movflags', '+faststart',
-        '-preset', IS_RAILWAY ? 'fast' : 'medium',
-        '-crf', IS_RAILWAY ? '23' : '18',
-        ...(useLavfi ? ['-shortest'] : []),
+        '-preset', 'medium',
+        '-crf', '18',
+        '-shortest',
       ])
       .output(videoPath)
       .on('end', () => {
