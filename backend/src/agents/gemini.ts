@@ -45,7 +45,7 @@ async function askGeminiProvider(prompt: string): Promise<string> {
 
 // ─── Provider 2: Groq (with model fallback) ───
 let groqClient: Groq | null = null;
-const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama-3.2-3b-preview'];
+const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
 
 async function askGroqProvider(prompt: string): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
@@ -87,7 +87,6 @@ const OPENROUTER_MODELS = [
   'google/gemma-3-27b-it:free',
   'nousresearch/hermes-3-llama-3.1-405b:free',
   'google/gemma-3-4b-it:free',
-  'qwen/qwen3-8b:free',
 ];
 
 async function askOpenRouterProvider(prompt: string): Promise<string> {
