@@ -689,6 +689,12 @@ export async function generatePostsForClient(clientCtx?: { clientId: string; cli
         },
       });
 
+      // Record topic usage in research memory (fire-and-forget)
+      try {
+        const { recordTopicUsage } = await import('../services/research-intelligence.service');
+        recordTopicUsage(generated.topic || topic);
+      } catch {}
+
       // Fire-and-forget: queue video generation for PENDING_VIDEO posts
       // On failure: immediately convert to PENDING/organic so governor can approve it
       if (postStatus === 'PENDING_VIDEO') {

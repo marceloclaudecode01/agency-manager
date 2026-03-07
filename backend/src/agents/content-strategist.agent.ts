@@ -87,6 +87,20 @@ USE esses insights para otimizar a estrategia de hoje.`;
     }
   } catch {}
 
+  // Inject NotebookLM research insights + topic memory
+  let researchCtx = '';
+  try {
+    const { getResearchForStrategy, getTopicRecommendations } = await import('../services/research-intelligence.service');
+    const [research, topicMemory] = await Promise.all([
+      getResearchForStrategy(),
+      getTopicRecommendations(),
+    ]);
+    researchCtx = research + topicMemory;
+    if (researchCtx) {
+      console.log('[Strategist] NotebookLM research + topic memory injected');
+    }
+  } catch {}
+
   let brandCtx = '';
   try { brandCtx = await getBrandContext(); } catch {}
 
@@ -146,6 +160,7 @@ REGRA ANTI-REPETICAO NUCLEAR: Se um tema recente menciona "produtividade", NAO c
 
 ${trendingContext}
 ${growthContext}
+${researchCtx}
 
 DISTRIBUICAO DE CONTEUDO (framework das marcas bilionarias):
 - 40% autoridade (dados exclusivos, analises nivel McKinsey, tendencias de fronteira, posicionamento como a voz mais inteligente do nicho)

@@ -115,6 +115,19 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
       { step: 4, prompt: 'perguntar ao notebook quais os principais insights', moduleId: 'notebooklm' },
     ],
   },
+  {
+    type: 'weekly_nlm_report',
+    patterns: [
+      /(?:relat[oó]rio\s+semanal|weekly\s+report)\s*(?:nlm|notebooklm)?/i,
+    ],
+    description: 'Relatório semanal completo com NotebookLM',
+    steps: [
+      { step: 1, prompt: 'pesquisar tendencias de marketing digital', moduleId: 'notebooklm' },
+      { step: 2, prompt: 'relatorio sobre performance da agencia', moduleId: 'notebooklm' },
+      { step: 3, prompt: 'gerar conteudo sobre estrategias de crescimento', moduleId: 'notebooklm' },
+      { step: 4, prompt: 'resumo financeiro', moduleId: 'finance' },
+    ],
+  },
 ];
 
 export function findTemplateByType(type: string): TaskTemplate | undefined {

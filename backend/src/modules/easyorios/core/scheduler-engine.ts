@@ -157,6 +157,24 @@ export async function seedDefaultSchedules(userId: string): Promise<void> {
         scheduleDays: 'mon',
         channel: 'both',
       },
+      {
+        name: 'Pesquisa Semanal',
+        type: 'task_template',
+        taskTemplate: 'content_research',
+        scheduleHour: 6,
+        scheduleMinute: 0,
+        scheduleDays: 'mon',
+        channel: 'both',
+      },
+      {
+        name: 'Relatório Semanal NLM',
+        type: 'task_template',
+        taskTemplate: 'weekly_nlm_report',
+        scheduleHour: 18,
+        scheduleMinute: 0,
+        scheduleDays: 'fri',
+        channel: 'both',
+      },
     ];
 
     for (const d of defaults) {

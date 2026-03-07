@@ -172,6 +172,15 @@ export async function seedDefaultRules(userId: string): Promise<void> {
         actionConfig: { message: 'Muitos dispositivos ligados. Considere desligar os que nao estao em uso.' },
         cooldownMinutes: 120,
       },
+      {
+        name: 'Research on Low Engagement',
+        description: 'Pesquisa automatica quando engajamento cai abaixo de 30',
+        triggerType: 'metric_threshold',
+        triggerConfig: { moduleId: 'marketing', metric: 'avgEngagement', operator: 'lt', threshold: 30 },
+        actionType: 'command',
+        actionConfig: { command: 'pesquisar tendencias marketing digital', moduleId: 'notebooklm' },
+        cooldownMinutes: 720,
+      },
     ];
 
     for (const d of defaults) {

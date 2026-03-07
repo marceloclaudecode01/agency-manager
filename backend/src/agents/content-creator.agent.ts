@@ -139,10 +139,18 @@ Escreva como o MELHOR copywriter do mundo para este negócio.
 Use terminologia, dores, desejos e linguagem específica deste nicho.
 ` : '';
 
+  // Inject NotebookLM research data relevant to this topic
+  let researchCtx = '';
+  try {
+    const { getResearchForContent } = await import('../services/research-intelligence.service');
+    researchCtx = await getResearchForContent(topic);
+  } catch {}
+
   const prompt = `
 ${PAGE_CONTEXT}
 ${brandCtx}
 ${nicheCtx}
+${researchCtx}
 
 INSTRUÇÃO DE FORMATO: Varie SEMPRE o formato. Alterne entre:
 - Lista numerada

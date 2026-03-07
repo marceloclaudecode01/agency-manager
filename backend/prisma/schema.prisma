@@ -956,3 +956,24 @@ model AutomationRule {
   @@index([userId, enabled])
   @@map("automation_rules")
 }
+
+model ResearchMemory {
+  id                String    @id @default(cuid())
+  topic             String
+  normalizedTopic   String    // lowercase, trimmed for dedup
+  summary           String?   // last research summary
+  performanceScore  Float     @default(0) // avg engagement when used
+  timesUsed         Int       @default(0)
+  timesResearched   Int       @default(1)
+  firstResearchedAt DateTime  @default(now())
+  lastResearchedAt  DateTime  @default(now())
+  lastUsedInPost    DateTime?
+  status            String    @default("active") // active | exhausted | evergreen
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([normalizedTopic])
+  @@index([performanceScore])
+  @@index([status])
+  @@map("research_memories")
+}

@@ -279,12 +279,21 @@ export class NotebookLmModule implements EasyoriosModule {
     const notebooks = nbRes.status === 'fulfilled' && nbRes.value.success && Array.isArray(nbRes.value.data) ? nbRes.value.data : [];
     const artifacts = artRes.status === 'fulfilled' && artRes.value.success && Array.isArray(artRes.value.data) ? artRes.value.data : [];
 
+    let researchMeta = { lastResearchAt: null as string | null, totalInsights: 0, topTopics: [] as string[] };
+    try {
+      const { getResearchMeta } = await import('../../../services/research-intelligence.service');
+      researchMeta = await getResearchMeta();
+    } catch {}
+
     return {
       moduleId: 'notebooklm',
-      summary: `${notebooks.length} notebook(s) | ${artifacts.length} artefato(s) gerados`,
+      summary: `${notebooks.length} notebook(s) | ${artifacts.length} artefato(s) | ${researchMeta.totalInsights} insight(s) de pesquisa`,
       metrics: {
         totalNotebooks: notebooks.length,
         totalArtifacts: artifacts.length,
+        totalResearchInsights: researchMeta.totalInsights,
+        lastResearchAt: researchMeta.lastResearchAt,
+        topResearchTopics: researchMeta.topTopics,
       },
     };
   }
@@ -310,6 +319,22 @@ export class NotebookLmModule implements EasyoriosModule {
           title: 'Sugestoes do NotebookLM',
           message: `${sugRes.data.length} sugestao(oes) de artefatos disponiveis. Diga "listar artefatos" para ver.`,
           severity: 'info',
+          createdAt: new Date(),
+        });
+      }
+    } catch {}
+
+    // Alert if no research in 3+ days
+    try {
+      const { getResearchMeta } = await import('../../../services/research-intelligence.service');
+      const meta = await getResearchMeta();
+      if (!meta.lastResearchAt || (Date.now() - new Date(meta.lastResearchAt).getTime()) > 3 * 24 * 60 * 60 * 1000) {
+        alerts.push({
+          id: 'notebooklm-no-research',
+          moduleId: 'notebooklm',
+          title: 'Sem pesquisa recente',
+          message: 'Nenhuma pesquisa NotebookLM nos ultimos 3 dias. Diga "pesquisar tendencias marketing digital" para atualizar.',
+          severity: 'warning',
           createdAt: new Date(),
         });
       }

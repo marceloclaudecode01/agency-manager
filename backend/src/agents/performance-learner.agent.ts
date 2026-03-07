@@ -65,6 +65,13 @@ export async function learnFromPerformance(): Promise<{ analyzed: number; saved:
       });
       saved++;
       scores.push(engagementScore);
+
+      // Update topic memory with performance score (fire-and-forget)
+      if (post.topic) {
+        import('../services/research-intelligence.service')
+          .then(m => m.updateTopicPerformance(post.topic, engagementScore))
+          .catch(() => {});
+      }
     } catch (err: any) {
       await agentLog('Performance Learner', `Erro ao analisar post ${post.id}: ${err.message}`, { type: 'error' });
     }
@@ -115,6 +122,23 @@ export async function learnFromPerformance(): Promise<{ analyzed: number; saved:
   } catch (hashtagErr: any) {
     // Non-blocking — hashtag intelligence is optional
     console.error(`[Learner] Hashtag intelligence evolution failed: ${hashtagErr.message}`);
+  }
+
+  // Trigger NotebookLM research for top performing topic
+  try {
+    const { getPerformanceInsights } = await import('./performance-learner.agent');
+    const insights = await getPerformanceInsights();
+    const topEntry = insights.topTopics?.[0];
+    if (topEntry && topEntry.avgScore > 0) {
+      const { runResearchCycle } = await import('../services/research-intelligence.service');
+      const users = await prisma.user.findFirst();
+      if (users) {
+        runResearchCycle(topEntry.topic, users.id); // fire-and-forget
+        console.log(`[Learner] Research triggered for top topic: "${topEntry.topic}"`);
+      }
+    }
+  } catch (researchErr: any) {
+    console.error(`[Learner] Research trigger failed: ${researchErr.message}`);
   }
 
   await agentLog('Performance Learner', `Análise concluída: ${toAnalyze.length} posts analisados, ${saved} registros salvos`, {
