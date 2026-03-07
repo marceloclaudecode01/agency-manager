@@ -4,6 +4,7 @@ import { notificationsService } from '../../notifications/notifications.service'
 import { sendTelegramMessage } from '../services/telegram.service';
 import { checkScheduledActions } from './scheduler-engine';
 import { evaluateRules } from './rules-engine';
+import { startEvolutionMode, stopEvolutionMode } from './evolution-engine';
 
 let briefingCache: { data: any; ts: number } | null = null;
 const BRIEFING_TTL = 24 * 60 * 60 * 1000; // 24h
@@ -185,9 +186,13 @@ export function startProactiveEngine(io?: any): void {
   rulesInterval = setInterval(() => {
     evaluateRules(io);
   }, 5 * 60 * 1000);
+
+  // Evolution engine: continuous agency improvement (every 2h)
+  startEvolutionMode();
 }
 
 export function stopProactiveEngine(): void {
+  stopEvolutionMode();
   if (proactiveInterval) {
     clearInterval(proactiveInterval);
     proactiveInterval = null;
