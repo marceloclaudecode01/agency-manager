@@ -3,10 +3,62 @@ import { registry } from './core/module-registry';
 import { CommandResult, ModuleContext } from './core/module.interface';
 import { executeClassifiedIntent } from './core/intent-classifier';
 import { matchTaskTemplate, executeFullTask } from './core/task-engine';
+import { getRelevantMemories, extractFactsFromConversation, deduplicateFacts } from './core/memory-engine';
+import prisma from '../../config/database';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+}
+
+// ── Conversation Memory ──
+
+async function saveMessage(userId: string, role: string, content: string): Promise<void> {
+  try {
+    await prisma.conversationMemory.create({
+      data: {
+        userId,
+        category: 'message',
+        fact: JSON.stringify({ role, content: content.substring(0, 2000) }),
+      },
+    });
+  } catch (e: any) {
+    console.error('[Easyorios] Save message error:', e.message);
+  }
+}
+
+async function loadHistory(userId: string, limit = 20): Promise<ChatMessage[]> {
+  try {
+    const rows = await prisma.conversationMemory.findMany({
+      where: { userId, category: 'message' },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return rows
+      .reverse()
+      .map(r => {
+        try { return JSON.parse(r.fact); }
+        catch { return null; }
+      })
+      .filter((m): m is ChatMessage => m && m.role && m.content);
+  } catch {
+    return [];
+  }
+}
+
+export async function getConversationHistory(userId: string, limit = 50): Promise<ChatMessage[]> {
+  return loadHistory(userId, limit);
+}
+
+async function cleanupOldMessages(): Promise<void> {
+  // 1% chance per request — avoid running every time
+  if (Math.random() > 0.01) return;
+  try {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    await prisma.conversationMemory.deleteMany({
+      where: { category: 'message', createdAt: { lt: sevenDaysAgo } },
+    });
+  } catch {}
 }
 
 // Context cache
@@ -22,7 +74,7 @@ async function gatherModuleContexts(userId: string): Promise<ModuleContext[]> {
   return cachedContexts;
 }
 
-function buildSystemPrompt(contexts: ModuleContext[], moduleNames: string[]): string {
+function buildSystemPrompt(contexts: ModuleContext[], moduleNames: string[], memories: string[] = []): string {
   const contextBlock = contexts
     .map(c => `[${c.moduleId.toUpperCase()}] ${c.summary}`)
     .join('\n');
@@ -54,6 +106,14 @@ TAREFAS MULTI-ETAPA DISPONIVEIS:
 - "rotina da manha" — briefing + lembretes + status casa + noticias
 - "revisao financeira" — resumo financeiro + transacoes + briefing
 - "rotina da noite" — to-dos + financas + posts pendentes
+- "analise de tendencias semanal" — noticias + marketing + financas
+- "digest diario" — briefing + financas + marketing + noticias
+
+RECURSOS DE AUTONOMIA:
+- Agendamentos: rotinas automaticas (briefing matinal, rotina noturna, planejamento semanal)
+- Regras de automacao: quando X acontece, faz Y (ex: gastos > 3000 avisa no Telegram)
+- Memoria persistente: aprendo fatos e preferencias conforme conversamos
+${memories.length > 0 ? `\nMEMORIA PERSISTENTE:\n${memories.join('\n')}` : ''}
 
 Personalidade:
 - Voce CONHECE a agencia — quando perguntarem sobre a agencia, responda com os dados reais do modulo MARKETING
@@ -113,15 +173,29 @@ export async function getEasyoriosResponse(
     }
   }
 
-  // 4. Gather contexts from all modules
-  const contexts = await gatherModuleContexts(userId);
+  // 4. Gather contexts + load persistent history + memories
+  const [contexts, dbHistory, memories] = await Promise.all([
+    gatherModuleContexts(userId),
+    loadHistory(userId, 20),
+    getRelevantMemories(userId),
+  ]);
   const moduleNames = registry.getAllModules().map(m => m.name);
+
+  // Merge: DB history (older) + request history (current session)
+  const mergedHistory = [...dbHistory];
+  // Add any recent messages from request that aren't yet in DB
+  for (const msg of history) {
+    const isDup = mergedHistory.some(
+      m => m.role === msg.role && m.content === msg.content,
+    );
+    if (!isDup) mergedHistory.push(msg);
+  }
 
   let response: string;
   try {
-    const systemPrompt = buildSystemPrompt(contexts, moduleNames);
+    const systemPrompt = buildSystemPrompt(contexts, moduleNames, memories);
 
-    const conversationContext = history
+    const conversationContext = mergedHistory
       .slice(-10)
       .map(msg => `${msg.role === 'user' ? 'Usuario' : 'Easyorios'}: ${msg.content}`)
       .join('\n');
@@ -149,6 +223,15 @@ Easyorios:`;
       response = `Dados atuais: ${ctx || 'sem dados'}. A IA esta temporariamente indisponivel.`;
     }
   }
+
+  // Persist messages to DB (fire-and-forget)
+  saveMessage(userId, 'user', userMessage);
+  saveMessage(userId, 'assistant', response);
+  cleanupOldMessages();
+
+  // Extract facts from conversation (fire-and-forget)
+  extractFactsFromConversation(userId, userMessage, response);
+  deduplicateFacts(userId);
 
   return { response, commandResult: commandResult || undefined };
 }

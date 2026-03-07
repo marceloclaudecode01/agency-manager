@@ -17,7 +17,9 @@ interface TaskTemplate {
   steps: Omit<TaskStep, 'completed' | 'result'>[];
 }
 
-const TASK_TEMPLATES: TaskTemplate[] = [
+export { TaskTemplate };
+
+export const TASK_TEMPLATES: TaskTemplate[] = [
   {
     type: 'plan_week',
     patterns: [
@@ -71,7 +73,39 @@ const TASK_TEMPLATES: TaskTemplate[] = [
       { step: 3, prompt: 'listar posts pendentes', moduleId: 'marketing' },
     ],
   },
+  {
+    type: 'weekly_trend_analysis',
+    patterns: [
+      /(?:analise|análise)\s+(?:de\s+)?tendencias?\s+(?:semanal|da\s+semana)/i,
+      /(?:trend|tendencia)\s+(?:analysis|semanal)/i,
+    ],
+    description: 'Analise de tendencias semanal',
+    steps: [
+      { step: 1, prompt: 'noticias sobre marketing digital', moduleId: 'search' },
+      { step: 2, prompt: 'noticias sobre tecnologia', moduleId: 'search' },
+      { step: 3, prompt: 'status geral da agencia', moduleId: 'marketing' },
+      { step: 4, prompt: 'resumo financeiro', moduleId: 'finance' },
+    ],
+  },
+  {
+    type: 'daily_digest',
+    patterns: [
+      /(?:digest|resumo)\s+(?:diario|do\s+dia)/i,
+      /(?:daily\s+digest)/i,
+    ],
+    description: 'Digest diario completo',
+    steps: [
+      { step: 1, prompt: 'briefing', moduleId: 'personal' },
+      { step: 2, prompt: 'resumo financeiro', moduleId: 'finance' },
+      { step: 3, prompt: 'status geral da agencia', moduleId: 'marketing' },
+      { step: 4, prompt: 'noticias sobre tecnologia', moduleId: 'search' },
+    ],
+  },
 ];
+
+export function findTemplateByType(type: string): TaskTemplate | undefined {
+  return TASK_TEMPLATES.find(t => t.type === type);
+}
 
 export function matchTaskTemplate(message: string): TaskTemplate | null {
   for (const template of TASK_TEMPLATES) {

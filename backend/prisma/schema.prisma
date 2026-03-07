@@ -89,6 +89,9 @@ model User {
   communicationMessages  CommunicationMessage[]
   smartDevices           SmartDevice[]
   conversationTasks      ConversationTask[]
+  scheduledActions       ScheduledAction[]
+  userPreferences        UserPreference[]
+  automationRules        AutomationRule[]
 
   @@map("users")
 }
@@ -698,6 +701,7 @@ model Reminder {
   dueAt     DateTime
   recurring String?   // "daily" | "weekly" | "monthly" | null
   completed Boolean   @default(false)
+  notified  Boolean   @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -705,6 +709,7 @@ model Reminder {
 
   @@index([userId, completed])
   @@index([dueAt])
+  @@index([completed, notified, dueAt])
   @@map("reminders")
 }
 
@@ -886,4 +891,68 @@ model ConversationTask {
 
   @@index([userId, status])
   @@map("conversation_tasks")
+}
+
+// ─── Easyorios: Autonomous Scheduler ───
+
+model ScheduledAction {
+  id              String    @id @default(cuid())
+  userId          String
+  name            String
+  type            String    // "task_template" | "command"
+  scheduleHour    Int       // 0-23
+  scheduleMinute  Int       @default(0) // 0-59
+  scheduleDays    String?   // "mon,tue,wed,thu,fri,sat,sun" or null=every day
+  taskTemplate    String?   // "morning_routine" | "plan_week" etc
+  command         String?   // raw command text
+  channel         String    @default("both") // "telegram" | "web" | "both"
+  enabled         Boolean   @default(true)
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([enabled, nextRunAt])
+  @@index([userId])
+  @@map("scheduled_actions")
+}
+
+model UserPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String   // "briefing_time" | "preferred_channel" | "timezone" | "city"
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@map("user_preferences")
+}
+
+// ─── Easyorios: Automation Rules Engine ───
+
+model AutomationRule {
+  id              String    @id @default(cuid())
+  userId          String
+  name            String
+  description     String?
+  triggerType     String    // "metric_threshold" | "time_based" | "event_based" | "cross_module"
+  triggerConfig   Json      // { moduleId, metric, operator, threshold }
+  actionType      String    // "alert" | "command" | "telegram_message" | "task_template"
+  actionConfig    Json      // { command: "..." } or { message: "..." } or { template: "..." }
+  enabled         Boolean   @default(true)
+  cooldownMinutes Int       @default(60)
+  lastTriggeredAt DateTime?
+  triggerCount    Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, enabled])
+  @@map("automation_rules")
 }

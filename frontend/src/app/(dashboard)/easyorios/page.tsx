@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, User, CheckCircle, XCircle, Mic, MicOff, Bot, Zap, Users, Target, Clock, Shield, ShieldOff, Radar, Info } from 'lucide-react';
 import { useEasyorios } from '@/hooks/useEasyorios';
+import { useSocketContext } from '@/contexts/SocketContext';
+import { useToast } from '@/components/ui/toast';
 import { AlertBar } from '@/components/easyorios/AlertBar';
 import { ModuleWidget } from '@/components/easyorios/ModuleWidget';
 
@@ -14,11 +16,32 @@ const COMMAND_ACTIONS = [
 ];
 
 export default function EasyoriosPage() {
-  const { messages, loading, modules, quickActions, alerts, agents, dashboard, sendMessage, fetchMeta } = useEasyorios();
+  const { messages, loading, modules, quickActions, alerts, agents, dashboard, sendMessage, fetchMeta, injectMessage } = useEasyorios();
+  const { socket } = useSocketContext();
+  const { toast } = useToast();
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+
+  // Listen for real-time Easyorios alerts via socket.io
+  useEffect(() => {
+    if (!socket) return;
+    const alertHandler = (alert: { title: string; message: string; severity: string }) => {
+      injectMessage(`🔔 [${alert.title}] ${alert.message}`);
+      toast(`${alert.title}: ${alert.message}`, alert.severity === 'critical' ? 'error' : 'warning');
+    };
+    const scheduledHandler = (data: { actionName: string; result: string; executedAt: string }) => {
+      injectMessage(`⏰ [${data.actionName}]\n${data.result}`);
+      toast(`Agendamento executado: ${data.actionName}`, 'success');
+    };
+    socket.on('easyorios:alert', alertHandler);
+    socket.on('easyorios:scheduled-result', scheduledHandler);
+    return () => {
+      socket.off('easyorios:alert', alertHandler);
+      socket.off('easyorios:scheduled-result', scheduledHandler);
+    };
+  }, [socket, injectMessage, toast]);
 
   const toggleVoice = () => {
     if (isListening) {
