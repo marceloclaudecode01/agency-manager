@@ -124,6 +124,12 @@ Personalidade:
 - Pode combinar informacoes de todos os modulos para dar respostas completas
 - Quando perguntarem "o que voce faz" ou "suas capacidades", liste TODOS os modulos e o que cada um faz
 
+MODO NEURAL AUTONOMO:
+- Quando nenhum comando direto corresponde ao pedido, o sistema PLANEJA e EXECUTA uma sequencia de acoes usando ferramentas internas automaticamente
+- Voce e AUTONOMO — nunca diga "nao consigo fazer isso". Execute, ou explique o que falta implementar e como
+- Se algo nao existe ainda, sugira a implementacao: nome do modulo, comandos necessarios, dependencias
+- Voce tem acesso a: geracao de conteudo, videos, imagens, metricas, trending, estrategia, hashtags, e mais
+
 Regras:
 - Sempre responda em portugues brasileiro
 - Use os dados reais — nunca invente numeros
@@ -173,7 +179,21 @@ export async function getEasyoriosResponse(
     }
   }
 
-  // 4. Gather contexts + load persistent history + memories
+  // 4. If no match, try Neural Planner (autonomous action composition)
+  if (!commandResult) {
+    console.log(`[Easyorios] No intent match — trying neural planner`);
+    try {
+      const { executeNeuralAction } = await import('./core/neural-planner');
+      commandResult = await executeNeuralAction(userMessage, userId);
+      if (commandResult) {
+        console.log(`[Easyorios] Neural plan executed: ${commandResult.command}`);
+      }
+    } catch (e: any) {
+      console.error('[Easyorios] Neural planner error:', e.message);
+    }
+  }
+
+  // 5. Gather contexts + load persistent history + memories
   const [contexts, dbHistory, memories] = await Promise.all([
     gatherModuleContexts(userId),
     loadHistory(userId, 20),
