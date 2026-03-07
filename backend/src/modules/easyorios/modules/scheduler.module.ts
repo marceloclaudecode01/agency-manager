@@ -96,7 +96,7 @@ export class SchedulerModule implements EasyoriosModule {
         name: 'add_schedule',
         description: 'Criar novo agendamento',
         patterns: [
-          /(?:agenda[r]?|agendar?|cria[r]?\s+(?:agendamento|rotina)|nova?\s+rotina)\s+(.+)/i,
+          /(?:agenda[r]?|agendar?|cria[r]?\s+(?:agendamento|rotina)|nova?\s+rotina)\s+(?!(?:um\s+)?(?:video|vídeo|reel|reels)\b)(.+)/i,
         ],
         requiredRole: 'MEMBER',
         execute: async (match, userId) => {

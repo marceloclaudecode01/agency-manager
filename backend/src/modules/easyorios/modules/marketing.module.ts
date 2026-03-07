@@ -66,7 +66,7 @@ export class MarketingModule implements EasyoriosModule {
         name: 'marketing_command',
         description: 'Comandos de marketing (pausar/retomar agentes, safe mode, publicar, agendar, etc.)',
         patterns: [
-          /(?:pausar?|pause|parar?|stop|retomar|resume|reativar?|reactivate|despausar?|unpause)\s+/i,
+          /^(?:pausar?|pause|parar?|stop|retomar|resume|reativar?|reactivate|despausar?|unpause)\s+/i,
           /(?:ativar?|activate|ligar?|enable|desativar?|deactivate|desligar?|disable)\s+(?:o\s+)?(?:safe\s*mode|modo\s*seguro)/i,
           /(?:rodar?|run|executar?|execute)\s+(?:o\s+)?sentinel/i,
           /sentinel\s+(?:scan|check|verificar?|checar?)/i,
@@ -80,6 +80,12 @@ export class MarketingModule implements EasyoriosModule {
           /(?:publicar?|postar?|publish)\s+(?:para|for|no|na|do|da)\s+(?:a?\s+)?(?:pagina|página|page|client[e]?)/i,
           /(?:listar?|list|mostrar?|show|ver)\s+(?:os?\s+)?(?:posts?\s+)?(?:pendente|pending|agendado|scheduled|fila|queue)/i,
           /(?:que|quais)\s+posts?\s+(?:estão|estao|tem|temos)\s+(?:pendente|agendado|na\s+fila)/i,
+          // Video / Reel commands
+          /(?:publicar?|postar?|publish|criar?|create|gerar?|generate|fazer?|faz)\s+(?:um\s+)?(?:video|vídeo|reel|reels)/i,
+          /(?:video|vídeo|reel|reels)\s+(?:sobre\s+)/i,
+          /(?:manda|faz|faca|faça)\s+(?:um\s+)?(?:video|vídeo|reel|reels)/i,
+          /(?:quero|preciso|pode|vamos)\s+(?:um\s+)?(?:video|vídeo|reel|reels)/i,
+          /(?:agendar?|schedule)\s+(?:um\s+)?(?:video|vídeo|reel|reels)/i,
         ],
         requiredRole: 'MEMBER',
         execute: async (match, _userId, userRole) => {
@@ -164,6 +170,7 @@ export class MarketingModule implements EasyoriosModule {
       { label: 'Status Geral', prompt: 'Qual o status geral da agencia agora?', icon: 'Activity', moduleId: 'marketing' },
       { label: 'Performance', prompt: 'Como esta a performance dos posts e engajamento?', icon: 'BarChart3', moduleId: 'marketing' },
       { label: 'Publicar Agora', prompt: 'publicar agora', icon: 'Zap', moduleId: 'marketing' },
+      { label: 'Publicar Video', prompt: 'publicar video', icon: 'Video', moduleId: 'marketing' },
       { label: 'Ver Fila', prompt: 'listar posts pendentes', icon: 'List', moduleId: 'marketing' },
       { label: 'Safe Mode ON', prompt: 'ativar safe mode', icon: 'Shield', moduleId: 'marketing' },
       { label: 'Safe Mode OFF', prompt: 'desativar safe mode', icon: 'ShieldOff', moduleId: 'marketing' },

@@ -6,6 +6,7 @@ import { askGemini } from '../../../agents/gemini';
 import { optimizeForPlatform } from '../../../agents/platform-optimizer.agent';
 import { generateImageForPost } from '../../../agents/image-generator.agent';
 import { SocialService } from '../../social/social.service';
+import { generateAndUploadPremiumVideo } from '../../../services/video-from-text.service';
 
 export interface CommandResult {
   command: string;
@@ -153,7 +154,7 @@ const COMMANDS: CommandDef[] = [
     name: 'pause_agent',
     requiredRole: 'ADMIN',
     patterns: [
-      /(?:pausar?|pause|parar?|stop)\s+(?:o\s+)?(?:agente?\s+)?(.+)/i,
+      /^(?:pausar?|pause|parar?|stop)\s+(?:o\s+)?(?:agente?\s+)?(.+)/i,
     ],
     execute: async (match) => {
       const agentFunction = resolveAgent(match[1]);
@@ -585,6 +586,167 @@ const COMMANDS: CommandDef[] = [
       }
     },
   },
+  // ─── PUBLISH VIDEO / REEL — Generate video + publish immediately ───
+  {
+    name: 'publish_video',
+    requiredRole: 'ADMIN',
+    patterns: [
+      /(?:publicar?|postar?|publish|criar?|create|gerar?|generate|fazer?|faz)\s+(?:um\s+)?(?:video|vídeo|reel|reels)\s+(?:sobre\s+)?(.+)?/i,
+      /(?:video|vídeo|reel|reels)\s+(?:sobre\s+)(.+)/i,
+      /(?:manda|faz|faca|faça)\s+(?:um\s+)?(?:video|vídeo|reel|reels)(?:\s+sobre\s+(.+))?/i,
+      /(?:quero|preciso|pode|vamos)\s+(?:um\s+)?(?:video|vídeo|reel|reels)(?:\s+sobre\s+(.+))?/i,
+    ],
+    execute: async (match) => {
+      try {
+        // Extract topic from regex capture groups
+        const rawTopic = (match[1] || '').replace(/^(sobre|about|de|do|da)\s+/i, '').trim() || undefined;
+
+        await agentLog('Easyorios', `Comando: publicar video${rawTopic ? ` sobre "${rawTopic}"` : ''}`, { type: 'action' });
+
+        const client = await prisma.client.findFirst({
+          where: { isActive: true, status: 'ACTIVE', facebookPageId: { not: null }, facebookAccessToken: { not: null } },
+          select: { id: true, name: true, niche: true, notes: true, facebookPageId: true, facebookAccessToken: true },
+        });
+
+        // Generate post content (uses topic hint if provided)
+        const nicheOrTopic = rawTopic || client?.niche || undefined;
+        const generated = await generatePost(nicheOrTopic, client?.notes || undefined, client?.name || undefined);
+
+        // Platform optimizer
+        const optimized = optimizeForPlatform(generated.message, generated.hashtags, 'facebook');
+        const hashtagsStr = optimized.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ') || null;
+        const fullMessage = hashtagsStr ? `${optimized.message}\n\n${hashtagsStr}` : optimized.message;
+
+        // Generate video (Ken Burns 4 slides + Cloudinary upload)
+        const videoUrl = await generateAndUploadPremiumVideo(generated.message, generated.topic, 'educativo');
+
+        // Build SocialService for client
+        const socialService = (client?.facebookPageId && client?.facebookAccessToken)
+          ? new SocialService({ pageId: client.facebookPageId, accessToken: client.facebookAccessToken })
+          : new SocialService();
+
+        // Publish as Reel (fallback to standard video)
+        let publishResult: any;
+        try {
+          publishResult = await socialService.publishReelPost(fullMessage, videoUrl);
+        } catch (reelErr: any) {
+          await agentLog('Easyorios', `Reel falhou (${reelErr.message}), tentando video standard`, { type: 'info' });
+          publishResult = await socialService.publishVideoPost(fullMessage, videoUrl);
+        }
+
+        // Save to DB
+        await prisma.scheduledPost.create({
+          data: {
+            topic: generated.topic,
+            message: optimized.message,
+            hashtags: hashtagsStr,
+            videoUrl,
+            status: 'PUBLISHED',
+            publishedAt: new Date(),
+            scheduledFor: new Date(),
+            source: 'easyorios-command',
+            contentType: 'video',
+            governorDecision: 'APPROVE',
+            governorReason: `Video publicado via Easyorios (${generated.source})`,
+            metaPostId: publishResult?.id || null,
+            ...(client ? { clientId: client.id } : {}),
+          },
+        });
+
+        await agentLog('Easyorios', `[Easyorios] Video publicado: "${generated.topic}" (${client?.name || 'default'})`, { type: 'result' });
+        return {
+          command: 'publish_video',
+          success: true,
+          message: `Video/Reel publicado com sucesso!\n🎬 Tema: "${generated.topic}"\n📱 Pagina: ${client?.name || 'padrao'}\n🆔 FB ID: ${publishResult?.id || 'N/A'}\n🔧 Fonte: ${generated.source}`,
+          data: { topic: generated.topic, videoUrl, fbPostId: publishResult?.id, client: client?.name, source: generated.source },
+        };
+      } catch (e: any) {
+        await agentLog('Easyorios', `Falha ao publicar video: ${e.message}`, { type: 'error' });
+        return { command: 'publish_video', success: false, message: `Falha ao publicar video: ${e.message}` };
+      }
+    },
+  },
+  // ─── SCHEDULE VIDEO / REEL — Generate video + schedule for specific time ───
+  {
+    name: 'schedule_video',
+    requiredRole: 'ADMIN',
+    patterns: [
+      /(?:agendar?|schedule)\s+(?:um\s+)?(?:video|vídeo|reel|reels)\s+(?:para|at|as|às|pra)\s+(?:as\s+)?(\d{1,2})[h:]?(\d{2})?(?:\s+sobre\s+(.+))?/i,
+      /(?:agendar?|schedule)\s+(?:um\s+)?(?:video|vídeo|reel|reels)\s+(?:sobre\s+(.+?)\s+)?(?:para|at|as|às|pra)\s+(?:as\s+)?(\d{1,2})[h:]?(\d{2})?/i,
+    ],
+    execute: async (match) => {
+      try {
+        // Pattern 1: time first, topic after — Pattern 2: topic first, time after
+        let hours: number, minutes: number, rawTopic: string | undefined;
+        if (/^\d+$/.test(match[1])) {
+          // Pattern 1: match[1]=hours, match[2]=minutes, match[3]=topic
+          hours = parseInt(match[1]);
+          minutes = parseInt(match[2] || '0');
+          rawTopic = match[3]?.trim() || undefined;
+        } else {
+          // Pattern 2: match[1]=topic, match[2]=hours, match[3]=minutes
+          rawTopic = match[1]?.trim() || undefined;
+          hours = parseInt(match[2]);
+          minutes = parseInt(match[3] || '0');
+        }
+
+        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+          return { command: 'schedule_video', success: false, message: 'Horario invalido. Use formato HH:MM (ex: 14:30).' };
+        }
+
+        await agentLog('Easyorios', `Comando: agendar video para ${hours}:${String(minutes).padStart(2, '0')}${rawTopic ? ` sobre "${rawTopic}"` : ''}`, { type: 'action' });
+
+        const client = await prisma.client.findFirst({
+          where: { isActive: true, status: 'ACTIVE', facebookPageId: { not: null }, facebookAccessToken: { not: null } },
+          select: { id: true, name: true, niche: true, notes: true },
+        });
+
+        const nicheOrTopic = rawTopic || client?.niche || undefined;
+        const generated = await generatePost(nicheOrTopic, client?.notes || undefined, client?.name || undefined);
+
+        const optimized = optimizeForPlatform(generated.message, generated.hashtags, 'facebook');
+        const hashtagsStr = optimized.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ') || null;
+
+        // Generate video now (so it's ready when schedule fires)
+        const videoUrl = await generateAndUploadPremiumVideo(generated.message, generated.topic, 'educativo');
+
+        const scheduledFor = new Date();
+        scheduledFor.setHours(hours, minutes, 0, 0);
+        if (scheduledFor.getTime() < Date.now()) {
+          scheduledFor.setDate(scheduledFor.getDate() + 1);
+        }
+
+        const saved = await prisma.scheduledPost.create({
+          data: {
+            topic: generated.topic,
+            message: optimized.message,
+            hashtags: hashtagsStr,
+            videoUrl,
+            status: 'APPROVED',
+            scheduledFor,
+            source: 'easyorios-command',
+            contentType: 'video',
+            governorDecision: 'APPROVE',
+            governorReason: `Video agendado via Easyorios (${generated.source})`,
+            ...(client ? { clientId: client.id } : {}),
+          },
+        });
+
+        const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        const dateStr = scheduledFor.toLocaleDateString('pt-BR');
+        await agentLog('Easyorios', `Video agendado para ${timeStr} (${dateStr}): "${generated.topic}"`, { type: 'result' });
+        return {
+          command: 'schedule_video',
+          success: true,
+          message: `Video agendado com sucesso!\n🎬 Tema: "${generated.topic}"\n⏰ Horario: ${timeStr} (${dateStr})\n📱 Pagina: ${client?.name || 'padrao'}\n🆔 ID: ${saved.id}\n🔧 Fonte: ${generated.source}`,
+          data: { topic: generated.topic, videoUrl, scheduledFor: scheduledFor.toISOString(), postId: saved.id, source: generated.source },
+        };
+      } catch (e: any) {
+        await agentLog('Easyorios', `Falha ao agendar video: ${e.message}`, { type: 'error' });
+        return { command: 'schedule_video', success: false, message: `Falha ao agendar video: ${e.message}` };
+      }
+    },
+  },
   // ─── LIST PENDING POSTS ───
   {
     name: 'list_pending',
@@ -666,5 +828,7 @@ COMANDOS DISPONÍVEIS (o usuário pode pedir em linguagem natural):
 - REAGENDAR: "alterar horário do post X para 15:00", "mover post X para 20h"
 - PUBLICAR POR CLIENTE: "publicar para Federal", "postar na página do Newplay agora"
 - VER FILA: "listar posts pendentes", "ver posts agendados", "mostrar fila"
+- PUBLICAR VIDEO/REEL: "publicar video sobre marketing", "criar reel sobre IA", "faz um video sobre vendas"
+- AGENDAR VIDEO/REEL: "agendar video para 14h sobre tecnologia", "agendar reel para as 18h"
 Quando um comando é executado, você receberá o resultado para narrar ao usuário.
 IMPORTANTE: Você tem AUTORIDADE TOTAL para acionar os agentes. Quando o usuário pede para publicar, agendar ou alterar horários, EXECUTE o comando — não apenas explique.`;
