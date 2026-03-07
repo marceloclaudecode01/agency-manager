@@ -101,6 +101,20 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
       { step: 4, prompt: 'noticias sobre tecnologia', moduleId: 'search' },
     ],
   },
+  {
+    type: 'content_research',
+    patterns: [
+      /(?:pesquisar?\s+e\s+gerar?|research\s+and\s+generate)\s+(?:sobre|about)\s+(.+)/i,
+      /(?:content\s+research|pesquisa\s+de\s+conteudo)\s+(?:sobre|about)?\s*(.+)/i,
+    ],
+    description: 'Pesquisa de conteudo completa com NotebookLM',
+    steps: [
+      { step: 1, prompt: 'pesquisar tendencias de marketing digital 2026', moduleId: 'notebooklm' },
+      { step: 2, prompt: 'relatorio sobre estrategias de crescimento', moduleId: 'notebooklm' },
+      { step: 3, prompt: 'podcast sobre tendencias de marketing', moduleId: 'notebooklm' },
+      { step: 4, prompt: 'perguntar ao notebook quais os principais insights', moduleId: 'notebooklm' },
+    ],
+  },
 ];
 
 export function findTemplateByType(type: string): TaskTemplate | undefined {

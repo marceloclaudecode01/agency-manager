@@ -8,6 +8,7 @@ import { SmartHomeModule } from '../modules/smart-home.module';
 import { SchedulerModule } from '../modules/scheduler.module';
 import { AutomationModule } from '../modules/automation.module';
 import { MemoryModule } from '../modules/memory.module';
+import { NotebookLmModule } from '../modules/notebooklm.module';
 import { seedDefaultSchedules } from './scheduler-engine';
 import { seedDefaultRules } from './rules-engine';
 import prisma from '../../../config/database';
@@ -24,6 +25,7 @@ export function bootstrapEasyorios(): void {
   registry.register(new SchedulerModule());
   registry.register(new AutomationModule());
   registry.register(new MemoryModule());
+  registry.register(new NotebookLmModule());
 
   const modules = registry.getAllModules();
   console.log(`[Easyorios] ${modules.length} module(s) registered: ${modules.map(m => m.id).join(', ')}`);
