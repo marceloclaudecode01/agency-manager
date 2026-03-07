@@ -244,11 +244,15 @@ export async function reviewPendingPosts(): Promise<void> {
     return;
   }
 
-  // Fetch ALL pending posts not yet reviewed
-  const pendingWhere: any = { status: 'PENDING', governorDecision: null };
-  if (safeMode) {
-    pendingWhere.contentType = 'video';
-  }
+  // Fetch ALL pending posts not yet reviewed (including stuck PENDING_VIDEO without comfyRunId)
+  const pendingWhere: any = safeMode
+    ? { status: 'PENDING', governorDecision: null, contentType: 'video' }
+    : {
+        OR: [
+          { status: 'PENDING', governorDecision: null },
+          { status: 'PENDING_VIDEO', governorDecision: null, comfyRunId: null },
+        ],
+      };
   const pending = await prisma.scheduledPost.findMany({
     where: pendingWhere,
     orderBy: { scheduledFor: 'asc' },
@@ -312,6 +316,10 @@ export async function reviewPendingPosts(): Promise<void> {
 
       if (decision.decision === 'APPROVE') {
         updateData.status = 'APPROVED';
+        // Convert stuck PENDING_VIDEO (no comfyRunId) to organic post
+        if (post.status === 'PENDING_VIDEO' && !post.comfyRunId) {
+          updateData.contentType = 'organic';
+        }
         // Anti-spam humanization — ±10min random offset
         const baseTime = decision.newScheduledFor || post.scheduledFor;
         const offsetMs = (Math.random() * 20 - 10) * 60 * 1000; // -10 to +10 min

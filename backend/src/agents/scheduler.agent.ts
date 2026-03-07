@@ -690,9 +690,18 @@ export async function generatePostsForClient(clientCtx?: { clientId: string; cli
       });
 
       // Fire-and-forget: queue video generation for PENDING_VIDEO posts
+      // On failure: immediately convert to PENDING/organic so governor can approve it
       if (postStatus === 'PENDING_VIDEO') {
-        queueVideoForPost(saved.id).catch((err: any) => {
-          console.error(`[Engine] Failed to queue video for post ${saved.id}: ${err.message}`);
+        queueVideoForPost(saved.id).catch(async (err: any) => {
+          console.error(`[Engine] Failed to queue video for post ${saved.id}: ${err.message}. Converting to organic.`);
+          try {
+            await prisma.scheduledPost.update({
+              where: { id: saved.id },
+              data: { status: 'PENDING', contentType: 'organic', comfyRunId: null },
+            });
+          } catch (updateErr: any) {
+            console.error(`[Engine] Failed to convert post ${saved.id} to organic: ${updateErr.message}`);
+          }
         });
       }
 

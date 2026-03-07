@@ -51,7 +51,7 @@ export default function SocialPage() {
   const [connected, setConnected] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [postForm, setPostForm] = useState({ message: '', imageUrl: '', linkUrl: '', mediaType: '' as '' | 'image' | 'video', scheduledTime: '', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+  const [postForm, setPostForm] = useState({ message: '', imageUrl: '', mediaType: '' as '' | 'image' | 'video', scheduledTime: '', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
   const [postMediaFile, setPostMediaFile] = useState<File | null>(null);
   const [postMediaPreview, setPostMediaPreview] = useState<string | null>(null);
   const [uploadingPostMedia, setUploadingPostMedia] = useState(false);
@@ -255,14 +255,13 @@ export default function SocialPage() {
         imageUrl: mediaUrl,
         mediaUrl,
         mediaType,
-        linkUrl: postForm.linkUrl || null,
         scheduledTime: postForm.scheduledTime || null,
         timezone: postForm.timezone,
       });
 
       toast(postForm.scheduledTime ? 'Post agendado!' : 'Post publicado!', 'success');
       setShowPostModal(false);
-      setPostForm({ message: '', imageUrl: '', linkUrl: '', mediaType: '', scheduledTime: '', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      setPostForm({ message: '', imageUrl: '', mediaType: '', scheduledTime: '', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
       setPostMediaFile(null);
       setPostMediaPreview(null);
       loadSocial();
@@ -1092,19 +1091,7 @@ export default function SocialPage() {
                 <p className="text-xs text-text-secondary px-2 py-1 bg-surface">{postMediaFile?.name}</p>
               </div>
             )}
-            {/* OU URL */}
-            {!postMediaPreview && (
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-xs text-text-secondary">ou cole uma URL</span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
-            )}
-            {!postMediaPreview && (
-              <Input label="URL da midia" placeholder="https://... (imagem ou video)" type="url" value={postForm.imageUrl} onChange={(e) => setPostForm({ ...postForm, imageUrl: e.target.value })} />
-            )}
           </div>
-          <Input label="Link do post (opcional)" type="url" placeholder="https://seu-link.com" value={postForm.linkUrl} onChange={(e) => setPostForm({ ...postForm, linkUrl: e.target.value })} />
           <Input label="Agendar para (opcional)" type="datetime-local" value={postForm.scheduledTime} onChange={(e) => setPostForm({ ...postForm, scheduledTime: e.target.value })} />
           {postForm.scheduledTime && (
             <div>

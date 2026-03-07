@@ -265,19 +265,19 @@ export async function pollPendingVideos(): Promise<void> {
     });
 
     if (pendingVideos.length === 0) {
-      // Discard old PENDING_VIDEO posts (>1 hour old)
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      // Convert stuck PENDING_VIDEO posts (>15 min old without comfyRunId) to organic
+      const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
       const discarded = await prisma.scheduledPost.updateMany({
-        where: { status: 'PENDING_VIDEO', comfyRunId: null, createdAt: { lt: oneHourAgo } },
+        where: { status: 'PENDING_VIDEO', comfyRunId: null, createdAt: { lt: fifteenMinAgo } },
         data: { contentType: 'organic', status: 'PENDING', comfyRunId: null },
       });
       if (discarded.count > 0) {
-        console.log(`[VideoProcessor] Discarded ${discarded.count} old PENDING_VIDEO posts (>1h old)`);
+        console.log(`[VideoProcessor] Converted ${discarded.count} stuck PENDING_VIDEO posts (>15min) to organic`);
       }
 
       // Process 1 fresh stuck video per cycle
       const stuckVideos = await prisma.scheduledPost.findMany({
-        where: { status: 'PENDING_VIDEO', comfyRunId: null, createdAt: { gte: oneHourAgo } },
+        where: { status: 'PENDING_VIDEO', comfyRunId: null, createdAt: { gte: fifteenMinAgo } },
         orderBy: { createdAt: 'desc' },
         take: 1,
       });
