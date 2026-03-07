@@ -4,6 +4,9 @@ import { ApiResponse } from '../../utils/api-response';
 import { getEasyoriosResponse, getModulesInfo, getConversationHistory } from './easyorios-brain.service';
 import { registry } from './core/module-registry';
 import { getAgentInventory, getDashboardData } from './modules/marketing.module';
+import prisma from '../../config/database';
+import { generatePostsForClient } from '../../agents/scheduler.agent';
+import { agentLog } from '../../agents/agent-logger';
 
 export async function sendMessage(req: AuthRequest, res: Response) {
   try {
@@ -98,6 +101,63 @@ export async function getHistory(req: AuthRequest, res: Response) {
   } catch (error: any) {
     console.error('[Easyorios] History error:', error.message);
     return ApiResponse.error(res, 'Erro ao carregar historico');
+  }
+}
+
+export async function triggerEngine(req: AuthRequest, res: Response) {
+  try {
+    if (req.user?.role !== 'ADMIN') {
+      return ApiResponse.forbidden(res, 'Apenas admins podem disparar o motor');
+    }
+
+    await agentLog('Autonomous Engine', '🔧 Motor disparado manualmente via API', { type: 'action' });
+
+    const activeClients = await prisma.client.findMany({
+      where: { isActive: true, status: 'ACTIVE' },
+      select: { id: true, name: true, niche: true, notes: true, facebookPageName: true, facebookPageId: true, facebookAccessToken: true },
+    });
+
+    let totalScheduled = 0;
+    const clientSummaries: string[] = [];
+
+    if (activeClients.length === 0) {
+      const ids = await generatePostsForClient();
+      totalScheduled = ids.length;
+      clientSummaries.push(`Default: ${ids.length} posts`);
+    } else {
+      for (const client of activeClients) {
+        try {
+          const hasOwnPage = client.facebookPageId && client.facebookAccessToken;
+          const hasEnvFallback = process.env.FACEBOOK_PAGE_ID && process.env.FACEBOOK_ACCESS_TOKEN;
+          if (!hasOwnPage && !hasEnvFallback) {
+            clientSummaries.push(`${client.name}: sem config`);
+            continue;
+          }
+
+          const ids = await generatePostsForClient({
+            clientId: client.id,
+            clientName: client.name,
+            niche: client.niche || 'geral',
+            facebookPageName: client.facebookPageName || undefined,
+            notes: client.notes || undefined,
+          });
+          totalScheduled += ids.length;
+          clientSummaries.push(`${client.name}: ${ids.length} posts`);
+        } catch (clientErr: any) {
+          clientSummaries.push(`${client.name}: ERRO - ${clientErr.message.substring(0, 80)}`);
+        }
+      }
+    }
+
+    await agentLog('Autonomous Engine', `✅ Motor manual concluído. ${totalScheduled} posts agendados. ${clientSummaries.join(' | ')}`, { type: 'result' });
+
+    return ApiResponse.success(res, {
+      totalScheduled,
+      clients: clientSummaries,
+    }, `Motor executado: ${totalScheduled} posts agendados`);
+  } catch (error: any) {
+    console.error('[Engine] Manual trigger error:', error.message);
+    return ApiResponse.error(res, `Erro ao disparar motor: ${error.message}`);
   }
 }
 

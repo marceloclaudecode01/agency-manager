@@ -14,8 +14,9 @@ export class AutomationModule implements EasyoriosModule {
         name: 'list_rules',
         description: 'Listar regras de automacao',
         patterns: [
-          /(?:minhas?\s+)?(?:regras?|automac[oõ]es?|rules?)/i,
+          /^(?:minhas?\s+)?(?:regras?|automac[oõ]es?|rules?)\s*$/i,
           /(?:listar?|ver|mostrar?)\s+(?:regras?|automac[oõ]es?)/i,
+          /^(?!.*(?:cria|nova|create|desativa|disable|pausa|ativa|enable|exclu|deleta|remove))(?:quais?\s+)?(?:s[aã]o\s+)?(?:minhas?\s+)?(?:regras?|automac[oõ]es?)/i,
         ],
         requiredRole: 'MEMBER',
         execute: async (_match, userId) => {
@@ -49,7 +50,7 @@ export class AutomationModule implements EasyoriosModule {
         name: 'create_rule',
         description: 'Criar regra de automacao via linguagem natural',
         patterns: [
-          /(?:cria[r]?\s+regra|nova?\s+regra|create\s+rule)\s+(.+)/i,
+          /(?:cria[r]?\s+regra|nova?\s+regra|create\s+rule)[:\s]+(.+)/i,
         ],
         requiredRole: 'ADMIN',
         execute: async (match, userId) => {
@@ -153,7 +154,7 @@ Responda APENAS em JSON valido:
         name: 'delete_rule',
         description: 'Excluir regra de automacao',
         patterns: [
-          /(?:excluir?|deleta[r]?|remove[r]?)\s+regra\s+(.+)/i,
+          /(?:excluir?|deleta[r]?|remove[r]?|deletar)\s+regra\s+(.+)/i,
         ],
         requiredRole: 'ADMIN',
         execute: async (match, userId) => {

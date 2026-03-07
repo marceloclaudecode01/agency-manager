@@ -567,7 +567,7 @@ function startDueDateNotifier() {
 }
 
 // Generate posts for a single client (or default page if no client)
-async function generatePostsForClient(clientCtx?: { clientId: string; clientName: string; niche: string; facebookPageName?: string; notes?: string }): Promise<string[]> {
+export async function generatePostsForClient(clientCtx?: { clientId: string; clientName: string; niche: string; facebookPageName?: string; notes?: string }): Promise<string[]> {
   const label = clientCtx ? `[${clientCtx.clientName}]` : '[Default]';
 
   await agentLog('Autonomous Engine', `${label} Solicitando estratégia diária ao Content Strategist...`, { type: 'communication', to: 'Content Strategist' });

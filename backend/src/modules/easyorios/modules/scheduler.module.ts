@@ -58,8 +58,9 @@ export class SchedulerModule implements EasyoriosModule {
         name: 'list_schedules',
         description: 'Listar agendamentos ativos',
         patterns: [
-          /(?:meus?\s+)?(?:agendamentos?|rotinas?|schedules?)/i,
+          /^(?:meus?\s+)?(?:agendamentos?|rotinas?|schedules?)\s*$/i,
           /(?:listar?|ver|mostrar?)\s+(?:agendamentos?|rotinas?)/i,
+          /^(?!.*(?:cancela|remove|deleta|exclu|ativa|desativa|disable|enable|pausa|agenda[r]?\s))(?:quais?\s+)?(?:s[aã]o\s+)?(?:meus?\s+)?(?:agendamentos?|rotinas?)/i,
         ],
         requiredRole: 'MEMBER',
         execute: async (_match, userId) => {
@@ -221,13 +222,13 @@ export class SchedulerModule implements EasyoriosModule {
         name: 'enable_schedule',
         description: 'Ativar/desativar agendamento',
         patterns: [
-          /(?:ativa[r]?|enable)\s+(?:agendamento|rotina)\s+(?:d[aoe]\s+)?(.+)/i,
           /(?:desativa[r]?|disable|pausa[r]?)\s+(?:agendamento|rotina)\s+(?:d[aoe]\s+)?(.+)/i,
+          /(?:(?<!des)ativa[r]?|enable)\s+(?:agendamento|rotina)\s+(?:d[aoe]\s+)?(.+)/i,
         ],
         requiredRole: 'MEMBER',
         execute: async (match, userId) => {
           const search = (match[1] || match[2] || '').trim().toLowerCase();
-          const enable = /^(?:ativa|enable)/i.test(match[0]);
+          const enable = /(?:^|\s)(?:(?<!des)ativa|enable)/i.test(match[0]) && !/(?:desativa|disable|pausa)/i.test(match[0]);
 
           const schedule = await prisma.scheduledAction.findFirst({
             where: {
