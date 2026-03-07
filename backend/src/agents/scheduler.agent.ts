@@ -213,29 +213,11 @@ export function startPostScheduler() {
 
       let publishResult: any;
 
-      // FIX #5: Publish video as Reel with retry (2 attempts) before falling back to /videos
+      // Publish video via /videos endpoint (same path as manual "New Post" button — reliable)
       if (post.contentType === 'video' && post.videoUrl) {
-        let reelPublished = false;
-        for (let reelAttempt = 0; reelAttempt < 2; reelAttempt++) {
-          try {
-            publishResult = await postSocialService.publishReelPost(fullMessage, post.videoUrl);
-            console.log(`[Scheduler] ✅ Published as Reel (attempt ${reelAttempt + 1}): ${post.topic}`);
-            await agentLog('Scheduler', `Published as REEL: "${post.topic}"`, { type: 'result', payload: { format: 'reel', attempt: reelAttempt + 1 } });
-            reelPublished = true;
-            break;
-          } catch (reelErr: any) {
-            console.warn(`[Scheduler] Reel attempt ${reelAttempt + 1}/2 failed: ${reelErr.message}`);
-            if (reelAttempt === 0) {
-              // Wait 5s before retry — Reel API can be flaky
-              await new Promise(r => setTimeout(r, 5000));
-            }
-          }
-        }
-        if (!reelPublished) {
-          console.warn(`[Scheduler] Reel API failed 2x, falling back to /videos (lower reach)`);
-          await agentLog('Scheduler', `⚠️ Reel API falhou 2x para "${post.topic}" — usando /videos (alcance menor)`, { type: 'error' });
-          publishResult = await postSocialService.publishVideoPost(fullMessage, post.videoUrl);
-        }
+        publishResult = await postSocialService.publishVideoPost(fullMessage, post.videoUrl);
+        console.log(`[Scheduler] ✅ Published video: ${post.topic}`);
+        await agentLog('Scheduler', `Published video: "${post.topic}"`, { type: 'result', payload: { format: 'video' } });
       } else if (post.imageUrl) {
         publishResult = await postSocialService.publishMediaPost(fullMessage, post.imageUrl, { mediaType: 'image' });
       } else {
