@@ -281,19 +281,34 @@ async function getOrGenerateImage(
   const picsum = await downloadImageToTemp(`https://picsum.photos/seed/${Date.now()}/1080/1920`);
   if (picsum) return picsum;
 
-  // Last resort — generate a solid color image with ffmpeg
+  // Last resort — generate a solid color PNG without lavfi (works on Railway)
   console.warn('[video-v4] Picsum also failed, generating solid background...');
-  const solidPath = path.join(os.tmpdir(), `agency_solid_${Date.now()}.png`);
+  const solidPath = path.join(os.tmpdir(), `agency_solid_${Date.now()}.ppm`);
+  const solidPng = path.join(os.tmpdir(), `agency_solid_${Date.now()}.png`);
   return new Promise((resolve) => {
-    const { execSync } = require('child_process');
     try {
-      execSync(`"${resolvedFfmpegPath}" -f lavfi -i "color=c=0x1a1a2e:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:d=1" -frames:v 1 "${solidPath}" -y`, { timeout: 10000 });
-      if (fs.existsSync(solidPath) && fs.statSync(solidPath).size > 100) {
-        resolve(solidPath);
+      // Generate raw PPM image (no ffmpeg filters needed) → convert to PNG
+      const w = VIDEO_WIDTH, h = VIDEO_HEIGHT;
+      const header = `P6\n${w} ${h}\n255\n`;
+      const pixels = Buffer.alloc(w * h * 3);
+      // Fill with dark blue #1a1a2e
+      for (let i = 0; i < w * h; i++) {
+        pixels[i * 3] = 0x1a;
+        pixels[i * 3 + 1] = 0x1a;
+        pixels[i * 3 + 2] = 0x2e;
+      }
+      fs.writeFileSync(solidPath, Buffer.concat([Buffer.from(header), pixels]));
+      // Convert PPM to PNG via ffmpeg (no lavfi needed)
+      const { execSync } = require('child_process');
+      execSync(`"${resolvedFfmpegPath}" -i "${solidPath}" -frames:v 1 "${solidPng}" -y`, { timeout: 10000 });
+      try { fs.unlinkSync(solidPath); } catch {}
+      if (fs.existsSync(solidPng) && fs.statSync(solidPng).size > 100) {
+        resolve(solidPng);
       } else {
         resolve(null);
       }
     } catch {
+      try { fs.unlinkSync(solidPath); } catch {}
       resolve(null);
     }
   });
@@ -487,31 +502,39 @@ export async function generatePremiumVideo(
     throw new Error('Failed to obtain background image for video');
   }
 
-  // Build music filter with correct duration
-  const musicFilter = buildMusicFilter(category, VIDEO_DURATION);
-
   // Build multi-slide filter chain
   const filterChain = buildMultiSlideFilter(slides, fontArg);
 
+  // On Railway, lavfi is not available — generate video without audio
+  // Facebook accepts silent videos perfectly fine
+  const useLavfi = !IS_RAILWAY;
+  const musicFilter = useLavfi ? buildMusicFilter(category, VIDEO_DURATION) : null;
+
+  // Remove audio filter reference if no lavfi (filter references [1:a] from music input)
+  const finalFilterChain = useLavfi ? filterChain : filterChain.filter(f => !f.includes('[1:a]'));
+  const outputLabels = useLavfi ? ['vout', 'aout'] : ['vout'];
+
   return new Promise((resolve, reject) => {
-    ffmpeg()
+    const cmd = ffmpeg()
       // Input 0: Background image (looped for total video duration)
       .input(bgImagePath)
-      .inputOptions(['-loop', '1', '-t', String(SLIDE_DURATION)])
-      // Input 1: Procedural ambient music
-      .input(musicFilter)
-      .inputOptions(['-f', 'lavfi'])
-      .complexFilter(filterChain, ['vout', 'aout'])
+      .inputOptions(['-loop', '1', '-t', String(SLIDE_DURATION)]);
+
+    // Input 1: Procedural ambient music (only when lavfi available)
+    if (useLavfi && musicFilter) {
+      cmd.input(musicFilter).inputOptions(['-f', 'lavfi']);
+    }
+
+    cmd.complexFilter(finalFilterChain, outputLabels)
       .outputOptions([
         '-c:v', 'libx264',
-        '-c:a', 'aac',
-        '-b:a', '192k',
+        ...(useLavfi ? ['-c:a', 'aac', '-b:a', '192k'] : ['-an']),
         '-t', String(VIDEO_DURATION),
         '-pix_fmt', 'yuv420p',
         '-movflags', '+faststart',
         '-preset', IS_RAILWAY ? 'fast' : 'medium',
         '-crf', IS_RAILWAY ? '23' : '18',
-        '-shortest',
+        ...(useLavfi ? ['-shortest'] : []),
       ])
       .output(videoPath)
       .on('end', () => {

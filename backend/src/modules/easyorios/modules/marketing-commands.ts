@@ -657,14 +657,9 @@ const COMMANDS: CommandDef[] = [
         // Generate video (Ken Burns 4 slides + Cloudinary upload)
         const videoUrl = await generateAndUploadPremiumVideo(generated.message, generated.topic, 'educativo');
 
-        // Publish with fallback to next client on 403
+        // Publish via /videos endpoint (same reliable path as "New Post" button)
         const { result: publishResult, client: usedClient } = await tryPublishWithFallback(clients, async (social) => {
-          try {
-            return await social.publishReelPost(fullMessage, videoUrl);
-          } catch (reelErr: any) {
-            await agentLog('Easyorios', `Reel falhou (${reelErr.message}), tentando video standard`, { type: 'info' });
-            return await social.publishVideoPost(fullMessage, videoUrl);
-          }
+          return await social.publishVideoPost(fullMessage, videoUrl);
         });
 
         // Save to DB
