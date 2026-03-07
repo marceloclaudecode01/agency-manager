@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import api from '@/lib/api';
 
 interface CommandExecuted {
@@ -57,11 +57,27 @@ interface DashboardData {
   totalRevenue: number;
 }
 
+const WELCOME_MSG: Message = {
+  role: 'assistant',
+  content: 'Ola! Sou o Easyorios, o cerebro da sua agencia de marketing digital. Gerencio seus agentes autonomos, publicacoes, clientes e metricas. Tambem cuido das suas financas pessoais, lembretes, to-dos, pesquisas web, comunicacao via Telegram e dispositivos smart home. Pergunte qualquer coisa!',
+};
+
 export function useEasyorios() {
-  const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Ola! Sou o Easyorios, o cerebro da sua agencia de marketing digital. Gerencio seus agentes autonomos, publicacoes, clientes e metricas. Tambem cuido das suas financas pessoais, lembretes, to-dos, pesquisas web, comunicacao via Telegram e dispositivos smart home. Pergunte qualquer coisa!' },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MSG]);
   const [loading, setLoading] = useState(false);
+  const historyLoaded = useRef(false);
+
+  // Load persisted conversation history on mount
+  useEffect(() => {
+    if (historyLoaded.current) return;
+    historyLoaded.current = true;
+    api.get('/easyorios/history').then(({ data }) => {
+      const history: Message[] = data.data?.messages || [];
+      if (history.length > 0) {
+        setMessages([WELCOME_MSG, ...history]);
+      }
+    }).catch(() => {});
+  }, []);
   const [modules, setModules] = useState<ModuleInfo[]>([]);
   const [quickActions, setQuickActions] = useState<QuickAction[]>([]);
   const [alerts, setAlerts] = useState<ModuleAlert[]>([]);
@@ -114,6 +130,10 @@ export function useEasyorios() {
     setLoading(false);
   }, [loading, messages, fetchMeta]);
 
+  const injectMessage = useCallback((content: string) => {
+    setMessages(prev => [...prev, { role: 'assistant', content }]);
+  }, []);
+
   return {
     messages,
     loading,
@@ -124,5 +144,6 @@ export function useEasyorios() {
     dashboard,
     sendMessage,
     fetchMeta,
+    injectMessage,
   };
 }

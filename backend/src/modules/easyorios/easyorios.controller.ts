@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../types';
 import { ApiResponse } from '../../utils/api-response';
-import { getEasyoriosResponse, getModulesInfo } from './easyorios-brain.service';
+import { getEasyoriosResponse, getModulesInfo, getConversationHistory } from './easyorios-brain.service';
 import { registry } from './core/module-registry';
 import { getAgentInventory, getDashboardData } from './modules/marketing.module';
 
@@ -88,6 +88,16 @@ export async function getDashboard(_req: AuthRequest, res: Response) {
   } catch (error: any) {
     console.error('[Easyorios] Dashboard error:', error.message);
     return ApiResponse.error(res, 'Erro ao carregar dashboard');
+  }
+}
+
+export async function getHistory(req: AuthRequest, res: Response) {
+  try {
+    const messages = await getConversationHistory(req.user?.id || '', 50);
+    return ApiResponse.success(res, { messages });
+  } catch (error: any) {
+    console.error('[Easyorios] History error:', error.message);
+    return ApiResponse.error(res, 'Erro ao carregar historico');
   }
 }
 

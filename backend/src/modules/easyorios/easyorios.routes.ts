@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { authMiddleware } from '../../middlewares/auth';
-import { sendMessage, getModules, getQuickActions, getAlerts, getBriefing, getDashboard, getInventory } from './easyorios.controller';
+import { sendMessage, getModules, getQuickActions, getAlerts, getBriefing, getDashboard, getInventory, getHistory } from './easyorios.controller';
 
 const router = Router();
 
@@ -20,5 +20,6 @@ router.get('/alerts', authMiddleware, getAlerts);
 router.get('/briefing', authMiddleware, getBriefing);
 router.get('/dashboard', authMiddleware, getDashboard);
 router.get('/inventory', authMiddleware, getInventory);
+router.get('/history', authMiddleware, getHistory);
 
 export default router;
