@@ -82,10 +82,6 @@ const NICHE_HASHTAGS: Record<string, string[]> = {
     'planocelular', 'internet', 'TIM', 'CLARO', 'VIVO',
     'internetilimitada', 'celular', 'telecomunicacoes', 'economize', 'melhorplano',
   ],
-  tv_online: [
-    'tvonline', 'streaming', 'entretenimento', 'filmes', 'series',
-    'assineja', 'tvdigital', 'canaisaovivo', 'iptv', 'smart',
-  ],
 };
 
 // ─── Load / Save Weights ─────────────────────────────────────

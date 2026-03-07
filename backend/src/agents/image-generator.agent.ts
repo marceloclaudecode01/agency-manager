@@ -52,6 +52,12 @@ STYLE ROTATION (vary each time):
 - Futuristic concept art (Blade Runner, cyberpunk aesthetics)
 - Clean minimalist with single bold color accent
 
+CONTEXTUAL RELEVANCE (CRITICAL):
+- The image MUST visually represent the SPECIFIC TOPIC of the post — never be decorative or generic
+- If the post is about AI → show AI in action. If about leadership → show a leadership scenario
+- FORBIDDEN: generic "workspace", "technology", or "business" images that could fit ANY post
+- The viewer should be able to GUESS the post topic just by looking at the image
+
 ABSOLUTE RULES:
 - NO text, NO logos, NO watermarks, NO UI elements
 - NO generic stock photo vibes — every image must feel CRAFTED

@@ -86,7 +86,7 @@ Retorne APENAS JSON:
 
   // Validate and clamp
   const result: WeeklyStrategyData = {
-    maxPostsPerDay: Math.max(3, Math.min(7, json.maxPostsPerDay || 5)),
+    maxPostsPerDay: Math.max(2, Math.min(7, json.maxPostsPerDay || 5)),
     contentMix: {
       organic: Math.max(20, Math.min(80, json.contentMix?.organic || 60)),
       product: Math.max(20, Math.min(80, json.contentMix?.product || 40)),

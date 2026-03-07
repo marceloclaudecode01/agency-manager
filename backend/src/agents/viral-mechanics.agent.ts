@@ -113,6 +113,8 @@ REGRAS DE OURO:
 7. PORTUGUES do Brasil, tom confiante e humano
 8. ZERO clickbait barato — cada promessa deve ser cumprida no proprio post
 9. Se o post original ja e forte, melhore SUTILMENTE — nao destrua o que funciona
+10. A promessa do HOOK deve ser 100% cumprida no corpo do post — clickbait sem entrega e PROIBIDO
+11. Post com viralScore 8+ DEVE conter dado concreto, framework nomeado ou insight verificavel — emocao pura sem substancia nao passa de 7
 
 Retorne APENAS JSON:
 {
@@ -162,11 +164,12 @@ export async function getViralScore(message: string): Promise<number> {
 CRITERIOS (padrao Nike/Apple/Nubank):
 - Hook: A primeira linha para o scroll? (0-2 pontos)
 - Emocao: Provoca resposta emocional em <2 segundos? (0-2 pontos)
-- Valor: Entrega transformacao real, nao so informacao? (0-2 pontos)
+- Valor: Entrega transformacao real com dado concreto, framework ou insight verificavel? (0-2 pontos)
 - Compartilhabilidade: Alguem compartilharia como statement de identidade? (0-2 pontos)
 - CTA: O fechamento provoca acao irresistivel? (0-2 pontos)
 
-CALIBRACAO: 7+ = publicavel, 8+ = forte, 9+ = potencial viral real, 10 = raro — reservado para conteudo excepcional
+CALIBRACAO: 7+ = publicavel, 8+ = forte (DEVE ter dado/framework/insight concreto), 9+ = potencial viral real, 10 = raro — reservado para conteudo excepcional
+REGRA: Posts puramente emocionais/motivacionais sem substancia concreta NAO podem passar de 7, independente da qualidade do hook
 
 Post: "${message.substring(0, 400)}"
 Retorne APENAS o numero (1-10).`;

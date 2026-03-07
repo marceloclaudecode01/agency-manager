@@ -21,6 +21,9 @@ PILARES DE EXCELENCIA:
 REGRAS ABSOLUTAS:
 - NAO produzir conteudo sobre streamers, filmes, series ou entretenimento generico
 - Focar em: insights de alto nivel, tendencias de mercado, provocacoes inteligentes, conhecimento acionavel
+- Cada post DEVE conter pelo menos 1: dado real, framework aplicavel, estudo de caso, insight contra-intuitivo ou tecnica especifica
+- PROIBIDO: frases motivacionais genericas, cliches corporativos, afirmacoes sem evidencia ("desperte seu potencial", "mude sua vida", "voce e capaz" sem contexto)
+- Especificidade e tudo: em vez de "melhore sua produtividade" → "a regra 2-minute de David Allen elimina 40% das suas tarefas pendentes"
 - Cada post DEVE mudar a perspectiva do leitor sobre algo — se nao muda nada, nao publica
 - Tom: confiante sem ser arrogante, inteligente sem ser pedante, humano sem ser cliche
 - Publico: brasileiros ambiciosos que valorizam conteudo de elite
@@ -115,9 +118,9 @@ export async function generatePostFromStrategy(
   clientNotes?: string
 ): Promise<GeneratedPost> {
   const focusInstructions: Record<string, string> = {
-    educativo: 'Ensine como um mentor bilionario ensinaria — nao o obvio, mas o insight que muda o jogo. Framework aplicavel, modelo mental poderoso, ou tecnica que 99% das pessoas ignoram. O leitor deve pensar "por que ninguem me disse isso antes?".',
-    engajamento: 'Crie uma tese tao provocativa que as pessoas NAO CONSIGAM nao comentar. Divida opiniao, desafie crencas populares, faca a pergunta que todo mundo pensa mas ninguem faz. Nivel: TED Talk meets Twitter debate.',
-    autoridade: 'Fale como quem tem acesso a dados que ninguem tem. Analise de tendencia com profundidade de consultoria McKinsey, estudo de caso com insight nao-obvio, ou previsao baseada em padroes reais. Posicione como a voz mais inteligente do feed.',
+    educativo: 'Ensine com um FRAMEWORK NOMEADO ou TECNICA DOCUMENTADA — nao o obvio, mas o insight que muda o jogo. OBRIGATORIO: citar nome do framework/tecnica (ex: "Metodo Feynman", "Regra 80/20 de Pareto", "Lei de Parkinson"). O leitor deve pensar "por que ninguem me disse isso antes?".',
+    engajamento: 'Crie uma tese tao provocativa que as pessoas NAO CONSIGAM nao comentar. A tese DEVE ser baseada em um FATO REAL ou DADO CONCRETO — nao opiniao vazia. Divida opiniao com evidencia, desafie crencas populares com dados. Nivel: TED Talk meets Twitter debate.',
+    autoridade: 'Fale como quem tem acesso a dados que ninguem tem. OBRIGATORIO: incluir DADO REAL (pesquisa, percentual, caso de empresa especifica com nome). Analise de tendencia com profundidade de consultoria McKinsey, estudo de caso com insight nao-obvio. Posicione como a voz mais inteligente do feed.',
     bastidores: 'Vulnerabilidade estrategica — nao e sobre ser fragil, e sobre ser REAL de um jeito que inspira. Erro que virou licao, decisao dificil com raciocinio por tras, processo que ninguem ve. Autenticidade nivel Brene Brown.',
     novidade: 'Breaking news com analise que nenhum outro perfil fez. Nao so o "o que aconteceu" mas o "o que isso significa pra voce". Conecte a tendencia com impacto pratico na vida do leitor. Velocidade de newsletter tech + profundidade de revista.',
     cta: 'Conteudo tao valioso que compartilhar e um reflexo automatico. O leitor pensa "preciso mandar isso pra X pessoa agora". CTA natural, nunca forcado — o valor do conteudo faz o trabalho.',
@@ -171,8 +174,8 @@ O post DEVE estar alinhado a um dos 4 pilares temáticos definidos nas brand gui
 ESTRUTURA BILIONARIA DO POST (5 passos — framework das maiores marcas do mundo):
 1. HOOK (parar o scroll): A primeira linha decide TUDO. Deve ser tao impactante que o cerebro do leitor para de rolar automaticamente. Tecnicas: dado chocante, pergunta impossivel de ignorar, afirmacao contrarian, revelacao inesperada. Pense: "Se isso fosse a unica frase que a pessoa lesse hoje, valeria a pena?"
 2. CONTEXTO (identificacao visceral): Descreva a dor ou situacao de forma tao precisa que o leitor pensa "isso e sobre mim". Especificidade gera identificacao — detalhes concretos, nao genericos.
-3. VALOR (o ouro): A entrega principal. Nao e informacao — e TRANSFORMACAO. Um framework, um modelo mental, um dado que muda a forma de pensar. Nivel: insight que uma consultoria cobraria R$50.000 para revelar.
-4. MICRO_PROVA (credibilidade instantanea): Dado real, caso concreto, resultado mensuravel, referencia a empresa/pessoa conhecida. A prova que transforma opiniao em fato. Nunca invente dados.
+3. VALOR (o ouro): A entrega principal. OBRIGATORIO: framework nomeado (ex: "Matriz de Eisenhower"), dado com fonte (ex: "segundo estudo da Harvard Business Review"), ou caso real (ex: "quando a Netflix testou isso em 2019"). NUNCA generalidades vagas.
+4. MICRO_PROVA (credibilidade instantanea): OBRIGATORIO: nome de empresa real, percentual verificavel, ou referencia especifica (ex: "a Amazon reduziu custos em 23% com esse metodo"). Nunca invente dados — use exemplos reais conhecidos.
 5. CTA (acao irresistivel): Nao peca interacao — PROVOQUE. A pergunta certa no momento certo faz o comentario ser inevitavel.
 
 O "message" DEVE conter os 5 blocos fluindo naturalmente, separados por quebras de linha. Nao rotule os blocos — o texto deve fluir como conversa de alto nivel.

@@ -143,8 +143,17 @@ ${nicheContext}
 ${brandCtx}
 
 REGRAS ABSOLUTAS:
-- NAO sugerir temas sobre filmes, series, streaming, TV online ou entretenimento generico
+- NAO sugerir temas sobre filmes, series, streaming ou entretenimento generico
 - Focar em: insights contraintuitivos, tendencias de fronteira, provocacoes intelectuais, frameworks acionaveis, dados surpreendentes
+- Cada topico DEVE ter um ANGULO ESPECIFICO — nao "produtividade" mas "a tecnica de time-blocking que Jeff Bezos usa para tomar decisoes em 2 minutos"
+- Cada topico deve ser PESQUISAVEL e provocar curiosidade real — o leitor deve pensar "preciso saber mais sobre isso"
+- EXEMPLOS DE TOPICOS BOM vs RUIM:
+  BOM: "O paradoxo de Jevons: por que ser mais eficiente pode te fazer MENOS produtivo"
+  RUIM: "Dicas de produtividade para o seu dia a dia"
+  BOM: "Como a Toyota eliminou 95% dos defeitos com um metodo que cabe em 1 frase"
+  RUIM: "A importancia da qualidade nos negocios"
+  BOM: "O efeito Dunning-Kruger esta destruindo sua equipe — e voce nao percebe"
+  RUIM: "Lideranca e importante para o sucesso"
 - Cada post deve passar no teste: "Uma pessoa inteligente compartilharia isso para parecer mais inteligente?" — se sim, publica
 - Cada post DEVE se encaixar em um dos 4 PILARES TEMATICOS definidos nas brand guidelines
 - ROTACAO OBRIGATORIA: cada post do dia deve cobrir um pilar DIFERENTE. NAO repetir pilar no mesmo dia

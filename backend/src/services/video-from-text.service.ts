@@ -354,7 +354,7 @@ function extractSlides(message: string, topic: string): SlideContent[] {
       { label: 'HOOK', text: truncate(contentParts[0], 90) },
       { label: 'CONTEXT', text: truncate(contentParts[0], 100) },
       { label: 'VALUE', text: truncate(contentParts[1], 100) },
-      { label: 'CTA', text: 'Salva e compartilha!' },
+      { label: 'CTA', text: truncate(contentParts[1], 80) },
     ];
   }
 
@@ -364,7 +364,7 @@ function extractSlides(message: string, topic: string): SlideContent[] {
     { label: 'HOOK', text: truncate(sentences[0] || topic, 90) },
     { label: 'CONTEXT', text: truncate(sentences[1] || sentences[0] || topic, 100) },
     { label: 'VALUE', text: truncate(sentences[2] || sentences[1] || topic, 100) },
-    { label: 'CTA', text: sentences.length > 3 ? truncate(sentences[sentences.length - 1], 80) : 'O que voce acha? Comenta ai!' },
+    { label: 'CTA', text: truncate(sentences[sentences.length > 3 ? sentences.length - 1 : Math.min(2, sentences.length - 1)] || topic, 80) },
   ];
 }
 
@@ -412,12 +412,12 @@ function buildMultiSlideFilter(
     filters.push(`[0:v]${effect}[motion${i}]`);
 
     // Darken slightly for readability
-    filters.push(`[motion${i}]colorlevels=rimax=0.50:gimax=0.50:bimax=0.50[dark${i}]`);
+    filters.push(`[motion${i}]colorlevels=rimax=0.45:gimax=0.45:bimax=0.45[dark${i}]`);
 
     // Semi-transparent dark box behind text (much more readable than shadow-only)
     // Box covers middle 40% of frame height
     filters.push(
-      `[dark${i}]drawbox=x=0:y=ih*0.30:w=iw:h=ih*0.42:color=black@0.50:t=fill[box${i}]`
+      `[dark${i}]drawbox=x=0:y=ih*0.30:w=iw:h=ih*0.42:color=black@0.65:t=fill[box${i}]`
     );
 
     // Label text — small, top of box area

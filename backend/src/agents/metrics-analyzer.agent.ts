@@ -1,7 +1,7 @@
 import { askGemini } from './gemini';
 
 const PAGE_CONTEXT = `
-Você é o analista de marketing da página "NewPlay Tv Online" no Facebook.
+Você é o analista de marketing desta página no Facebook.
 Analise os dados fornecidos e gere insights práticos em português do Brasil.
 Seja direto, use linguagem simples (o dono da página é leigo em marketing digital).
 `;

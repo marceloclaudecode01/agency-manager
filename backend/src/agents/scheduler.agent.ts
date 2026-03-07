@@ -837,7 +837,7 @@ export function startAutonomousContentEngine() {
     try {
       // Load ALL active clients (with or without Facebook page config)
       // Clients WITH facebookPageId/Token → publish to their page
-      // Clients WITHOUT (like Newplay) → publish via env var default page
+      // Clients WITHOUT own page config → publish via env var default page
       const activeClients = await prisma.client.findMany({
         where: { isActive: true, status: 'ACTIVE' },
         select: { id: true, name: true, niche: true, notes: true, facebookPageName: true, facebookPageId: true, facebookAccessToken: true },
