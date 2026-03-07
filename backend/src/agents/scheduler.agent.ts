@@ -9,7 +9,7 @@ import { buildDailyStrategy, ClientContext } from './content-strategist.agent';
 import { generatePostFromStrategy } from './content-creator.agent';
 import { analyzeTrendingTopics } from './trending-topics.agent';
 import { orchestrateProductPosts } from './product-orchestrator.agent';
-import { runTokenMonitor } from './token-monitor.agent';
+import { runTokenMonitor, restorePersistedToken } from './token-monitor.agent';
 import { agentLog } from './agent-logger';
 import { trackAgentExecution } from './agent-performance-tracker';
 import { startContentGovernor } from './content-governor.agent';
@@ -213,13 +213,27 @@ export function startPostScheduler() {
 
       let publishResult: any;
 
-      // Publish: video as Reel (native vertical), image, or text-only
+      // FIX #5: Publish video as Reel with retry (2 attempts) before falling back to /videos
       if (post.contentType === 'video' && post.videoUrl) {
-        try {
-          publishResult = await postSocialService.publishReelPost(fullMessage, post.videoUrl);
-          console.log(`[Scheduler] Published as Reel: ${post.topic}`);
-        } catch (reelErr: any) {
-          console.warn(`[Scheduler] Reel API failed (${reelErr.message}), falling back to /videos`);
+        let reelPublished = false;
+        for (let reelAttempt = 0; reelAttempt < 2; reelAttempt++) {
+          try {
+            publishResult = await postSocialService.publishReelPost(fullMessage, post.videoUrl);
+            console.log(`[Scheduler] ✅ Published as Reel (attempt ${reelAttempt + 1}): ${post.topic}`);
+            await agentLog('Scheduler', `Published as REEL: "${post.topic}"`, { type: 'result', payload: { format: 'reel', attempt: reelAttempt + 1 } });
+            reelPublished = true;
+            break;
+          } catch (reelErr: any) {
+            console.warn(`[Scheduler] Reel attempt ${reelAttempt + 1}/2 failed: ${reelErr.message}`);
+            if (reelAttempt === 0) {
+              // Wait 5s before retry — Reel API can be flaky
+              await new Promise(r => setTimeout(r, 5000));
+            }
+          }
+        }
+        if (!reelPublished) {
+          console.warn(`[Scheduler] Reel API failed 2x, falling back to /videos (lower reach)`);
+          await agentLog('Scheduler', `⚠️ Reel API falhou 2x para "${post.topic}" — usando /videos (alcance menor)`, { type: 'error' });
           publishResult = await postSocialService.publishVideoPost(fullMessage, post.videoUrl);
         }
       } else if (post.imageUrl) {
@@ -965,8 +979,9 @@ export function startTokenMonitor() {
     }); // trackAgentExecution
   });
 
-  runTokenMonitor().catch(() => {});
-  console.log('[TokenMonitor] Monitor de token iniciado (verifica todo dia às 09:00)');
+  // FIX #3: Restore persisted long-lived token on startup, then run monitor
+  restorePersistedToken().then(() => runTokenMonitor()).catch(() => {});
+  console.log('[TokenMonitor] Monitor de token iniciado (verifica todo dia às 09:00, auto-exchange enabled)');
 }
 
 // Maps DB function field → actual start function

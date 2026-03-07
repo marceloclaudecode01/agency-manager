@@ -31,9 +31,11 @@ if (process.platform === 'win32' && rawFfmpegPath.includes(' ')) {
 ffmpeg.setFfmpegPath(resolvedFfmpegPath);
 
 // ─── Video Config ────────────────────────────────────────────
-const VIDEO_WIDTH = 1080;
-const VIDEO_HEIGHT = 1920;
-const VIDEO_FPS = 30;
+// FIX #2: Adaptive quality — lower on Railway (1GB RAM limit) to prevent OOM
+const IS_RAILWAY = !!process.env.RAILWAY_PUBLIC_DOMAIN;
+const VIDEO_WIDTH = IS_RAILWAY ? 720 : 1080;
+const VIDEO_HEIGHT = IS_RAILWAY ? 1280 : 1920;
+const VIDEO_FPS = IS_RAILWAY ? 24 : 30;
 
 // Multi-slide timing
 const SLIDE_DURATION = 3.5; // seconds per slide
@@ -507,8 +509,8 @@ export async function generatePremiumVideo(
         '-t', String(VIDEO_DURATION),
         '-pix_fmt', 'yuv420p',
         '-movflags', '+faststart',
-        '-preset', 'medium',
-        '-crf', '18',
+        '-preset', IS_RAILWAY ? 'fast' : 'medium',
+        '-crf', IS_RAILWAY ? '23' : '18',
         '-shortest',
       ])
       .output(videoPath)
