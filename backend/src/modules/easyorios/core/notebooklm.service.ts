@@ -65,7 +65,9 @@ except Exception as e:
       return { success: true, data: stdout.trim() };
     }
   } catch (err: any) {
-    const msg = err.stderr?.trim()?.split('\n').pop() || err.message || 'Unknown error';
+    const stderr = err.stderr?.trim() || '';
+    const msg = stderr || err.message || 'Unknown error';
+    console.error('[NotebookLM] Python error:', msg);
     return { success: false, error: msg };
   } finally {
     try { unlinkSync(tmpFile); } catch {}
