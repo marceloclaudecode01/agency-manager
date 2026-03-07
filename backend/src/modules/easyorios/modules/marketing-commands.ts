@@ -683,6 +683,7 @@ const COMMANDS: CommandDef[] = [
           data: { topic: generated.topic, videoUrl, postId: saved.id, source: generated.source },
         };
       } catch (e: any) {
+        console.error('[Easyorios] publish_video FAILED:', e.message, e.stack?.split('\n').slice(0, 3).join(' | '));
         await agentLog('Easyorios', `Falha ao publicar video: ${e.message}`, { type: 'error' });
         return { command: 'publish_video', success: false, message: `Falha ao publicar video: ${e.message}` };
       }

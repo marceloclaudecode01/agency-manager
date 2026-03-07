@@ -21,8 +21,13 @@ export async function uploadVideoFromUrl(
       duration: result.duration || null,
     };
   } catch (err: any) {
-    console.error(`[Cloudinary] Video upload failed: ${err.message}. Using original URL.`);
-    return { url, publicId: '', duration: null };
+    console.error(`[Cloudinary] Video upload failed: ${err.message}`);
+    // If the original URL is already a valid http(s) URL, return it as fallback
+    // If it's a local file path, throw — Facebook can't fetch local files
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return { url, publicId: '', duration: null };
+    }
+    throw new Error(`Cloudinary upload failed and no valid URL fallback: ${err.message}`);
   }
 }
 
