@@ -657,36 +657,30 @@ const COMMANDS: CommandDef[] = [
         // Generate video (Ken Burns 4 slides + Cloudinary upload)
         const videoUrl = await generateAndUploadPremiumVideo(generated.message, generated.topic, 'educativo');
 
-        // Publish via /videos endpoint (same reliable path as "New Post" button)
-        const { result: publishResult, client: usedClient } = await tryPublishWithFallback(clients, async (social) => {
-          return await social.publishVideoPost(fullMessage, videoUrl);
-        });
-
-        // Save to DB
-        await prisma.scheduledPost.create({
+        // Save as APPROVED — scheduler publishes via env vars (Newplay default)
+        // Same reliable path as "New Post" button — no client token needed
+        const saved = await prisma.scheduledPost.create({
           data: {
             topic: generated.topic,
             message: optimized.message,
             hashtags: hashtagsStr,
             videoUrl,
-            status: 'PUBLISHED',
-            publishedAt: new Date(),
+            status: 'APPROVED',
             scheduledFor: new Date(),
             source: 'easyorios-command',
             contentType: 'video',
             governorDecision: 'APPROVE',
-            governorReason: `Video publicado via Easyorios (${generated.source})`,
-            metaPostId: publishResult?.id || null,
-            ...(usedClient?.id ? { clientId: usedClient.id } : {}),
+            governorReason: `Video via Easyorios — scheduler publishes (${generated.source})`,
+            // No clientId = uses env vars = Newplay page
           },
         });
 
-        await agentLog('Easyorios', `[Easyorios] Video publicado: "${generated.topic}" (${usedClient?.name || 'default'})`, { type: 'result' });
+        await agentLog('Easyorios', `Video gerado e aprovado para publicação: "${generated.topic}" (ID: ${saved.id})`, { type: 'result' });
         return {
           command: 'publish_video',
           success: true,
-          message: `Video/Reel publicado com sucesso!\n🎬 Tema: "${generated.topic}"\n📱 Pagina: ${usedClient?.name || 'padrao'}\n🆔 FB ID: ${publishResult?.id || 'N/A'}\n🔧 Fonte: ${generated.source}`,
-          data: { topic: generated.topic, videoUrl, fbPostId: publishResult?.id, client: usedClient?.name, source: generated.source },
+          message: `Video gerado e aprovado!\n🎬 Tema: "${generated.topic}"\n📱 Pagina: Newplay TV Online (env vars)\n⏰ Scheduler publica no próximo ciclo (~5min)\n🔧 Fonte: ${generated.source}`,
+          data: { topic: generated.topic, videoUrl, postId: saved.id, source: generated.source },
         };
       } catch (e: any) {
         await agentLog('Easyorios', `Falha ao publicar video: ${e.message}`, { type: 'error' });
@@ -756,7 +750,7 @@ const COMMANDS: CommandDef[] = [
             contentType: 'video',
             governorDecision: 'APPROVE',
             governorReason: `Video agendado via Easyorios (${generated.source})`,
-            ...(client ? { clientId: client.id } : {}),
+            // No clientId = uses env vars = Newplay page (reliable path)
           },
         });
 
