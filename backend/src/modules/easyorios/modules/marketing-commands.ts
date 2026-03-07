@@ -142,6 +142,49 @@ Responda EXATAMENTE neste formato JSON (sem markdown, sem \`\`\`):
   }
 }
 
+// Helper: get all publishable clients, ordered by most recently updated
+async function getPublishableClients() {
+  const clients = await prisma.client.findMany({
+    where: { isActive: true, status: 'ACTIVE', facebookPageId: { not: null }, facebookAccessToken: { not: null } },
+    select: { id: true, name: true, niche: true, notes: true, facebookPageId: true, facebookAccessToken: true },
+    orderBy: { updatedAt: 'desc' },
+  });
+  return clients;
+}
+
+// Helper: try publishing with fallback to next client on 403/permission errors
+async function tryPublishWithFallback(
+  clients: Awaited<ReturnType<typeof getPublishableClients>>,
+  publishFn: (social: SocialService, client: typeof clients[0]) => Promise<any>,
+): Promise<{ result: any; client: typeof clients[0]; socialService: SocialService }> {
+  const errors: string[] = [];
+  for (const client of clients) {
+    const social = new SocialService({ pageId: client.facebookPageId!, accessToken: client.facebookAccessToken! });
+    try {
+      const result = await publishFn(social, client);
+      return { result, client, socialService: social };
+    } catch (err: any) {
+      const code = err?.response?.status || err?.statusCode || 0;
+      const msg = err?.response?.data?.error?.message || err?.message || 'Unknown';
+      errors.push(`${client.name}: ${code} ${msg}`);
+      await agentLog('Easyorios', `Publish falhou para ${client.name} (${code}), tentando proximo client...`, { type: 'info' });
+      // Only retry on permission/auth errors (403, 200 OAuthException)
+      if (code !== 403 && code !== 401 && !msg.includes('permission') && !msg.includes('OAuthException')) {
+        throw err; // non-recoverable error, don't try next client
+      }
+    }
+  }
+  // All clients failed — try env fallback
+  try {
+    const envSocial = new SocialService();
+    const result = await publishFn(envSocial, clients[0] || {} as any);
+    return { result, client: clients[0] || {} as any, socialService: envSocial };
+  } catch (envErr: any) {
+    errors.push(`env-fallback: ${envErr.message}`);
+  }
+  throw new Error(`All clients failed: ${errors.join(' | ')}`);
+}
+
 interface CommandDef {
   name: string;
   patterns: RegExp[];
@@ -309,14 +352,12 @@ const COMMANDS: CommandDef[] = [
       try {
         await agentLog('Easyorios', 'Comando: publicar agora — pipeline simplificado', { type: 'action' });
 
-        // Get a client (prefer first active with page config)
-        const client = await prisma.client.findFirst({
-          where: { isActive: true, status: 'ACTIVE', facebookPageId: { not: null }, facebookAccessToken: { not: null } },
-          select: { id: true, name: true, niche: true, notes: true, facebookPageId: true, facebookAccessToken: true },
-        });
+        // Get all publishable clients (fallback chain)
+        const clients = await getPublishableClients();
+        const firstClient = clients[0] || null;
 
         // 1 LLM call + fallback
-        const generated = await generatePost(client?.niche || undefined, client?.notes || undefined, client?.name || undefined);
+        const generated = await generatePost(firstClient?.niche || undefined, firstClient?.notes || undefined, firstClient?.name || undefined);
 
         // Platform optimizer (rules only, never fails)
         const optimized = optimizeForPlatform(generated.message, generated.hashtags, 'facebook');
@@ -331,15 +372,12 @@ const COMMANDS: CommandDef[] = [
         const hashtagsStr = optimized.hashtags.map((h: string) => `#${h.replace('#', '')}`).join(' ') || null;
         const fullMessage = hashtagsStr ? `${optimized.message}\n\n${hashtagsStr}` : optimized.message;
 
-        // Build SocialService for this client
-        const socialService = (client?.facebookPageId && client?.facebookAccessToken)
-          ? new SocialService({ pageId: client.facebookPageId, accessToken: client.facebookAccessToken })
-          : new SocialService();
-
-        // Publish directly
-        const publishResult = imageUrl
-          ? await socialService.publishMediaPost(fullMessage, imageUrl, { mediaType: 'image' })
-          : await socialService.publishPost(fullMessage);
+        // Publish with fallback to next client on 403
+        const { result: publishResult, client: usedClient } = await tryPublishWithFallback(clients, async (social) => {
+          return imageUrl
+            ? await social.publishMediaPost(fullMessage, imageUrl!, { mediaType: 'image' })
+            : await social.publishPost(fullMessage);
+        });
 
         // Save to DB as PUBLISHED
         await prisma.scheduledPost.create({
@@ -356,16 +394,16 @@ const COMMANDS: CommandDef[] = [
             governorDecision: 'APPROVE',
             governorReason: `Publicação direta via Easyorios (${generated.source})`,
             metaPostId: publishResult?.id || null,
-            ...(client ? { clientId: client.id } : {}),
+            ...(usedClient?.id ? { clientId: usedClient.id } : {}),
           },
         });
 
-        await agentLog('Easyorios', `[Easyorios] Post publicado AGORA: "${generated.topic}" (${client?.name || 'default'}, source=${generated.source})`, { type: 'result' });
+        await agentLog('Easyorios', `[Easyorios] Post publicado AGORA: "${generated.topic}" (${usedClient?.name || 'default'}, source=${generated.source})`, { type: 'result' });
         return {
           command: 'publish_now',
           success: true,
-          message: `Post publicado com sucesso AGORA!\n📝 Tema: "${generated.topic}"\n📱 Página: ${client?.name || 'padrão'}\n🆔 FB ID: ${publishResult?.id || 'N/A'}\n🔧 Fonte: ${generated.source}`,
-          data: { topic: generated.topic, fbPostId: publishResult?.id, client: client?.name, source: generated.source },
+          message: `Post publicado com sucesso AGORA!\n📝 Tema: "${generated.topic}"\n📱 Página: ${usedClient?.name || 'padrão'}\n🆔 FB ID: ${publishResult?.id || 'N/A'}\n🔧 Fonte: ${generated.source}`,
+          data: { topic: generated.topic, fbPostId: publishResult?.id, client: usedClient?.name, source: generated.source },
         };
       } catch (e: any) {
         await agentLog('Easyorios', `Falha ao publicar agora: ${e.message}`, { type: 'error' });
@@ -604,14 +642,12 @@ const COMMANDS: CommandDef[] = [
 
         await agentLog('Easyorios', `Comando: publicar video${rawTopic ? ` sobre "${rawTopic}"` : ''}`, { type: 'action' });
 
-        const client = await prisma.client.findFirst({
-          where: { isActive: true, status: 'ACTIVE', facebookPageId: { not: null }, facebookAccessToken: { not: null } },
-          select: { id: true, name: true, niche: true, notes: true, facebookPageId: true, facebookAccessToken: true },
-        });
+        const clients = await getPublishableClients();
+        const firstClient = clients[0] || null;
 
         // Generate post content (uses topic hint if provided)
-        const nicheOrTopic = rawTopic || client?.niche || undefined;
-        const generated = await generatePost(nicheOrTopic, client?.notes || undefined, client?.name || undefined);
+        const nicheOrTopic = rawTopic || firstClient?.niche || undefined;
+        const generated = await generatePost(nicheOrTopic, firstClient?.notes || undefined, firstClient?.name || undefined);
 
         // Platform optimizer
         const optimized = optimizeForPlatform(generated.message, generated.hashtags, 'facebook');
@@ -621,19 +657,15 @@ const COMMANDS: CommandDef[] = [
         // Generate video (Ken Burns 4 slides + Cloudinary upload)
         const videoUrl = await generateAndUploadPremiumVideo(generated.message, generated.topic, 'educativo');
 
-        // Build SocialService for client
-        const socialService = (client?.facebookPageId && client?.facebookAccessToken)
-          ? new SocialService({ pageId: client.facebookPageId, accessToken: client.facebookAccessToken })
-          : new SocialService();
-
-        // Publish as Reel (fallback to standard video)
-        let publishResult: any;
-        try {
-          publishResult = await socialService.publishReelPost(fullMessage, videoUrl);
-        } catch (reelErr: any) {
-          await agentLog('Easyorios', `Reel falhou (${reelErr.message}), tentando video standard`, { type: 'info' });
-          publishResult = await socialService.publishVideoPost(fullMessage, videoUrl);
-        }
+        // Publish with fallback to next client on 403
+        const { result: publishResult, client: usedClient } = await tryPublishWithFallback(clients, async (social) => {
+          try {
+            return await social.publishReelPost(fullMessage, videoUrl);
+          } catch (reelErr: any) {
+            await agentLog('Easyorios', `Reel falhou (${reelErr.message}), tentando video standard`, { type: 'info' });
+            return await social.publishVideoPost(fullMessage, videoUrl);
+          }
+        });
 
         // Save to DB
         await prisma.scheduledPost.create({
@@ -650,16 +682,16 @@ const COMMANDS: CommandDef[] = [
             governorDecision: 'APPROVE',
             governorReason: `Video publicado via Easyorios (${generated.source})`,
             metaPostId: publishResult?.id || null,
-            ...(client ? { clientId: client.id } : {}),
+            ...(usedClient?.id ? { clientId: usedClient.id } : {}),
           },
         });
 
-        await agentLog('Easyorios', `[Easyorios] Video publicado: "${generated.topic}" (${client?.name || 'default'})`, { type: 'result' });
+        await agentLog('Easyorios', `[Easyorios] Video publicado: "${generated.topic}" (${usedClient?.name || 'default'})`, { type: 'result' });
         return {
           command: 'publish_video',
           success: true,
-          message: `Video/Reel publicado com sucesso!\n🎬 Tema: "${generated.topic}"\n📱 Pagina: ${client?.name || 'padrao'}\n🆔 FB ID: ${publishResult?.id || 'N/A'}\n🔧 Fonte: ${generated.source}`,
-          data: { topic: generated.topic, videoUrl, fbPostId: publishResult?.id, client: client?.name, source: generated.source },
+          message: `Video/Reel publicado com sucesso!\n🎬 Tema: "${generated.topic}"\n📱 Pagina: ${usedClient?.name || 'padrao'}\n🆔 FB ID: ${publishResult?.id || 'N/A'}\n🔧 Fonte: ${generated.source}`,
+          data: { topic: generated.topic, videoUrl, fbPostId: publishResult?.id, client: usedClient?.name, source: generated.source },
         };
       } catch (e: any) {
         await agentLog('Easyorios', `Falha ao publicar video: ${e.message}`, { type: 'error' });
