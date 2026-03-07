@@ -56,7 +56,8 @@ except Exception as e:
   const tmpFile = join(tmpdir(), `nlm_${Date.now()}.py`);
   try {
     writeFileSync(tmpFile, script, 'utf-8');
-    const { stdout } = await execAsync(`python3 ${tmpFile}`, { timeout });
+    const { stdout, stderr } = await execAsync(`python3 ${tmpFile}`, { timeout });
+    if (stderr) console.error('[NotebookLM] Python stderr:', stderr);
     try {
       const data = JSON.parse(stdout.trim());
       if (data.error) return { success: false, error: data.error };
@@ -66,7 +67,8 @@ except Exception as e:
     }
   } catch (err: any) {
     const stderr = err.stderr?.trim() || '';
-    const msg = stderr || err.message || 'Unknown error';
+    const stdout_err = err.stdout?.trim() || '';
+    const msg = stderr || stdout_err || err.message || 'Unknown error';
     console.error('[NotebookLM] Python error:', msg);
     return { success: false, error: msg };
   } finally {
