@@ -334,6 +334,7 @@ async function runEvolutionCycle(): Promise<void> {
   const cycleStart = Date.now();
   const cycleId = `evo-${Date.now()}`;
 
+  console.log(`[EvolutionEngine] 🔄 Evolution cycle started [${cycleId}]`);
   await agentLog('EvolutionEngine', `🔄 Evolution cycle started [${cycleId}]`, { type: 'action' });
 
   // Check safe mode
@@ -347,16 +348,19 @@ async function runEvolutionCycle(): Promise<void> {
   // Phase 1: Diagnostic
   const diag = await phaseDiagnostic();
   results.push(diag);
+  console.log(`[EvolutionEngine] [1/6 Diagnostic] ${diag.summary}`);
   await agentLog('EvolutionEngine', `[1/6 Diagnostic] ${diag.summary}`, { type: diag.success ? 'result' : 'error' });
 
   // Phase 2: Intelligence
   const intel = await phaseIntelligence();
   results.push(intel);
+  console.log(`[EvolutionEngine] [2/6 Intelligence] ${intel.summary}`);
   await agentLog('EvolutionEngine', `[2/6 Intelligence] ${intel.summary}`, { type: intel.success ? 'result' : 'error' });
 
   // Phase 3: Strategy
   const strat = await phaseStrategy();
   results.push(strat);
+  console.log(`[EvolutionEngine] [3/6 Strategy] ${strat.summary}`);
   await agentLog('EvolutionEngine', `[3/6 Strategy] ${strat.summary}`, { type: strat.success ? 'result' : 'error' });
 
   // Phase 4: Production (only if strategy succeeded)
@@ -365,6 +369,7 @@ async function runEvolutionCycle(): Promise<void> {
     production = await phaseProduction(strat.data);
   }
   results.push(production);
+  console.log(`[EvolutionEngine] [4/6 Production] ${production.summary}`);
   await agentLog('EvolutionEngine', `[4/6 Production] ${production.summary}`, { type: production.success ? 'result' : 'error' });
 
   // Phase 5: Publishing (only if production succeeded)
@@ -373,16 +378,19 @@ async function runEvolutionCycle(): Promise<void> {
     publishing = await phasePublishing(production.data.posts);
   }
   results.push(publishing);
+  console.log(`[EvolutionEngine] [5/6 Publishing] ${publishing.summary}`);
   await agentLog('EvolutionEngine', `[5/6 Publishing] ${publishing.summary}`, { type: publishing.success ? 'result' : 'error' });
 
   // Phase 6: Learning
   const learning = await phaseLearning();
   results.push(learning);
+  console.log(`[EvolutionEngine] [6/6 Learning] ${learning.summary}`);
   await agentLog('EvolutionEngine', `[6/6 Learning] ${learning.summary}`, { type: learning.success ? 'result' : 'error' });
 
   const elapsed = ((Date.now() - cycleStart) / 1000).toFixed(1);
   const successCount = results.filter(r => r.success).length;
 
+  console.log(`[EvolutionEngine] ✅ Evolution cycle complete [${cycleId}] — ${successCount}/${results.length} phases OK — ${elapsed}s`);
   await agentLog('EvolutionEngine', `✅ Evolution cycle complete [${cycleId}] — ${successCount}/${results.length} phases OK — ${elapsed}s`, {
     type: 'result',
     payload: { cycleId, results: results.map(r => ({ phase: r.phase, success: r.success, summary: r.summary })), elapsed },
