@@ -179,9 +179,10 @@ export async function getEasyoriosResponse(
     }
   }
 
-  // 4. If no match, try Neural Planner (autonomous action composition)
-  if (!commandResult) {
-    console.log(`[Easyorios] No intent match — trying neural planner`);
+  // 4. If no match OR intent failed, try Neural Planner (autonomous action composition)
+  if (!commandResult || !commandResult.success) {
+    const reason = !commandResult ? 'no match' : `intent failed (${commandResult.command})`;
+    console.log(`[Easyorios] ${reason} — trying neural planner`);
     try {
       const { executeNeuralAction } = await import('./core/neural-planner');
       commandResult = await executeNeuralAction(userMessage, userId);
