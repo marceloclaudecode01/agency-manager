@@ -198,27 +198,12 @@ const COMMANDS: CommandDef[] = [
       }
     },
   },
-  {
-    name: 'safe_mode_on',
-    requiredRole: 'ADMIN',
-    patterns: [
-      /(?:ativar?|activate|ligar?|enable)\s+(?:o\s+)?(?:safe\s*mode|modo\s*seguro)/i,
-    ],
-    execute: async () => {
-      try {
-        await activateSafeMode('Ativado via Easyorios chat', 'Easyorios');
-        await agentLog('Easyorios', 'Comando: ativar safe mode', { type: 'action' });
-        return { command: 'safe_mode_on', success: true, message: 'Safe Mode ATIVADO. Todos os agentes autônomos estão pausados.' };
-      } catch (e: any) {
-        return { command: 'safe_mode_on', success: false, message: `Falha ao ativar safe mode: ${e.message}` };
-      }
-    },
-  },
+  // IMPORTANT: safe_mode_off MUST come before safe_mode_on — "desativar" contains "ativar" substring
   {
     name: 'safe_mode_off',
     requiredRole: 'ADMIN',
     patterns: [
-      /(?:desativar?|deactivate|desligar?|disable)\s+(?:o\s+)?(?:safe\s*mode|modo\s*seguro)/i,
+      /(?:desativar?|deactivate|desligar?|disable|desabilitar?)\s+(?:o\s+)?(?:safe\s*mode|modo\s*seguro)/i,
     ],
     execute: async () => {
       try {
@@ -227,6 +212,22 @@ const COMMANDS: CommandDef[] = [
         return { command: 'safe_mode_off', success: true, message: 'Safe Mode DESATIVADO. Agentes voltaram ao normal.' };
       } catch (e: any) {
         return { command: 'safe_mode_off', success: false, message: `Falha ao desativar safe mode: ${e.message}` };
+      }
+    },
+  },
+  {
+    name: 'safe_mode_on',
+    requiredRole: 'ADMIN',
+    patterns: [
+      /\b(?:ativar?|activate|ligar|enable|habilitar?)\s+(?:o\s+)?(?:safe\s*mode|modo\s*seguro)/i,
+    ],
+    execute: async () => {
+      try {
+        await activateSafeMode('Ativado via Easyorios chat', 'Easyorios');
+        await agentLog('Easyorios', 'Comando: ativar safe mode', { type: 'action' });
+        return { command: 'safe_mode_on', success: true, message: 'Safe Mode ATIVADO. Todos os agentes autônomos estão pausados.' };
+      } catch (e: any) {
+        return { command: 'safe_mode_on', success: false, message: `Falha ao ativar safe mode: ${e.message}` };
       }
     },
   },
