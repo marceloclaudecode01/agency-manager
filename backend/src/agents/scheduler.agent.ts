@@ -271,7 +271,7 @@ export function startPostScheduler() {
         return;
       }
 
-      console.error('[Scheduler] Erro ao publicar post:', err.message);
+      console.error('[Scheduler] Erro ao publicar post:', err.message, err.response?.data ? JSON.stringify(err.response.data) : '');
       // Retry logic: 3 attempts with 30min backoff
       const currentPost = pendingPosts[0];
       if (currentPost) {
